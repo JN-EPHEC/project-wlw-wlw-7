@@ -82,7 +82,19 @@ export default function FeedScreen() {
           <Ionicons name="heart" size={22} color="#cf5a5a" />
         </Pressable>
       </View>
-@@ -71,40 +99,64 @@ export default function FeedScreen() {
+      
+ <View style={styles.searchSection}>
+        <SearchBar
+          value={q}
+          onChangeText={setQ}
+          onClear={() => setQ("")}
+          placeholder="Rechercher une activité"
+        />
+        <FilterChips
+          chips={ALL_CHIPS}
+          selected={chips}
+          onToggle={(c) =>
+            setChips((prev) =>
               prev.includes(c) ? prev.filter((x) => x !== c) : [...prev, c]
             )
           }
@@ -97,11 +109,11 @@ export default function FeedScreen() {
         renderItem={({ item }) => (
           <ActivityCard
             item={item}
-            onPress={() => router.push(`/Activity/${item.id}`)} // <= BACKTICKS !
+            onPress={() => router.push(`/Activity/${item.id}`)}
             onToggleFav={() => toggleFavorite(item)}
             isFav={isFavorite(item.id)}
           />
-        )} // <= FERMETURE du renderItem ICI
+        )}
         ListEmptyComponent={
           <View style={{ padding: 24 }}>
             <Text style={{ color: "#97A0AF" }}>Aucune activité.</Text>
@@ -127,6 +139,11 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
+  },
+  searchSection: {
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+    gap: 12,
   },
   brand: { color: "#5ea1ff", fontSize: 24, fontWeight: "900" },
   toast: {
