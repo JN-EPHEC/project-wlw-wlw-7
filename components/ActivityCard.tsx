@@ -6,20 +6,28 @@ import { Activity } from "../constants/types";
 type Props = {
   item: Activity;
   onPress: () => void;
-  onToggleFav?: () => void;
+  onToggleFav: () => void;
+  isFav?: boolean; // ✅ ajoutée
 };
 
-export default function ActivityCard({ item, onPress, onToggleFav }: Props) {
+export default function ActivityCard({ item, onPress, onToggleFav, isFav }: Props) {
   return (
     <Pressable onPress={onPress} style={styles.card}>
       <View style={styles.imageWrap}>
+        {/* image */}
         <Image source={item.image} style={styles.image} />
+
+        {/* cœur cliquable */}
         <Pressable onPress={onToggleFav} style={styles.heart}>
-          <Ionicons name={item.isFavorite ? "heart" : "heart-outline"} size={20} color="#fff" />
+          <Ionicons name={isFav ? "heart" : "heart-outline"} size={20} color="#fff" />
         </Pressable>
       </View>
+
+      {/* contenu */}
       <View style={styles.content}>
-        <Text style={styles.title}>{item.title} <Text>🎵</Text></Text>
+        <Text style={styles.title}>
+          {item.title} <Text>🎵</Text>
+        </Text>
         <View style={styles.footer}>
           <View style={styles.cta}>
             <Text style={styles.ctaText}>Découvrir</Text>

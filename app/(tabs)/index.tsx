@@ -1,48 +1,61 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Stack, router } from "expo-router";
 import React, { useMemo, useState } from "react";
-import { FlatList, SafeAreaView, StyleSheet, Text, View } from "react-native";
+import {
+  FlatList,
+  SafeAreaView,
+  StyleSheet,
+  Text,
+  View,
+  Pressable,
+} from "react-native";
+
 import ActivityCard from "../../components/ActivityCard";
 import FilterChips from "../../components/FilterChips";
 import SearchBar from "../../components/SearchBar";
+
 import { ACTIVITIES } from "../../constants/activities";
 import { Activity } from "../../constants/types";
+
+import { useFavoritesStore } from "../../store/useFavoritesStore";
 
 const ALL_CHIPS = ["Près de moi", "Gratuit", "Nouveau"];
 
 export default function FeedScreen() {
-  const [q, setQ] = useState("");
+  const [q, setQ] = useState<string>("");
   const [chips, setChips] = useState<string[]>([]);
+  const { addFavorite, removeFavorite, isFavorite } = useFavoritesStore();
 
-  const data = useMemo(() => {
+  const toggleFavorite = (activity: Activity): void => {
+    if (isFavorite(activity.id)) removeFavorite(activity.id);
+    else addFavorite(activity);
+  };
+
+  const data = useMemo<Activity[]>(() => {
     let list: Activity[] = ACTIVITIES;
     if (q.trim()) {
-      list = list.filter(a => a.title.toLowerCase().includes(q.trim().toLowerCase()));
+      const query = q.trim().toLowerCase();
+      list = list.filter((a) => a.title.toLowerCase().includes(query));
     }
     if (chips.length) {
-      list = list.filter(a => chips.every(c => a.tags.includes(c)));
+      list = list.filter((a) => chips.every((c) => a.tags.includes(c)));
     }
     return list;
   }, [q, chips]);
 
-  const toggleChip = (c: string) => {
-    setChips(prev => (prev.includes(c) ? prev.filter(x => x !== c) : [...prev, c]));
-  };
-
   return (
     <SafeAreaView style={styles.screen}>
-      <Stack.Screen options={{
-        headerShown: false,
-      }} />
+      <Stack.Screen options={{ headerShown: false }} />
 
+      {/* Header */}
       <View style={styles.header}>
         <Text style={styles.brand}>What2do</Text>
-        <View style={{ flexDirection: "row", gap: 14, alignItems: "center" }}>
-          <Ionicons name="heart" size={20} color="#cf5a5a" />
-          <Ionicons name="person-circle" size={22} color="#8aa0ff" />
-        </View>
+        <Pressable onPress={() => router.push("/favorites")}>
+          <Ionicons name="heart" size={22} color="#cf5a5a" />
+        </Pressable>
       </View>
 
+      {/* Search + Chips */}
       <View style={{ paddingHorizontal: 16 }}>
         <SearchBar
           value={q}
@@ -50,9 +63,18 @@ export default function FeedScreen() {
           onClear={() => setQ("")}
           placeholder="Search an activity"
         />
-        <FilterChips chips={ALL_CHIPS} selected={chips} onToggle={toggleChip} />
+        <FilterChips
+          chips={ALL_CHIPS}
+          selected={chips}
+          onToggle={(c: string) =>
+            setChips((prev) =>
+              prev.includes(c) ? prev.filter((x) => x !== c) : [...prev, c]
+            )
+          }
+        />
       </View>
 
+      {/* Feed */}
       <FlatList
         data={data}
         keyExtractor={(it) => it.id}
@@ -60,10 +82,11 @@ export default function FeedScreen() {
         renderItem={({ item }) => (
           <ActivityCard
             item={item}
-            onPress={() => router.push(`../activity/${item.id}`)}
-            onToggleFav={() => {}}
+            onPress={() => router.push(../Activity/${item.id})} // <= BACKTICKS !
+            onToggleFav={() => toggleFavorite(item)}
+            isFav={isFavorite(item.id)}
           />
-        )}
+        )} // <= FERMETURE du renderItem ICI
         ListEmptyComponent={
           <View style={{ padding: 24 }}>
             <Text style={{ color: "#97A0AF" }}>Aucune activité.</Text>
