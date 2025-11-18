@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Stack, router } from "expo-router";
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   FlatList,
   Pressable,
@@ -25,10 +25,38 @@ export default function FeedScreen() {
   const [q, setQ] = useState<string>("");
   const [chips, setChips] = useState<string[]>([]);
   const { addFavorite, removeFavorite, isFavorite } = useFavoritesStore();
+  const [toast, setToast] = useState<{ message: string; visible: boolean }>({
+    message: "",
+    visible: false,
+  });
+  const toastTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const showToast = (message: string) => {
+    if (toastTimeout.current) {
+      clearTimeout(toastTimeout.current);
+    }
+    setToast({ message, visible: true });
+    toastTimeout.current = setTimeout(() => {
+      setToast((prev) => ({ ...prev, visible: false }));
+    }, 2000);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (toastTimeout.current) {
+        clearTimeout(toastTimeout.current);
+      }
+    };
+  }, []);
 
   const toggleFavorite = (activity: Activity): void => {
-    if (isFavorite(activity.id)) removeFavorite(activity.id);
-    else addFavorite(activity);
+    if (isFavorite(activity.id)) {
+      removeFavorite(activity.id);
+      showToast("Retiré des favoris");
+    } else {
+      addFavorite(activity);
+      showToast("Ajouté aux favoris");
+    }
   };
 
   const data = useMemo<Activity[]>(() => {
@@ -54,20 +82,7 @@ export default function FeedScreen() {
           <Ionicons name="heart" size={22} color="#cf5a5a" />
         </Pressable>
       </View>
-
-      {/* Search + Chips */}
-      <View style={{ paddingHorizontal: 16 }}>
-        <SearchBar
-          value={q}
-          onChangeText={setQ}
-          onClear={() => setQ("")}
-          placeholder="Search an activity"
-        />
-        <FilterChips
-          chips={ALL_CHIPS}
-          selected={chips}
-          onToggle={(c: string) =>
-            setChips((prev) =>
+@@ -71,40 +99,64 @@ export default function FeedScreen() {
               prev.includes(c) ? prev.filter((x) => x !== c) : [...prev, c]
             )
           }
@@ -93,6 +108,13 @@ export default function FeedScreen() {
           </View>
         }
       />
+
+      {toast.visible && (
+        <View style={styles.toast} pointerEvents="none">
+          <Ionicons name="checkmark-circle" size={18} color="#fff" />
+          <Text style={styles.toastText}>{toast.message}</Text>
+        </View>
+      )}
     </SafeAreaView>
   );
 }
@@ -107,4 +129,21 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   brand: { color: "#5ea1ff", fontSize: 24, fontWeight: "900" },
+  toast: {
+    position: "absolute",
+    left: 16,
+    right: 16,
+    bottom: 24,
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 999,
+    backgroundColor: "rgba(11, 17, 35, 0.9)",
+  },
+  toastText: {
+    color: "#fff",
+    fontWeight: "600",
+    marginLeft: 8,
+  },
 });
