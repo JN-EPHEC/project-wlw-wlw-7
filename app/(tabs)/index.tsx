@@ -109,6 +109,7 @@ export default function FeedScreen() {
         renderItem={({ item }) => (
           <ActivityCard
             item={item}
+            onPress={() => router.push(`/Activity/${item.id}`)} // use template literal with backticks
             onPress={() => router.push(`/Activity/${item.id}`)}
             onToggleFav={() => toggleFavorite(item)}
             isFav={isFavorite(item.id)}
