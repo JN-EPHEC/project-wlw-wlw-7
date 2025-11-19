@@ -56,7 +56,7 @@ export default function SignUpScreen() {
               <Text style={styles.logo}>What2Do</Text>
               <Text style={styles.tagline}>Créer ton compte</Text>
               <Text style={styles.description}>
-                Rejoins la communauté What2Do, découvre les activités du campus et partage tes passions.
+                Rejoins la communauté What2Do, découvre les activités autour de bruxelles et partage tes passions.
               </Text>
             </View>
 
