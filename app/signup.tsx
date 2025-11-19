@@ -1,5 +1,5 @@
 import { useRouter } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
     KeyboardAvoidingView,
     Platform,
@@ -12,8 +12,11 @@ import {
     View,
 } from 'react-native';
 
+import { useAuthStore } from '@/store/useAuthStore';
+
 export default function SignUpScreen() {
   const router = useRouter();
+  const { startSignup, hasCompletedProfile, isAuthenticated } = useAuthStore();
   const [email, setEmail] = useState('');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -33,14 +36,23 @@ export default function SignUpScreen() {
     if (!isSignUpValid || isCreating) return;
     setIsCreating(true);
     setTimeout(() => {
+      startSignup(email.trim(), username.trim());
       setIsCreating(false);
-      router.replace('/(tabs)');
+      router.replace('/profile-setup');
     }, 600);
   };
 
   const handleBackToLogin = () => {
     router.replace('/');
   };
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    if (hasCompletedProfile) {
+      router.replace('/(tabs)');
+    }
+  }, [hasCompletedProfile, isAuthenticated, router]);
 
   return (
     <View style={styles.background}>

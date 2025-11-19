@@ -12,6 +12,7 @@ import {
 } from "react-native";
 
 import { useFavoritesStore } from "@/store/useFavoritesStore";
+import { useAuthStore } from "@/store/useAuthStore";
 
 type NotificationSetting = {
   id: string;
@@ -41,7 +42,7 @@ const NOTIFICATION_SETTINGS: NotificationSetting[] = [
   },
 ];
 
-const USER_PROFILE = {
+const DEFAULT_PROFILE = {
   name: "Camille Dupont",
   role: "Exploratrice urbaine",
   location: "Paris, France",
@@ -59,12 +60,38 @@ type QuickAction = {
 
 export default function ProfileScreen() {
   const favoritesCount = useFavoritesStore((state) => state.favorites.length);
+  const { profile, preferredName } = useAuthStore();
   const [notificationPrefs, setNotificationPrefs] = useState<Record<string, boolean>>(() =>
     NOTIFICATION_SETTINGS.reduce(
       (acc, setting) => ({ ...acc, [setting.id]: setting.defaultValue }),
       {} as Record<string, boolean>,
     ),
   );
+
+  const userProfile = useMemo(
+    () => ({
+      name: profile?.displayName ?? preferredName ?? DEFAULT_PROFILE.name,
+      role: profile?.bio?.trim() || DEFAULT_PROFILE.role,
+      location: profile?.city ?? DEFAULT_PROFILE.location,
+      plan: DEFAULT_PROFILE.plan,
+      persona: profile?.persona ?? DEFAULT_PROFILE.persona,
+      interests:
+        profile?.interests && profile.interests.length > 0
+          ? profile.interests
+          : DEFAULT_PROFILE.interests,
+    }),
+    [preferredName, profile],
+  );
+
+  const avatarLabel = useMemo(() => {
+    const parts = userProfile.name
+      .split(" ")
+      .filter(Boolean)
+      .map((segment) => segment[0]?.toUpperCase())
+      .join("");
+
+    return parts.slice(0, 2) || "WD";
+  }, [userProfile.name]);
 
   const stats = useMemo(
     () => [
@@ -108,15 +135,15 @@ export default function ProfileScreen() {
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.profileCard}>
           <View style={styles.avatar}>
-            <Text style={styles.avatarLabel}>CD</Text>
+            <Text style={styles.avatarLabel}>{avatarLabel}</Text>
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={styles.name}>{USER_PROFILE.name}</Text>
-            <Text style={styles.role}>{USER_PROFILE.role}</Text>
-            <Text style={styles.meta}>{USER_PROFILE.location}</Text>
+            <Text style={styles.name}>{userProfile.name}</Text>
+            <Text style={styles.role}>{userProfile.role}</Text>
+            <Text style={styles.meta}>{userProfile.location}</Text>
           </View>
           <Pressable style={styles.planPill}>
-            <Text style={styles.planPillText}>{USER_PROFILE.plan}</Text>
+            <Text style={styles.planPillText}>{userProfile.plan}</Text>
           </Pressable>
         </View>
 
@@ -142,8 +169,7 @@ export default function ProfileScreen() {
               </View>
             ))}
           </View>
-        </View>
-
+@@ -147,53 +174,53 @@ export default function ProfileScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Actions rapides</Text>
           <View style={styles.quickActions}>
@@ -169,9 +195,9 @@ export default function ProfileScreen() {
           </View>
           <View style={styles.preferenceChips}>
             <View style={styles.personaPill}>
-              <Text style={styles.personaLabel}>{USER_PROFILE.persona}</Text>
+              <Text style={styles.personaLabel}>{userProfile.persona}</Text>
             </View>
-            {USER_PROFILE.interests.map((interest) => (
+            {userProfile.interests.map((interest) => (
               <View key={interest} style={styles.preferenceChip}>
                 <Text style={styles.preferenceChipLabel}>{interest}</Text>
               </View>
