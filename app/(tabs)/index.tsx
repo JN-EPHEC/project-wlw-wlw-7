@@ -3,11 +3,11 @@ import { Stack, router } from "expo-router";
 import React, { useMemo, useState } from "react";
 import {
   FlatList,
+  Pressable,
   SafeAreaView,
   StyleSheet,
   Text,
   View,
-  Pressable,
 } from "react-native";
 
 import ActivityCard from "../../components/ActivityCard";
@@ -82,7 +82,7 @@ export default function FeedScreen() {
         renderItem={({ item }) => (
           <ActivityCard
             item={item}
-            onPress={() => router.push(../Activity/${item.id})} // <= BACKTICKS !
+            onPress={() => router.push(`/Activity/${item.id}`)} // use template literal with backticks
             onToggleFav={() => toggleFavorite(item)}
             isFav={isFavorite(item.id)}
           />
