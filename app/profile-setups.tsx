@@ -1,6 +1,3 @@
-+308
--0
-
 import { useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import {

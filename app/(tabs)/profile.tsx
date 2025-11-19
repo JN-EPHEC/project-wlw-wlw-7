@@ -11,8 +11,8 @@ import {
   View,
 } from "react-native";
 
-import { useFavoritesStore } from "@/store/useFavoritesStore";
 import { useAuthStore } from "@/store/useAuthStore";
+import { useFavoritesStore } from "@/store/useFavoritesStore";
 
 type NotificationSetting = {
   id: string;
@@ -169,7 +169,7 @@ export default function ProfileScreen() {
               </View>
             ))}
           </View>
-@@ -147,53 +174,53 @@ export default function ProfileScreen() {
+             </View> 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Actions rapides</Text>
           <View style={styles.quickActions}>
