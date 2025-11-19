@@ -83,7 +83,7 @@ export default function ProfileScreen() {
       id: "preferences",
       label: "Modifier mes préférences",
       icon: "color-wand-outline",
-      onPress: () => router.push("/onboarding"),
+      onPress: () => router.push("/index"),
     },
     {
       id: "favorites",
@@ -162,7 +162,7 @@ export default function ProfileScreen() {
               <Text style={styles.sectionTitle}>Préférences</Text>
               <Text style={styles.sectionSubtitle}>Personnalise ton expérience en fonction de tes envies</Text>
             </View>
-            <Pressable style={styles.editButton} onPress={() => router.push("/onboarding")}>
+            <Pressable style={styles.editButton} onPress={() => router.push("/index")}>
               <Ionicons name="create-outline" size={16} color="#fff" />
               <Text style={styles.editButtonText}>Modifier</Text>
             </Pressable>
