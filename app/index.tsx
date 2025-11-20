@@ -20,6 +20,7 @@ export default function AuthScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [hasMounted, setHasMounted] = useState(false);
 
   const isLoginValid = useMemo(
     () => email.trim().length > 0 && password.trim().length >= 6,
@@ -41,14 +42,19 @@ export default function AuthScreen() {
   };
 
   useEffect(() => {
+    setHasMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (!hasMounted) return;
     if (!isAuthenticated) return;
 
     if (hasCompletedProfile) {
       router.replace('/(tabs)');
     } else {
-      router.replace('./profile-setup');
+      router.replace('/profile-setups');
     }
-  }, [hasCompletedProfile, isAuthenticated, router]);
+  }, [hasCompletedProfile, hasMounted, isAuthenticated, router]);
 
   return (
     <View style={styles.background}>

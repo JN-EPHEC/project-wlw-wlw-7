@@ -1,5 +1,5 @@
 import { Tabs, useRouter } from 'expo-router';
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 
 import { HapticTab } from '@/components/haptic-tab';
 import { IconSymbol } from '@/components/ui/icon-symbol';
@@ -11,17 +11,23 @@ export default function TabLayout() {
   const colorScheme = useColorScheme();
   const router = useRouter();
   const { isAuthenticated, hasCompletedProfile } = useAuthStore();
+  const [hasMounted, setHasMounted] = useState(false);
 
   useEffect(() => {
+    setHasMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (!hasMounted) return;
     if (!isAuthenticated) {
       router.replace('/');
       return;
     }
 
     if (!hasCompletedProfile) {
-      router.replace('./profile-setup');
+      router.replace('/profile-setups');
     }
-  }, [hasCompletedProfile, isAuthenticated, router]);
+  }, [hasCompletedProfile, hasMounted, isAuthenticated, router]);
 
   return (
     <Tabs
