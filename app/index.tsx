@@ -1,15 +1,15 @@
 import { useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import {
-    KeyboardAvoidingView,
-    Platform,
-    SafeAreaView,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  KeyboardAvoidingView,
+  Platform,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 
 import { useAuthStore } from '@/store/useAuthStore';
@@ -46,7 +46,7 @@ export default function AuthScreen() {
     if (hasCompletedProfile) {
       router.replace('/(tabs)');
     } else {
-      router.replace('/profile-setup');
+      router.replace('./profile-setup');
     }
   }, [hasCompletedProfile, isAuthenticated, router]);
 

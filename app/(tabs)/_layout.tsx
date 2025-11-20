@@ -19,7 +19,7 @@ export default function TabLayout() {
     }
 
     if (!hasCompletedProfile) {
-      router.replace('/profile-setup');
+      router.replace('./profile-setup');
     }
   }, [hasCompletedProfile, isAuthenticated, router]);
 
