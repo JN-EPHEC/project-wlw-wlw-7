@@ -3,7 +3,11 @@ import { createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfi
 import { doc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { create } from 'zustand';
 
-import { auth, db } from '@/firebase';
+import { getAuth } from 'firebase/auth';
+import { getFirestore } from 'firebase/firestore';
+
+const auth = getAuth();
+const db = getFirestore();
 
 type Profile = {
   displayName: string;
@@ -128,3 +132,4 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
 }));
 
 export type { Profile };
+
