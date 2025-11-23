@@ -13,11 +13,6 @@
       "react-native"
     ],
     "baseUrl": ".",
-    "paths": {
-      "@/*": [
-        "./*"
-      ]
-    },
     "customConditions": [
       "react-native"
     ]

@@ -1,4 +1,6 @@
 // app/(app)/profile.tsx
+import { useAuth } from "../lib/auth-context";
+
 import React from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
