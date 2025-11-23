@@ -22,6 +22,7 @@ export default function SignUpScreen() {
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [isCreating, setIsCreating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const isSignUpValid = useMemo(
     () =>
@@ -32,14 +33,20 @@ export default function SignUpScreen() {
     [confirm, email, password, username],
   );
 
-  const handleCreateAccount = () => {
+  const handleCreateAccount = async () => {
     if (!isSignUpValid || isCreating) return;
+
     setIsCreating(true);
-    setTimeout(() => {
-      startSignup(email.trim(), username.trim(), password.trim());
-      setIsCreating(false);
+    setError(null);
+
+    try {
+      await startSignup(email.trim(), username.trim(), password);
       router.replace('/profile-setups');
-    }, 600);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Impossible de créer le compte.');
+    } finally {
+      setIsCreating(false);
+    }
   };
 
   const handleBackToLogin = () => {
@@ -110,7 +117,7 @@ export default function SignUpScreen() {
                       placeholder="Créer un mot de passe"
                       placeholderTextColor="rgba(255,255,255,0.4)"
                       secureTextEntry
-                      style={styles.input}
+                                    style={styles.input}
                     />
                   </View>
                   <View style={[styles.inputGroup, styles.flexItem]}>
@@ -134,6 +141,8 @@ export default function SignUpScreen() {
                 >
                   <Text style={styles.primaryButtonText}>{isCreating ? 'Création…' : 'Créer un compte'}</Text>
                 </TouchableOpacity>
+
+                {error && <Text style={styles.errorText}>{error}</Text>}
 
                 <View style={styles.signupPrompt}>
                   <Text style={styles.promptText}>Déjà un compte ?</Text>
@@ -272,6 +281,11 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '700',
+  },
+  errorText: {
+    marginTop: 12,
+    color: '#FCA5A5',
+    fontSize: 14,
   },
   secondaryButtonText: {
     color: '#FFFFFF',
