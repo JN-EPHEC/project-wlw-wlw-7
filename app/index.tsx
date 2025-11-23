@@ -21,20 +21,26 @@ export default function AuthScreen() {
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [hasMounted, setHasMounted] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const isLoginValid = useMemo(
     () => email.trim().length > 0 && password.trim().length >= 6,
     [email, password],
   );
 
-  const handleLogin = () => {
+ const handleLogin = async () => {
     if (!isLoginValid || isLoading) return;
     setIsLoading(true);
-    setTimeout(() => {
-      loginExisting(email.trim(), password.trim());
-      setIsLoading(false);
+    setError(null);
+
+    try {
+      await loginExisting(email.trim(), password);
       router.replace('/(tabs)');
-    }, 600);
+   } catch (err) {
+      setError(err instanceof Error ? err.message : 'Connexion impossible.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleGoToSignUp = () => {
@@ -115,6 +121,7 @@ export default function AuthScreen() {
                 >
                   <Text style={styles.primaryButtonText}>{isLoading ? 'Connexion…' : 'Se connecter'}</Text>
                 </TouchableOpacity>
+                 {error && <Text style={styles.errorText}>{error}</Text>}
 
                 <View style={styles.divider}>
                   <View style={styles.dividerLine} />
@@ -260,6 +267,12 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
   },
+   errorText: {
+    marginTop: 12,
+    color: '#FCA5A5',
+    fontSize: 14,
+  },
+  
   disabledButton: {
     opacity: 0.6,
   },

@@ -1,15 +1,15 @@
 import { useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import {
-    KeyboardAvoidingView,
-    Platform,
-    SafeAreaView,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  KeyboardAvoidingView,
+  Platform,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 
 import { useAuthStore } from '@/store/useAuthStore';
@@ -24,6 +24,7 @@ export default function ProfileSetupScreen() {
   const [bio, setBio] = useState('');
   const [interests, setInterests] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -41,27 +42,31 @@ export default function ProfileSetupScreen() {
     [city, displayName],
   );
 
-  const handleFinishProfile = () => {
+  const handleFinishProfile = async () => {
     if (!isFormValid || isSubmitting) return;
 
     setIsSubmitting(true);
+    setError(null);
     const interestList = interests
       .split(',')
       .map((value) => value.trim())
       .filter(Boolean);
 
-    completeProfile({
-      displayName: displayName.trim(),
-      city: city.trim(),
-      persona: persona.trim() || undefined,
-      bio: bio.trim() || undefined,
-      interests: interestList,
-    });
+    try {
+      await completeProfile({
+        displayName: displayName.trim(),
+        city: city.trim(),
+        persona: persona.trim() || undefined,
+        bio: bio.trim() || undefined,
+        interests: interestList,
+      });
 
-    setTimeout(() => {
-      setIsSubmitting(false);
       router.replace('/(tabs)');
-    }, 350);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Impossible de finaliser le profil.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -86,6 +91,7 @@ export default function ProfileSetupScreen() {
                 </Text>
               </View>
             </View>
+
 
             <View style={styles.card}>
               <Text style={styles.cardTitle}>Informations principales</Text>
@@ -160,6 +166,8 @@ export default function ProfileSetupScreen() {
                   {isSubmitting ? 'Enregistrement...' : 'Valider et accéder'}
                 </Text>
               </TouchableOpacity>
+
+              {error && <Text style={styles.errorText}>{error}</Text>}
             </View>
           </ScrollView>
         </KeyboardAvoidingView>
@@ -301,6 +309,11 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontWeight: '700',
     fontSize: 16,
+  },
+  errorText: {
+    marginTop: 12,
+    color: '#FCA5A5',
+    fontSize: 14,
   },
   disabledButton: {
     opacity: 0.5,
