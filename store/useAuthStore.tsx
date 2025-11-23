@@ -3,11 +3,8 @@ import { createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfi
 import { doc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { create } from 'zustand';
 
-import { getAuth } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
-
-const auth = getAuth();
-const db = getFirestore();
+// 👉 On importe simplement les instances déjà initialisées
+import { auth, db } from "../firebase";
 
 type Profile = {
   displayName: string;
