@@ -4,8 +4,7 @@ import { doc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { create } from 'zustand';
 
 // 👉 On importe simplement les instances déjà initialisées
-import { auth, db } from './firebase.js';
-
+import { auth, db } from "../firebase";
 
 type Profile = {
   displayName: string;
