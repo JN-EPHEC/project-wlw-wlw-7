@@ -36,7 +36,7 @@ export default function SignUpScreen() {
     if (!isSignUpValid || isCreating) return;
     setIsCreating(true);
     setTimeout(() => {
-      startSignup(email.trim(), username.trim());
+      startSignup(email.trim(), username.trim(), password.trim());
       setIsCreating(false);
       router.replace('/profile-setups');
     }, 600);

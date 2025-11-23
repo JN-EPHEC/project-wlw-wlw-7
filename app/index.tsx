@@ -31,7 +31,7 @@ export default function AuthScreen() {
     if (!isLoginValid || isLoading) return;
     setIsLoading(true);
     setTimeout(() => {
-      loginExisting(email.trim());
+      loginExisting(email.trim(), password.trim());
       setIsLoading(false);
       router.replace('/(tabs)');
     }, 600);
