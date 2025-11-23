@@ -22,10 +22,12 @@
       "react-native"
     ]
   },
-   "include": [
+  "include": [
     "**/*.ts",
     "**/*.tsx",
     ".expo/types/**/*.ts",
-    "expo-env.d.ts"
-, "firebase.ts"  ]
+    "expo-env.d.ts",
+    "firebase.ts"
+  ],
+  "extends": "expo/tsconfig.base"
 }
