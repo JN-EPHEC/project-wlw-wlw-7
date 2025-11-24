@@ -47,14 +47,17 @@ export function AuthProvider({ children }: { children?: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [lastAuthError, setLastAuthError] = useState<unknown | null>(null);
 
+  // 🔐 Gère l'état de connexion + création du document user si besoin
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(
-      auth,
-      async (firebaseUser: User | null) => {
-        setUser(firebaseUser);
-        setLoading(false);
+    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      setUser(firebaseUser);
+      setLoading(false);
 
-        if (firebaseUser) {
+      if (!firebaseUser) return;
+
+      // on fait la partie Firestore dans une IIFE avec try/catch
+      (async () => {
+        try {
           const userRef = doc(db, "users", firebaseUser.uid);
           const snap = await getDoc(userRef);
 
@@ -69,13 +72,21 @@ export function AuthProvider({ children }: { children?: ReactNode }) {
               { merge: true }
             );
           }
+        } catch (error: any) {
+          // IMPORTANT : pas de console.error ici, juste un log
+          console.log(
+            "Impossible de synchroniser le document utilisateur :",
+            error?.message ?? error
+          );
+          // On ne rethrow PAS → pas d'écran rouge
         }
-      }
-    );
+      })();
+    });
 
     return unsubscribe;
   }, []);
 
+  // Résout le redirect pour Google/Apple sur mobile
   useEffect(() => {
     const resolveRedirectResult = async () => {
       try {
