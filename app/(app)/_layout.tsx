@@ -24,19 +24,44 @@ export default function AppLayout() {
         tabBarInactiveTintColor: "#888",
       }}
     >
+      {/* ACCUEIL */}
       <Tabs.Screen
         name="home"
         options={{
-          title: "Discover",
+          title: "Accueil",
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="compass-outline" color={color} size={size} />
+            <Ionicons name="home-outline" color={color} size={size} />
           ),
         }}
       />
+
+      {/* JEUX */}
+      <Tabs.Screen
+        name="games"
+        options={{
+          title: "Jeux",
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="game-controller-outline" color={color} size={size} />
+          ),
+        }}
+      />
+
+      {/* GROUPES */}
+      <Tabs.Screen
+        name="groups"
+        options={{
+          title: "Groupes",
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="people-outline" color={color} size={size} />
+          ),
+        }}
+      />
+
+      {/* PROFIL */}
       <Tabs.Screen
         name="profile"
         options={{
-          title: "Profile",
+          title: "Profil",
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="person-circle-outline" color={color} size={size} />
           ),

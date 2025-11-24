@@ -4,7 +4,6 @@ import { Link } from "expo-router";
 import React, { useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   KeyboardAvoidingView,
   Platform,
   SafeAreaView,
@@ -12,7 +11,7 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  View,
+  View
 } from "react-native";
 import { useAuth } from "../lib/auth-context";
 
@@ -33,14 +32,22 @@ function mapAuthError(error: unknown): string {
       return "Adresse e-mail invalide.";
     case "auth/too-many-requests":
       return "Trop de tentatives. Réessayez plus tard.";
-    default:
-      return "Une erreur s'est produite lors de la connexion.";
+    case "auth/popup-closed-by-user":
+    case "auth/popup-closed-by-user":
+    case "auth/cancelled-popup-request":
+      return "La fenêtre de connexion a été fermée avant d'être terminée.";
+    case "auth/operation-not-supported-in-this-environment":
+       return "Ce mode de connexion n'est pas disponible sur cet appareil.";
+    case "auth/configuration-not-found":
+        return "La connexion Apple n'est pas encore configurée sur ce projet.";
+    case "auth/account-exists-with-different-credential":
+        return "Un compte existe déjà avec une autre méthode de connexion pour cet email.";
   }
 }
 
 
 export default function LoginScreen() {
-  const { user, login, loading } = useAuth();
+  const { user, login, loginWithGoogle, loginWithApple, loading } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -70,11 +77,21 @@ export default function LoginScreen() {
     }
   };
 
-  const handleProviderPress = (provider: "google" | "apple") => {
-    Alert.alert(
-      "Bientôt disponible",
-      `La connexion avec ${provider === "google" ? "Google" : "Apple"} sera disponible prochainement.`
-    );
+  const handleProviderPress = async (provider: "google" | "apple") => {
+    setError(null);
+    setSubmitting(true);
+
+    try {
+      if (provider === "google") {
+        await loginWithGoogle();
+      } else {
+        await loginWithApple();
+      }
+    } catch (err) {
+      setError(mapAuthError(err));
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   if (loading && !user) {
@@ -153,6 +170,7 @@ export default function LoginScreen() {
               style={styles.socialButton}
               activeOpacity={0.85}
               onPress={() => handleProviderPress("google")}
+              disabled={submitting}
             >
               <FontAwesome name="google" size={20} color="#FFFFFF" />
               <Text style={styles.socialButtonText}>Continuer avec Google</Text>
@@ -162,6 +180,7 @@ export default function LoginScreen() {
               style={styles.socialButton}
               activeOpacity={0.85}
               onPress={() => handleProviderPress("apple")}
+              disabled={submitting}
             >
               <FontAwesome name="apple" size={22} color="#FFFFFF" />
               <Text style={styles.socialButtonText}>Continuer avec Apple</Text>

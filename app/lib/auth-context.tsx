@@ -4,7 +4,9 @@ import {
   createUserWithEmailAndPassword,
   onAuthStateChanged,
   signInWithEmailAndPassword,
-  signOut,
+  signInWithPopup,
+  signInWithRedirect,
+  signOut
 } from "firebase/auth";
 import {
   collection,
@@ -22,12 +24,15 @@ import React, {
   useEffect,
   useState,
 } from "react";
-import { auth, db } from "./firebaseConfig";
+import { Platform } from "react-native";
+import { appleProvider, auth, db, googleProvider } from "./firebaseConfig";
 
 type AuthContextType = {
   user: User | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
+  loginWithGoogle: () => Promise<void>;
+  loginWithApple: () => Promise<void>;
   register: (email: string, password: string, username: string) => Promise<void>;
   logout: () => Promise<void>;
 };
@@ -69,6 +74,19 @@ export function AuthProvider({ children }: { children?: ReactNode }) {
   const login = async (email: string, password: string) => {
     await signInWithEmailAndPassword(auth, email, password);
   };
+  const loginWithProvider = () =>
+    Platform.OS === "web" ? signInWithPopup : signInWithRedirect;
+
+  const loginWithGoogle = async () => {
+    const performLogin = loginWithProvider();
+    await performLogin(auth, googleProvider);
+  };
+
+  const loginWithApple = async () => {
+    const performLogin = loginWithProvider();
+    await performLogin(auth, appleProvider);
+  };
+
 
   const register = async (email: string, password: string, username: string) => {
     const normalizedUsername = username.trim();
@@ -102,10 +120,12 @@ export function AuthProvider({ children }: { children?: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout }}>
-      {children}
-    </AuthContext.Provider>
-  );
+    <AuthContext.Provider
+    value={{ user, loading, login, loginWithGoogle, loginWithApple, register, logout }}
+  >
+    {children}
+  </AuthContext.Provider>
+);
 }
 
 export function useAuth(): AuthContextType {
