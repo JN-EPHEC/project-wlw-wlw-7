@@ -24,9 +24,31 @@ const passwordRules = [
   { label: "Un chiffre", test: (value: string) => /\d/.test(value) },
   {
     label: "Un caractère spécial",
-    test: (value: string) => /[!@#$%^&*(),.?":{}|<>\-_=+]/.test(value),
+    test: (value: string) => /[!@#$%^&*(),.?\":{}|<>\\-_=+]/.test(value),
   },
 ];
+
+// 🔍 Mapping des erreurs Firebase -> message utilisateur
+function mapRegisterError(error: unknown): string {
+  const code = (error as any)?.code as string | undefined;
+
+  if (!code) {
+    return "Impossible de créer le compte pour le moment.";
+  }
+
+  switch (code) {
+    case "auth/email-already-in-use":
+      return "Un compte existe déjà avec cet e-mail.";
+    case "auth/invalid-email":
+      return "Adresse e-mail invalide.";
+    case "auth/weak-password":
+      return "Le mot de passe est trop faible.";
+    case "auth/operation-not-allowed":
+      return "La création de compte par e-mail/mot de passe est désactivée.";
+    default:
+      return "Impossible de créer le compte pour le moment.";
+  }
+}
 
 export default function RegisterScreen() {
   const router = useRouter();
@@ -96,10 +118,8 @@ export default function RegisterScreen() {
       await register(trimmedEmail, password);
       router.push("./register-next");
     } catch (err) {
-      const message =
-        err instanceof Error
-          ? err.message
-          : "Impossible de créer le compte pour le moment.";
+      console.log("Register error:", (err as any)?.code, err);
+      const message = mapRegisterError(err);
       setErrors({ general: message });
     } finally {
       setSubmitting(false);
@@ -169,7 +189,7 @@ export default function RegisterScreen() {
               {errors.password && (
                 <Text style={styles.errorText}>{errors.password}</Text>
               )}
-              <View style={styles.passwordChecks}>
+              <View className="passwordChecks" style={styles.passwordChecks}>
                 {passwordChecks.map((rule) => (
                   <View key={rule.label} style={styles.checkRow}>
                     <FontAwesome
