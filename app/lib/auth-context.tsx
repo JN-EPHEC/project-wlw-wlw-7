@@ -2,11 +2,12 @@
 import {
   User,
   createUserWithEmailAndPassword,
+  getRedirectResult,
   onAuthStateChanged,
   signInWithEmailAndPassword,
   signInWithPopup,
   signInWithRedirect,
-  signOut
+  signOut,
 } from "firebase/auth";
 import {
   collection,
@@ -35,6 +36,8 @@ type AuthContextType = {
   loginWithApple: () => Promise<void>;
   register: (email: string, password: string, username: string) => Promise<void>;
   logout: () => Promise<void>;
+  lastAuthError: unknown | null;
+  clearAuthError: () => void;
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -42,6 +45,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children?: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [lastAuthError, setLastAuthError] = useState<unknown | null>(null);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(
@@ -71,22 +75,46 @@ export function AuthProvider({ children }: { children?: ReactNode }) {
     return unsubscribe;
   }, []);
 
+  useEffect(() => {
+    const resolveRedirectResult = async () => {
+      try {
+        if (Platform.OS !== "web") {
+          await getRedirectResult(auth);
+        }
+      } catch (error) {
+        setLastAuthError(error);
+      }
+    };
+
+    resolveRedirectResult();
+  }, []);
+
   const login = async (email: string, password: string) => {
     await signInWithEmailAndPassword(auth, email, password);
   };
+
   const loginWithProvider = () =>
     Platform.OS === "web" ? signInWithPopup : signInWithRedirect;
 
   const loginWithGoogle = async () => {
     const performLogin = loginWithProvider();
-    await performLogin(auth, googleProvider);
+    try {
+      await performLogin(auth, googleProvider);
+    } catch (error) {
+      setLastAuthError(error);
+      throw error;
+    }
   };
 
   const loginWithApple = async () => {
     const performLogin = loginWithProvider();
-    await performLogin(auth, appleProvider);
+    try {
+      await performLogin(auth, appleProvider);
+    } catch (error) {
+      setLastAuthError(error);
+      throw error;
+    }
   };
-
 
   const register = async (email: string, password: string, username: string) => {
     const normalizedUsername = username.trim();
@@ -121,11 +149,21 @@ export function AuthProvider({ children }: { children?: ReactNode }) {
 
   return (
     <AuthContext.Provider
-    value={{ user, loading, login, loginWithGoogle, loginWithApple, register, logout }}
-  >
-    {children}
-  </AuthContext.Provider>
-);
+      value={{
+        user,
+        loading,
+        login,
+        loginWithGoogle,
+        loginWithApple,
+        register,
+        logout,
+        lastAuthError,
+        clearAuthError: () => setLastAuthError(null),
+      }}
+    >
+      {children}
+    </AuthContext.Provider>
+  );
 }
 
 export function useAuth(): AuthContextType {

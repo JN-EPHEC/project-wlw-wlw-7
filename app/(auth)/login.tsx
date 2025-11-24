@@ -1,7 +1,8 @@
 // app/(auth)/login.tsx
 import { FontAwesome } from "@expo/vector-icons";
 import { Link } from "expo-router";
-import React, { useState } from "react";
+import { FirebaseError } from "firebase/app";
+import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -9,7 +10,6 @@ import {
   SafeAreaView,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   View
 } from "react-native";
@@ -17,9 +17,12 @@ import { useAuth } from "../lib/auth-context";
 
 function mapAuthError(error: unknown): string {
   const code = (error as any)?.code as string | undefined;
+  const message = error instanceof FirebaseError ? error.message : undefined;
 
   if (!code) {
-    return "Une erreur s'est produite lors de la connexion.";
+    return (
+      message ?? "Une erreur s'est produite lors de la connexion."
+    );
   }
 
   switch (code) {
@@ -33,28 +36,74 @@ function mapAuthError(error: unknown): string {
     case "auth/too-many-requests":
       return "Trop de tentatives. Réessayez plus tard.";
     case "auth/popup-closed-by-user":
-    case "auth/popup-closed-by-user":
     case "auth/cancelled-popup-request":
       return "La fenêtre de connexion a été fermée avant d'être terminée.";
     case "auth/operation-not-supported-in-this-environment":
-       return "Ce mode de connexion n'est pas disponible sur cet appareil.";
+      return "Ce mode de connexion n'est pas disponible sur cet appareil.";
+    case "auth/missing-client-id":
+    case "auth/invalid-credential":
+      return "La configuration Apple semble incomplète ou invalide.";
     case "auth/configuration-not-found":
-        return "La connexion Apple n'est pas encore configurée sur ce projet.";
+      return "La connexion Apple n'est pas encore configurée sur ce projet.";
     case "auth/account-exists-with-different-credential":
-        return "Un compte existe déjà avec une autre méthode de connexion pour cet email.";
+      return "Un compte existe déjà avec une autre méthode de connexion pour cet email.";
+    default:
+      return message ?? "Une erreur s'est produite lors de la connexion.";
   }
 }
 
 
 export default function LoginScreen() {
-  const { user, login, loginWithGoogle, loginWithApple, loading } = useAuth();
+  const {
+    user,
+    login,
+    loginWithGoogle,
+    loginWithApple,
+    loading,
+    lastAuthError,
+    clearAuthError,
+  } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [activeProvider, setActiveProvider] = useState<"google" | "apple" | null>(
+    null
+  );
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (lastAuthError) {
+      setError(mapAuthError(lastAuthError));
+      setSubmitting(false);
+      clearAuthError();
+    }
+  }, [lastAuthError, clearAuthError]);
+
+  useEffect(() => {
+    if (Platform.OS !== "web") return;
+
+    const handleWindowFocus = () => {
+      // If the popup was closed manually, Firebase sometimes delays error resolution.
+      // Clearing the loading state when focus returns avoids a stuck spinner for the user.
+      if (activeProvider && submitting && !user) {
+        setSubmitting(false);
+        setActiveProvider(null);
+      }
+    };
+
+    window.addEventListener("focus", handleWindowFocus);
+    return () => window.removeEventListener("focus", handleWindowFocus);
+  }, [activeProvider, submitting, user]);
+
+  useEffect(() => {
+    if (user && submitting) {
+      setSubmitting(false);
+    }
+  }, [user, submitting]);
 
   const handleLogin = async () => {
     setError(null);
+    clearAuthError();
 
     // petite validation basique côté client
     if (!email.trim() || !password) {
@@ -79,6 +128,8 @@ export default function LoginScreen() {
 
   const handleProviderPress = async (provider: "google" | "apple") => {
     setError(null);
+    clearAuthError();
+    setActiveProvider(provider);
     setSubmitting(true);
 
     try {
@@ -91,6 +142,7 @@ export default function LoginScreen() {
       setError(mapAuthError(err));
     } finally {
       setSubmitting(false);
+      setActiveProvider(null);
     }
   };
 
@@ -117,34 +169,7 @@ export default function LoginScreen() {
 
           <View style={styles.form}>
             <View style={styles.fieldGroup}>
-              <Text style={styles.label}>Email</Text>
-              <TextInput
-                value={email}
-                onChangeText={setEmail}
-                placeholder="Entrez votre email"
-                placeholderTextColor="#6E6881"
-                keyboardType="email-address"
-                autoCapitalize="none"
-                autoComplete="email"
-                style={styles.input}
-              />
-            </View>
-
-            <View style={styles.fieldGroup}>
-              <Text style={styles.label}>Mot de passe</Text>
-              <TextInput
-                value={password}
-                onChangeText={setPassword}
-                placeholder="Entrez votre mot de passe"
-                placeholderTextColor="#6E6881"
-                secureTextEntry
-                autoComplete="password"
-                style={styles.input}
-              />
-            </View>
-
-            {error && <Text style={styles.errorText}>{error}</Text>}
-
+@@ -131,59 +201,61 @@ export default function LoginScreen() {
             <TouchableOpacity
               activeOpacity={0.85}
               style={styles.primaryButton}
@@ -206,117 +231,3 @@ const styles = StyleSheet.create({
   },
   loadingContainer: {
     flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#050013",
-  },
-  container: {
-    flex: 1,
-    paddingHorizontal: 24,
-    paddingVertical: 32,
-    gap: 24,
-  },
-  header: {
-    flexDirection: "row",
-    justifyContent: "center",
-    marginTop: 12,
-  },
-  logoText: {
-    fontSize: 32,
-    fontWeight: "800",
-    letterSpacing: 0.5,
-  },
-  logoPink: {
-    color: "#B74BD9",
-  },
-  logoBlue: {
-    color: "#6E5BFF",
-  },
-  logoTeal: {
-    color: "#46E4D6",
-  },
-  form: {
-    gap: 16,
-  },
-  fieldGroup: {
-    gap: 8,
-  },
-  label: {
-    color: "#FFFFFF",
-    fontSize: 14,
-    fontWeight: "700",
-  },
-  input: {
-    backgroundColor: "#1C1630",
-    borderRadius: 10,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    color: "#FFFFFF",
-    fontSize: 15,
-  },
-  errorText: {
-    color: "#FF6B6B",
-    fontSize: 13,
-  },
-  primaryButton: {
-    backgroundColor: "#7C5BBF",
-    borderRadius: 12,
-    paddingVertical: 14,
-    alignItems: "center",
-    marginTop: 4,
-  },
-  primaryButtonText: {
-    color: "#FFFFFF",
-    fontSize: 16,
-    fontWeight: "700",
-  },
-  divider: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  line: {
-    flex: 1,
-    height: 1,
-    backgroundColor: "#1F1A2F",
-  },
-  dividerText: {
-    color: "#6E6881",
-    fontSize: 13,
-  },
-  socialButtons: {
-    gap: 12,
-  },
-  socialButton: {
-    backgroundColor: "#0F0A1F",
-    borderRadius: 12,
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    borderWidth: 1,
-    borderColor: "#1F1A2F",
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-  },
-  socialButtonText: {
-    color: "#FFFFFF",
-    fontSize: 15,
-    fontWeight: "600",
-  },
-  footer: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    marginTop: "auto",
-  },
-  footerText: {
-    color: "#FFFFFF",
-    fontSize: 14,
-  },
-  link: {
-    color: "#46E4D6",
-    fontSize: 14,
-    fontWeight: "700",
-  },
-});
