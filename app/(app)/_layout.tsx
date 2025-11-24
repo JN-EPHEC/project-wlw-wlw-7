@@ -20,18 +20,16 @@ export default function AppLayout() {
       </SafeAreaView>
     );
 
-  if (loading || checking) return null;
-
   if (!user) {
     return <Redirect href="/login" />;
   }
 
   if (needsOnboarding) {
-return <Redirect href="/register-next" />;  }
-
+return <Redirect href="/register-next" />;
+  }
   return (
     <Tabs
-      initialRouteName="login"
+      initialRouteName="home"
       screenOptions={{
         headerShown: false,
         tabBarStyle: {

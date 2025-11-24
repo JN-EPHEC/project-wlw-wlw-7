@@ -21,7 +21,6 @@ export default function AuthLayout() {
     );
 
 
-  if (loading || checking) return null;
 
   if (user && !isOnboarding) {
     if (needsOnboarding) {
