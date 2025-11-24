@@ -30,6 +30,9 @@ const passwordRules = [
 
 // 🔍 Mapping des erreurs Firebase -> message utilisateur
 function mapRegisterError(error: unknown): string {
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
   const code = (error as any)?.code as string | undefined;
 
   if (!code) {
@@ -115,7 +118,7 @@ export default function RegisterScreen() {
     try {
       setSubmitting(true);
       setErrors({});
-      await register(trimmedEmail, password);
+      await register(trimmedEmail, password, trimmedUsername);
       router.push("./register-next");
     } catch (err) {
       console.log("Register error:", (err as any)?.code, err);
