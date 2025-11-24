@@ -9,7 +9,7 @@ export default function AppLayout() {
   const { user, loading } = useAuth();
   const { needsOnboarding, checking } = useOnboardingStatus();
 
-   if (loading || checking)
+  if (loading || checking)
     return (
       <SafeAreaView style={{ flex: 1, backgroundColor: "#0B031A" }}>
         <View
@@ -25,7 +25,7 @@ export default function AppLayout() {
   }
 
   if (needsOnboarding) {
-return <Redirect href="/register-next" />;
+    return <Redirect href="/register-next" />;
   }
   return (
     <Tabs
@@ -83,7 +83,19 @@ return <Redirect href="/register-next" />;
           ),
         }}
       />
-      
+      {/* Abonnement et paiement accessibles uniquement depuis le profil */}
+      <Tabs.Screen
+        name="premium"
+        options={{
+          tabBarButton: () => null,
+        }}
+      />
+      <Tabs.Screen
+        name="payment"
+        options={{
+          tabBarButton: () => null,
+        }}
+      />
     </Tabs>
   );
 }
