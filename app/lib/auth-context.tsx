@@ -24,35 +24,36 @@ type AuthContextType = {
   logout: () => Promise<void>;
 };
 
-const AuthContext = createContext<AuthContextType | undefined>(
-  undefined as AuthContextType | undefined
-);
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-export function AuthProvider({ children}: { children?: ReactNode }) {
+export function AuthProvider({ children }: { children?: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser: User | null) => {
-      setUser(firebaseUser);
-      setLoading(false);
+    const unsubscribe = onAuthStateChanged(
+      auth,
+      async (firebaseUser: User | null) => {
+        setUser(firebaseUser);
+        setLoading(false);
 
-      if (firebaseUser) {
-        const userRef = doc(db, "users", firebaseUser.uid);
-        const snap = await getDoc(userRef);
+        if (firebaseUser) {
+          const userRef = doc(db, "users", firebaseUser.uid);
+          const snap = await getDoc(userRef);
 
-        if (!snap.exists()) {
-          await setDoc(
-            userRef,
-            {
-              email: firebaseUser.email,
-              createdAt: new Date(),
-            },
-            { merge: true }
-          );
+          if (!snap.exists()) {
+            await setDoc(
+              userRef,
+              {
+                email: firebaseUser.email,
+                createdAt: new Date(),
+              },
+              { merge: true }
+            );
+          }
         }
       }
-    });
+    );
 
     return unsubscribe;
   }, []);
@@ -87,7 +88,7 @@ export function AuthProvider({ children}: { children?: ReactNode }) {
 }
 
 export function useAuth(): AuthContextType {
-  const ctx = useContext<AuthContextType | undefined>(AuthContext);
+  const ctx = useContext(AuthContext);
   if (!ctx) {
     throw new Error("useAuth must be used inside AuthProvider");
   }
