@@ -4,19 +4,25 @@ import { useAuth } from "./auth-context";
 import { db } from "./firebaseConfig";
 
 export function useOnboardingStatus() {
-  const { user, loading } = useAuth();
-  const [checking, setChecking] = useState(true);
+  const { user, loading, onboardingCompleted, profileChecked } = useAuth();  const [checking, setChecking] = useState(true);
   const [needsOnboarding, setNeedsOnboarding] = useState(false);
 
   useEffect(() => {
     const check = async () => {
-      if (loading) return;
+      if (loading || !profileChecked) return;
 
       if (!user) {
         setNeedsOnboarding(false);
         setChecking(false);
         return;
       }
+
+      if (onboardingCompleted !== null) {
+        setNeedsOnboarding(!onboardingCompleted);
+        setChecking(false);
+        return;
+      }
+
 
       try {
         const snap = await getDoc(doc(db, "users", user.uid));
@@ -40,7 +46,7 @@ export function useOnboardingStatus() {
     };
 
     check();
-  }, [loading, user]);
+  }, [loading, onboardingCompleted, profileChecked, user]);
 
   return { needsOnboarding, checking };
 }

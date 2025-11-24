@@ -31,6 +31,8 @@ import { appleProvider, auth, db, googleProvider } from "./firebaseConfig";
 type AuthContextType = {
   user: User | null;
   loading: boolean;
+  onboardingCompleted: boolean | null;
+  profileChecked: boolean;
   login: (email: string, password: string) => Promise<void>;
   loginWithGoogle: () => Promise<void>;
   loginWithApple: () => Promise<void>;
@@ -45,6 +47,8 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children?: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [onboardingCompleted, setOnboardingCompleted] = useState<boolean | null>(null);
+  const [profileChecked, setProfileChecked] = useState(false);
   const [lastAuthError, setLastAuthError] = useState<unknown | null>(null);
 
   // 🔐 Gère l'état de connexion + création du document user si besoin
@@ -52,9 +56,12 @@ export function AuthProvider({ children }: { children?: ReactNode }) {
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
       setUser(firebaseUser);
       setLoading(false);
-
-      if (!firebaseUser) return;
-
+      setOnboardingCompleted(null);
+      setProfileChecked(false);
+      if (!firebaseUser) {
+        setProfileChecked(true);
+        return;
+      }
       // on fait la partie Firestore dans une IIFE avec try/catch
       (async () => {
         try {
@@ -71,7 +78,14 @@ export function AuthProvider({ children }: { children?: ReactNode }) {
               },
               { merge: true }
             );
+
+            setOnboardingCompleted(false);
+            setProfileChecked(true);
+            return;
           }
+          const userData = snap.data();
+          setOnboardingCompleted(Boolean(userData?.onboardingCompleted));
+          setProfileChecked(true);
         } catch (error: any) {
           // IMPORTANT : pas de console.error ici, juste un log
           console.log(
@@ -79,6 +93,8 @@ export function AuthProvider({ children }: { children?: ReactNode }) {
             error?.message ?? error
           );
           // On ne rethrow PAS → pas d'écran rouge
+          setOnboardingCompleted(null);
+          setProfileChecked(true);
         }
       })();
     });
@@ -156,6 +172,8 @@ export function AuthProvider({ children }: { children?: ReactNode }) {
       },
       { merge: true }
     );
+    setOnboardingCompleted(false);
+    setProfileChecked(true);
   };
 
   const logout = async () => {
@@ -167,6 +185,8 @@ export function AuthProvider({ children }: { children?: ReactNode }) {
       value={{
         user,
         loading,
+        onboardingCompleted,
+        profileChecked,
         login,
         loginWithGoogle,
         loginWithApple,
