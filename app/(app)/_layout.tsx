@@ -1,12 +1,24 @@
 // app/(app)/_layout.tsx
 import { Ionicons } from "@expo/vector-icons";
 import { Redirect, Tabs } from "expo-router";
+import { ActivityIndicator, SafeAreaView, View } from "react-native";
 import { useAuth } from "../lib/auth-context";
 import { useOnboardingStatus } from "../lib/useOnboardingStatus";
 
 export default function AppLayout() {
   const { user, loading } = useAuth();
   const { needsOnboarding, checking } = useOnboardingStatus();
+
+   if (loading || checking)
+    return (
+      <SafeAreaView style={{ flex: 1, backgroundColor: "#0B031A" }}>
+        <View
+          style={{ flex: 1, justifyContent: "center", alignItems: "center" }}
+        >
+          <ActivityIndicator size="large" color="#9B5DE5" />
+        </View>
+      </SafeAreaView>
+    );
 
   if (loading || checking) return null;
 
@@ -20,6 +32,7 @@ export default function AppLayout() {
 
   return (
     <Tabs
+      initialRouteName="login"
       screenOptions={{
         headerShown: false,
         tabBarStyle: {
