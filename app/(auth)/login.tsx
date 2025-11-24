@@ -1,6 +1,6 @@
 // app/(auth)/login.tsx
 import { FontAwesome } from "@expo/vector-icons";
-import { Link } from "expo-router";
+import { Link, useRouter } from "expo-router";
 import { FirebaseError } from "firebase/app";
 import React, { useEffect, useState } from "react";
 import {
@@ -15,6 +15,7 @@ import {
   View,
 } from "react-native";
 import { useAuth } from "../lib/auth-context";
+import { useOnboardingStatus } from "../lib/useOnboardingStatus";
 
 function mapAuthError(error: unknown): string {
   const code = (error as any)?.code as string | undefined;
@@ -40,8 +41,8 @@ function mapAuthError(error: unknown): string {
     case "auth/operation-not-supported-in-this-environment":
       return "Ce mode de connexion n'est pas disponible sur cet appareil.";
     case "auth/missing-client-id":
-      return "La configuration Apple semble incomplète ou invalide.";
-    case "auth/configuration-not-found":
+      return "La configuration Apple semble incomplète ou invalide."; 
+    case "auth/configuration-not-found": 
       return "La connexion Apple n'est pas encore configurée sur ce projet.";
     case "auth/account-exists-with-different-credential":
       return "Un compte existe déjà avec une autre méthode de connexion pour cet email.";
@@ -67,6 +68,8 @@ export default function LoginScreen() {
     null
   );
   const [error, setError] = useState<string | null>(null);
+  const router = useRouter();
+  const { needsOnboarding, checking } = useOnboardingStatus();
 
   useEffect(() => {
     if (lastAuthError) {
@@ -98,6 +101,17 @@ export default function LoginScreen() {
       setSubmitting(false);
     }
   }, [user, submitting]);
+
+  useEffect(() => {
+    if (loading || checking || !user) return;
+
+    if (needsOnboarding) {
+      router.replace("/(auth)/register-next");
+      return;
+    }
+
+    router.replace("/(app)/home");
+  }, [user, loading, checking, needsOnboarding, router]);
 
   const handleLogin = async () => {
     setError(null);
