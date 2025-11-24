@@ -1,13 +1,11 @@
-// app/index.tsx
-import { Redirect } from "expo-router";
 import { doc, getDoc } from "firebase/firestore";
-import React, { useEffect, useState } from "react";
-import { useAuth } from "./lib/auth-context";
-import { db } from "./lib/firebaseConfig";
+import { useEffect, useState } from "react";
+import { useAuth } from "./auth-context";
+import { db } from "./firebaseConfig";
 
-export default function Index() {
+export function useOnboardingStatus() {
   const { user, loading } = useAuth();
-  const [checkingProfile, setCheckingProfile] = useState(true);
+  const [checking, setChecking] = useState(true);
   const [needsOnboarding, setNeedsOnboarding] = useState(false);
 
   useEffect(() => {
@@ -15,7 +13,8 @@ export default function Index() {
       if (loading) return;
 
       if (!user) {
-        setCheckingProfile(false);
+        setChecking(false);
+        setNeedsOnboarding(false);
         return;
       }
 
@@ -27,22 +26,12 @@ export default function Index() {
         console.error("Unable to fetch onboarding status", error);
         setNeedsOnboarding(false);
       } finally {
-        setCheckingProfile(false);
+        setChecking(false);
       }
     };
 
     fetchOnboardingState();
   }, [loading, user]);
 
-  if (loading || checkingProfile) return null;
-
-  if (!user) {
-    return <Redirect href="/(auth)/login" />;
-  }
-
-  if (needsOnboarding) {
-    return <Redirect href="/(auth)/register-next" />;
-  }
-
-  return <Redirect href="/(app)/home" />;
+  return { needsOnboarding, checking };
 }

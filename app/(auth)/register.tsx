@@ -119,7 +119,7 @@ export default function RegisterScreen() {
       setSubmitting(true);
       setErrors({});
       await register(trimmedEmail, password, trimmedUsername);
-      router.push("./register-next");
+      router.replace("/(auth)/register-next");
     } catch (err) {
       console.log("Register error:", (err as any)?.code, err);
       const message = mapRegisterError(err);

@@ -64,6 +64,7 @@ export function AuthProvider({ children }: { children?: ReactNode }) {
               {
                 email: firebaseUser.email,
                 createdAt: new Date(),
+                onboardingCompleted: false,
               },
               { merge: true }
             );
@@ -138,6 +139,9 @@ export function AuthProvider({ children }: { children?: ReactNode }) {
         username: normalizedUsername,
         usernameLower: normalizedLower,
         createdAt: new Date(),
+        onboardingCompleted: false,
+        accountType: null,
+        interests: [],
       },
       { merge: true }
     );

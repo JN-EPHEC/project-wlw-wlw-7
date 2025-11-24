@@ -2,14 +2,20 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Redirect, Tabs } from "expo-router";
 import { useAuth } from "../lib/auth-context";
+import { useOnboardingStatus } from "../lib/useOnboardingStatus";
 
 export default function AppLayout() {
   const { user, loading } = useAuth();
+  const { needsOnboarding, checking } = useOnboardingStatus();
 
-  if (loading) return null;
+  if (loading || checking) return null;
 
   if (!user) {
     return <Redirect href="/(auth)/login" />;
+  }
+
+  if (needsOnboarding) {
+    return <Redirect href="/(auth)/register-next" />;
   }
 
   return (
