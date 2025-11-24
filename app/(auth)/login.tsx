@@ -10,8 +10,9 @@ import {
   SafeAreaView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
-  View
+  View,
 } from "react-native";
 import { useAuth } from "../lib/auth-context";
 
@@ -20,9 +21,7 @@ function mapAuthError(error: unknown): string {
   const message = error instanceof FirebaseError ? error.message : undefined;
 
   if (!code) {
-    return (
-      message ?? "Une erreur s'est produite lors de la connexion."
-    );
+    return message ?? "Une erreur s'est produite lors de la connexion.";
   }
 
   switch (code) {
@@ -41,7 +40,6 @@ function mapAuthError(error: unknown): string {
     case "auth/operation-not-supported-in-this-environment":
       return "Ce mode de connexion n'est pas disponible sur cet appareil.";
     case "auth/missing-client-id":
-    case "auth/invalid-credential":
       return "La configuration Apple semble incomplète ou invalide.";
     case "auth/configuration-not-found":
       return "La connexion Apple n'est pas encore configurée sur ce projet.";
@@ -51,7 +49,6 @@ function mapAuthError(error: unknown): string {
       return message ?? "Une erreur s'est produite lors de la connexion.";
   }
 }
-
 
 export default function LoginScreen() {
   const {
@@ -75,6 +72,7 @@ export default function LoginScreen() {
     if (lastAuthError) {
       setError(mapAuthError(lastAuthError));
       setSubmitting(false);
+      setActiveProvider(null);
       clearAuthError();
     }
   }, [lastAuthError, clearAuthError]);
@@ -105,7 +103,6 @@ export default function LoginScreen() {
     setError(null);
     clearAuthError();
 
-    // petite validation basique côté client
     if (!email.trim() || !password) {
       setError("Veuillez entrer votre e-mail et votre mot de passe.");
       return;
@@ -115,12 +112,9 @@ export default function LoginScreen() {
 
     try {
       await login(email.trim(), password);
-      // si login échoue, ça throw et on passe dans le catch
     } catch (err) {
       const message = mapAuthError(err);
       setError(message);
-      // si tu veux en plus un popup :
-      // Alert.alert("Connexion impossible", message);
     } finally {
       setSubmitting(false);
     }
@@ -168,11 +162,49 @@ export default function LoginScreen() {
           </View>
 
           <View style={styles.form}>
+            <Text style={styles.title}>Heureux de vous revoir</Text>
+            <Text style={styles.subtitle}>
+              Connectez-vous pour retrouver vos groupes et vos idées de sorties.
+            </Text>
+
+            {error && (
+              <View style={styles.errorBox}>
+                <Text style={styles.errorText}>{error}</Text>
+              </View>
+            )}
+
             <View style={styles.fieldGroup}>
-@@ -131,59 +201,61 @@ export default function LoginScreen() {
+              <Text style={styles.label}>Email</Text>
+              <TextInput
+                value={email}
+                onChangeText={setEmail}
+                placeholder="Entrez votre email"
+                placeholderTextColor="#6E6881"
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoComplete="email"
+                style={styles.input}
+                editable={!submitting}
+              />
+            </View>
+
+            <View style={styles.fieldGroup}>
+              <Text style={styles.label}>Mot de passe</Text>
+              <TextInput
+                value={password}
+                onChangeText={setPassword}
+                placeholder="Entrez votre mot de passe"
+                placeholderTextColor="#6E6881"
+                secureTextEntry
+                autoComplete="password"
+                style={styles.input}
+                editable={!submitting}
+              />
+            </View>
+
             <TouchableOpacity
               activeOpacity={0.85}
-              style={styles.primaryButton}
+              style={[styles.primaryButton, submitting && styles.buttonDisabled]}
               onPress={handleLogin}
               disabled={submitting}
             >
@@ -197,7 +229,11 @@ export default function LoginScreen() {
               onPress={() => handleProviderPress("google")}
               disabled={submitting}
             >
-              <FontAwesome name="google" size={20} color="#FFFFFF" />
+              {activeProvider === "google" && submitting ? (
+                <ActivityIndicator color="#FFFFFF" />
+              ) : (
+                <FontAwesome name="google" size={20} color="#FFFFFF" />
+              )}
               <Text style={styles.socialButtonText}>Continuer avec Google</Text>
             </TouchableOpacity>
 
@@ -207,7 +243,11 @@ export default function LoginScreen() {
               onPress={() => handleProviderPress("apple")}
               disabled={submitting}
             >
-              <FontAwesome name="apple" size={22} color="#FFFFFF" />
+              {activeProvider === "apple" && submitting ? (
+                <ActivityIndicator color="#FFFFFF" />
+              ) : (
+                <FontAwesome name="apple" size={22} color="#FFFFFF" />
+              )}
               <Text style={styles.socialButtonText}>Continuer avec Apple</Text>
             </TouchableOpacity>
           </View>
@@ -231,3 +271,155 @@ const styles = StyleSheet.create({
   },
   loadingContainer: {
     flex: 1,
+    backgroundColor: "#050013",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  container: {
+    flex: 1,
+    paddingHorizontal: 24,
+    paddingVertical: 32,
+  },
+  header: {
+    flexDirection: "row",
+    justifyContent: "center",
+    marginBottom: 24,
+  },
+  logoText: {
+    fontSize: 32,
+    fontWeight: "800",
+    letterSpacing: 0.5,
+  },
+  logoPink: {
+    color: "#B74BD9",
+  },
+  logoBlue: {
+    color: "#6E5BFF",
+  },
+  logoTeal: {
+    color: "#46E4D6",
+  },
+  form: {
+    backgroundColor: "#09031A",
+    borderRadius: 16,
+    padding: 20,
+    gap: 16,
+    borderColor: "#1F1A2F",
+    borderWidth: 1,
+    shadowColor: "#000",
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 4,
+  },
+  title: {
+    color: "#FFFFFF",
+    fontSize: 20,
+    fontWeight: "800",
+  },
+  subtitle: {
+    color: "#6E6881",
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  errorBox: {
+    backgroundColor: "#2C1026",
+    borderColor: "#FF6B6B",
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 12,
+  },
+  fieldGroup: {
+    gap: 8,
+  },
+  label: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  input: {
+    backgroundColor: "#0F0A24",
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    color: "#FFFFFF",
+    fontSize: 15,
+    borderWidth: 1,
+    borderColor: "#1F1A2F",
+  },
+  errorText: {
+    color: "#FF6B6B",
+    fontSize: 13,
+  },
+  primaryButton: {
+    backgroundColor: "#7C5BBF",
+    borderRadius: 14,
+    paddingVertical: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 8,
+    shadowColor: "#7C5BBF",
+    shadowOpacity: 0.35,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 5,
+  },
+  buttonDisabled: {
+    opacity: 0.6,
+  },
+  primaryButtonText: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "700",
+  },
+  divider: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginVertical: 20,
+  },
+  line: {
+    flex: 1,
+    height: 1,
+    backgroundColor: "#1F1A2F",
+  },
+  dividerText: {
+    color: "#6E6881",
+    fontSize: 13,
+  },
+  socialButtons: {
+    gap: 12,
+  },
+  socialButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    backgroundColor: "#0F0A24",
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    borderColor: "#1F1A2F",
+    borderWidth: 1,
+  },
+  socialButtonText: {
+    color: "#FFFFFF",
+    fontSize: 15,
+    fontWeight: "700",
+  },
+  footer: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    marginTop: 24,
+  },
+  footerText: {
+    color: "#FFFFFF",
+    fontSize: 14,
+  },
+  link: {
+    color: "#46E4D6",
+    fontSize: 14,
+    fontWeight: "700",
+  },
+});
