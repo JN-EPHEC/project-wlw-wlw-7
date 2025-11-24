@@ -87,13 +87,13 @@ export default function AppLayout() {
       <Tabs.Screen
         name="premium"
         options={{
-          tabBarButton: () => null,
+          href: null,
         }}
       />
       <Tabs.Screen
         name="payment"
         options={{
-          tabBarButton: () => null,
+          href: null,
         }}
       />
     </Tabs>
