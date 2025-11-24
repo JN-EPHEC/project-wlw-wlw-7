@@ -20,14 +20,13 @@ export default function Index() {
     );
 
   if (!user) {
-    return <Redirect href="/(auth)/login" />;
-  }
+    return <Redirect href="/login" />;  }
 
   if (needsOnboarding) {
-    return <Redirect href="/(auth)/register-next" />;
+    return <Redirect href="/register-next" />;
   }
 
-  return <Redirect href="/(app)/home" />;
+  return <Redirect href="/home" />;
 }
 
 const styles = StyleSheet.create({

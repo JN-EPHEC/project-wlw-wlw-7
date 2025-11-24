@@ -119,7 +119,7 @@ export default function RegisterScreen() {
       setSubmitting(true);
       setErrors({});
       await register(trimmedEmail, password, trimmedUsername);
-      router.replace("/(auth)/register-next");
+      router.replace("/register-next");
     } catch (err) {
       console.log("Register error:", (err as any)?.code, err);
       const message = mapRegisterError(err);
@@ -246,8 +246,8 @@ export default function RegisterScreen() {
 
             <View style={styles.footer}>
               <Text style={styles.footerText}>Vous avez un compte?</Text>
-              <Link href="/(auth)/login" asChild>
-                <TouchableOpacity>
+              <Link href="/login" asChild>                
+              <TouchableOpacity>
                   <Text style={styles.link}>Connectez-vous</Text>
                 </TouchableOpacity>
               </Link>

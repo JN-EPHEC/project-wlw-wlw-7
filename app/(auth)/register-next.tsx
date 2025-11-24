@@ -76,7 +76,7 @@ export default function RegisterNextScreen() {
         },
         { merge: true }
       );
-      router.replace("/(app)/home");
+      router.replace("/home");
     } catch (err) {
       console.error("Unable to finish onboarding", err);
       setError("Impossible d'enregistrer tes préférences pour le moment.");
@@ -86,11 +86,11 @@ export default function RegisterNextScreen() {
   };
 
   if (!loading && !user) {
-    return <Redirect href="/(auth)/login" />;
+    return <Redirect href="/login" />;
   }
 
   if (!loading && !checking && !needsOnboarding) {
-    return <Redirect href="/(app)/home" />;
+    return <Redirect href="/home" />;
   }
 
   return (

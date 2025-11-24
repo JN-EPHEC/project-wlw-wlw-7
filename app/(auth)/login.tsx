@@ -106,11 +106,11 @@ export default function LoginScreen() {
     if (loading || checking || !user) return;
 
     if (needsOnboarding) {
-      router.replace("/(auth)/register-next");
+            router.replace("/register-next");
       return;
     }
 
-    router.replace("/(app)/home");
+   router.replace("/home");
   }, [user, loading, checking, needsOnboarding, router]);
 
   const handleLogin = async () => {
@@ -268,7 +268,7 @@ export default function LoginScreen() {
 
           <View style={styles.footer}>
             <Text style={styles.footerText}>Vous n'avez pas de compte?</Text>
-            <Link href="/(auth)/register" style={styles.link}>
+             <Link href="/register" style={styles.link}>
               Inscrivez-vous
             </Link>
           </View>

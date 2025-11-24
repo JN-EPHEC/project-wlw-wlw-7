@@ -25,9 +25,9 @@ export default function AuthLayout() {
 
   if (user && !isOnboarding) {
     if (needsOnboarding) {
-      return <Redirect href="/(auth)/register-next" />;
+      return <Redirect href="/register-next" />;
     }
-    return <Redirect href="/(app)/home" />;
+      return <Redirect href="/home" />;
   }
 
   return (

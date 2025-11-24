@@ -23,12 +23,11 @@ export default function AppLayout() {
   if (loading || checking) return null;
 
   if (!user) {
-    return <Redirect href="/(auth)/login" />;
+    return <Redirect href="/login" />;
   }
 
   if (needsOnboarding) {
-    return <Redirect href="/(auth)/register-next" />;
-  }
+return <Redirect href="/register-next" />;  }
 
   return (
     <Tabs
