@@ -6,7 +6,15 @@ import {
   signInWithEmailAndPassword,
   signOut,
 } from "firebase/auth";
-import { doc, getDoc, setDoc } from "firebase/firestore";
+import {
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  query,
+  setDoc,
+  where,
+} from "firebase/firestore";
 import React, {
   ReactNode,
   createContext,
@@ -20,7 +28,7 @@ type AuthContextType = {
   user: User | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
-  register: (email: string, password: string) => Promise<void>;
+  register: (email: string, password: string, username: string) => Promise<void>;
   logout: () => Promise<void>;
 };
 
@@ -62,7 +70,18 @@ export function AuthProvider({ children }: { children?: ReactNode }) {
     await signInWithEmailAndPassword(auth, email, password);
   };
 
-  const register = async (email: string, password: string) => {
+  const register = async (email: string, password: string, username: string) => {
+    const normalizedUsername = username.trim();
+    const normalizedLower = normalizedUsername.toLowerCase();
+
+    const existingUsernames = await getDocs(
+      query(collection(db, "users"), where("usernameLower", "==", normalizedLower))
+    );
+
+    if (!existingUsernames.empty) {
+      throw new Error("Ce nom d'utilisateur est déjà pris.");
+    }
+
     const cred = await createUserWithEmailAndPassword(auth, email, password);
     const userRef = doc(db, "users", cred.user.uid);
 
@@ -70,6 +89,8 @@ export function AuthProvider({ children }: { children?: ReactNode }) {
       userRef,
       {
         email,
+        username: normalizedUsername,
+        usernameLower: normalizedLower,
         createdAt: new Date(),
       },
       { merge: true }
