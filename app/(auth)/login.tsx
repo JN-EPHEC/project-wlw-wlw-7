@@ -1,5 +1,7 @@
 // app/(auth)/login.tsx
 import { FontAwesome } from "@expo/vector-icons";
+import MaskedView from "@react-native-masked-view/masked-view";
+import { LinearGradient } from "expo-linear-gradient";
 import { Link, useRouter } from "expo-router";
 import { FirebaseError } from "firebase/app";
 import React, { useEffect, useState } from "react";
@@ -14,8 +16,35 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+
 import { useAuth } from "../lib/auth-context";
 import { useOnboardingStatus } from "../lib/useOnboardingStatus";
+
+const COLORS = {
+  backgroundStart: "#110A1E",
+  backgroundEnd: "#0A0612",
+  primary: "#3A2A60",
+  secondary: "#B57BFF",
+  logoStart: "#A259FF",
+  logoEnd: "#00A3FF",
+  textPrimary: "#F9FAFB",
+  textSecondary: "#9CA3AF",
+  textDisabled: "#6B7280",
+  success: "#10B981",
+  error: "#EF4444",
+  warning: "#F59E0B",
+  info: "#3B82F6",
+  overlay: "rgba(59,130,246,0.6)",
+  neutralGray800: "#1F2937",
+  inputBackground: "#141329",
+};
+
+const TYPO = {
+  h1: { fontFamily: "Poppins-Bold" as const, fontSize: 32 },
+  label: { fontFamily: "Poppins-Medium" as const, fontSize: 14 },
+  body: { fontFamily: "Poppins-Regular" as const, fontSize: 16 },
+  button: { fontFamily: "Poppins-SemiBold" as const, fontSize: 16 },
+};
 
 function mapAuthError(error: unknown): string {
   const code = (error as any)?.code as string | undefined;
@@ -41,8 +70,8 @@ function mapAuthError(error: unknown): string {
     case "auth/operation-not-supported-in-this-environment":
       return "Ce mode de connexion n'est pas disponible sur cet appareil.";
     case "auth/missing-client-id":
-      return "La configuration Apple semble incomplète ou invalide."; 
-    case "auth/configuration-not-found": 
+      return "La configuration Apple semble incomplète ou invalide.";
+    case "auth/configuration-not-found":
       return "La connexion Apple n'est pas encore configurée sur ce projet.";
     case "auth/account-exists-with-different-credential":
       return "Un compte existe déjà avec une autre méthode de connexion pour cet email.";
@@ -61,13 +90,14 @@ export default function LoginScreen() {
     lastAuthError,
     clearAuthError,
   } = useAuth();
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [activeProvider, setActiveProvider] = useState<"google" | "apple" | null>(
-    null
-  );
+  const [activeProvider, setActiveProvider] =
+    useState<"google" | "apple" | null>(null);
   const [error, setError] = useState<string | null>(null);
+
   const router = useRouter();
   const { needsOnboarding, checking } = useOnboardingStatus();
 
@@ -84,8 +114,6 @@ export default function LoginScreen() {
     if (Platform.OS !== "web") return;
 
     const handleWindowFocus = () => {
-      // If the popup was closed manually, Firebase sometimes delays error resolution.
-      // Clearing the loading state when focus returns avoids a stuck spinner for the user.
       if (activeProvider && submitting && !user) {
         setSubmitting(false);
         setActiveProvider(null);
@@ -106,11 +134,11 @@ export default function LoginScreen() {
     if (loading || checking || !user) return;
 
     if (needsOnboarding) {
-            router.replace("/register-next");
+      router.replace("/register-next");
       return;
     }
 
-   router.replace("/home");
+    router.replace("/home");
   }, [user, loading, checking, needsOnboarding, router]);
 
   const handleLogin = async () => {
@@ -156,224 +184,227 @@ export default function LoginScreen() {
 
   if (loading && !user) {
     return (
-      <SafeAreaView style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#9B5DE5" />
+      <SafeAreaView style={styles.safeArea}>
+        <LinearGradient
+          colors={[COLORS.backgroundStart, COLORS.backgroundEnd]}
+          style={styles.gradient}
+        >
+          <ActivityIndicator size="large" color={COLORS.secondary} />
+        </LinearGradient>
       </SafeAreaView>
     );
   }
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <KeyboardAvoidingView
-        style={styles.safeArea}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
+      <LinearGradient
+        colors={[COLORS.backgroundStart, COLORS.backgroundEnd]}
+        style={styles.gradient}
       >
-        <View style={styles.container}>
-          <View style={styles.header}>
-            <Text style={[styles.logoText, styles.logoPink]}>What</Text>
-            <Text style={[styles.logoText, styles.logoBlue]}>2</Text>
-            <Text style={[styles.logoText, styles.logoTeal]}>Do</Text>
-          </View>
+        <KeyboardAvoidingView
+          style={styles.keyboard}
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+        >
+          <View style={styles.container}>
+            {/* Logo gradient */}
+            <View style={styles.header}>
+              <MaskedView
+                maskElement={<Text style={styles.logoText}>What2Do</Text>}
+              >
+                <LinearGradient
+                  colors={[COLORS.logoStart, COLORS.logoEnd]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                >
+                  <Text style={[styles.logoText, { opacity: 0 }]}>
+                    What2Do
+                  </Text>
+                </LinearGradient>
+              </MaskedView>
+            </View>
 
-          <View style={styles.form}>
-            <Text style={styles.title}>Heureux de vous revoir</Text>
-            <Text style={styles.subtitle}>
-              Connectez-vous pour retrouver vos groupes et vos idées de sorties.
-            </Text>
+            {/* Form */}
+            <View style={styles.form}>
+              {error && (
+                <View style={styles.errorBox}>
+                  <Text style={styles.errorText}>{error}</Text>
+                </View>
+              )}
 
-            {error && (
-              <View style={styles.errorBox}>
-                <Text style={styles.errorText}>{error}</Text>
+              <View style={styles.fieldGroup}>
+                <Text style={styles.label}>Email</Text>
+                <TextInput
+                  value={email}
+                  onChangeText={setEmail}
+                  placeholder="Entrez votre email"
+                  placeholderTextColor={COLORS.textDisabled}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  autoComplete="email"
+                  style={styles.input}
+                  editable={!submitting}
+                />
               </View>
-            )}
 
-            <View style={styles.fieldGroup}>
-              <Text style={styles.label}>Email</Text>
-              <TextInput
-                value={email}
-                onChangeText={setEmail}
-                placeholder="Entrez votre email"
-                placeholderTextColor="#6E6881"
-                keyboardType="email-address"
-                autoCapitalize="none"
-                autoComplete="email"
-                style={styles.input}
-                editable={!submitting}
-              />
+              <View style={styles.fieldGroup}>
+                <Text style={styles.label}>Mot de passe</Text>
+                <TextInput
+                  value={password}
+                  onChangeText={setPassword}
+                  placeholder="Entrez votre mot de passe"
+                  placeholderTextColor={COLORS.textDisabled}
+                  secureTextEntry
+                  autoComplete="password"
+                  style={styles.input}
+                  editable={!submitting}
+                />
+              </View>
+
+              <TouchableOpacity
+                activeOpacity={0.85}
+                style={[
+                  styles.primaryButton,
+                  submitting && styles.buttonDisabled,
+                ]}
+                onPress={handleLogin}
+                disabled={submitting}
+              >
+                {submitting ? (
+                  <ActivityIndicator color={COLORS.textPrimary} />
+                ) : (
+                  <Text style={styles.primaryButtonText}>Se connecter</Text>
+                )}
+              </TouchableOpacity>
             </View>
 
-            <View style={styles.fieldGroup}>
-              <Text style={styles.label}>Mot de passe</Text>
-              <TextInput
-                value={password}
-                onChangeText={setPassword}
-                placeholder="Entrez votre mot de passe"
-                placeholderTextColor="#6E6881"
-                secureTextEntry
-                autoComplete="password"
-                style={styles.input}
-                editable={!submitting}
-              />
+            {/* Divider */}
+            <View style={styles.divider}>
+              <View style={styles.line} />
+              <Text style={styles.dividerText}>Ou continuer avec</Text>
+              <View style={styles.line} />
             </View>
 
-            <TouchableOpacity
-              activeOpacity={0.85}
-              style={[styles.primaryButton, submitting && styles.buttonDisabled]}
-              onPress={handleLogin}
-              disabled={submitting}
-            >
-              {submitting ? (
-                <ActivityIndicator color="#FFFFFF" />
-              ) : (
-                <Text style={styles.primaryButtonText}>Se connecter</Text>
-              )}
-            </TouchableOpacity>
-          </View>
+            {/* Social buttons */}
+            <View style={styles.socialButtons}>
+              <TouchableOpacity
+                style={[styles.socialButton, styles.googleButton]}
+                activeOpacity={0.85}
+                onPress={() => handleProviderPress("google")}
+                disabled={submitting}
+              >
+                {activeProvider === "google" && submitting ? (
+                  <ActivityIndicator color="#000000" />
+                ) : (
+                  <FontAwesome name="google" size={20} color="#000000" />
+                )}
+                <Text style={styles.googleButtonText}>
+                  Continuer avec Google
+                </Text>
+              </TouchableOpacity>
 
-          <View style={styles.divider}>
-            <View style={styles.line} />
-            <Text style={styles.dividerText}>Ou continuer avec</Text>
-            <View style={styles.line} />
-          </View>
+              <TouchableOpacity
+                style={[styles.socialButton, styles.appleButton]}
+                activeOpacity={0.85}
+                onPress={() => handleProviderPress("apple")}
+                disabled={submitting}
+              >
+                {activeProvider === "apple" && submitting ? (
+                  <ActivityIndicator color={COLORS.textPrimary} />
+                ) : (
+                  <FontAwesome
+                    name="apple"
+                    size={22}
+                    color={COLORS.textPrimary}
+                  />
+                )}
+                <Text style={styles.appleButtonText}>
+                  Continuer avec Apple
+                </Text>
+              </TouchableOpacity>
+            </View>
 
-          <View style={styles.socialButtons}>
-            <TouchableOpacity
-              style={styles.socialButton}
-              activeOpacity={0.85}
-              onPress={() => handleProviderPress("google")}
-              disabled={submitting}
-            >
-              {activeProvider === "google" && submitting ? (
-                <ActivityIndicator color="#FFFFFF" />
-              ) : (
-                <FontAwesome name="google" size={20} color="#FFFFFF" />
-              )}
-              <Text style={styles.socialButtonText}>Continuer avec Google</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.socialButton}
-              activeOpacity={0.85}
-              onPress={() => handleProviderPress("apple")}
-              disabled={submitting}
-            >
-              {activeProvider === "apple" && submitting ? (
-                <ActivityIndicator color="#FFFFFF" />
-              ) : (
-                <FontAwesome name="apple" size={22} color="#FFFFFF" />
-              )}
-              <Text style={styles.socialButtonText}>Continuer avec Apple</Text>
-            </TouchableOpacity>
+            {/* Footer */}
+            <View style={styles.footer}>
+              <Text style={styles.footerText}>
+                Vous n'avez pas de compte ?
+              </Text>
+              <Link href="/register" style={styles.link}>
+                Inscrivez-vous
+              </Link>
+            </View>
           </View>
-
-          <View style={styles.footer}>
-            <Text style={styles.footerText}>Vous n'avez pas de compte?</Text>
-             <Link href="/register" style={styles.link}>
-              Inscrivez-vous
-            </Link>
-          </View>
-        </View>
-      </KeyboardAvoidingView>
+        </KeyboardAvoidingView>
+      </LinearGradient>
     </SafeAreaView>
   );
 }
 
-
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: "#050013",
+    backgroundColor: "#000000",
   },
-  loadingContainer: {
+  gradient: {
     flex: 1,
-    backgroundColor: "#050013",
-    alignItems: "center",
-    justifyContent: "center",
+  },
+  keyboard: {
+    flex: 1,
   },
   container: {
     flex: 1,
     paddingHorizontal: 24,
-    paddingVertical: 32,
+    paddingTop: 60,
   },
   header: {
-    flexDirection: "row",
-    justifyContent: "center",
-    marginBottom: 24,
+    alignItems: "center",
+    marginBottom: 40,
   },
   logoText: {
-    fontSize: 32,
-    fontWeight: "800",
+    ...TYPO.h1,
+    color: COLORS.textPrimary,
     letterSpacing: 0.5,
   },
-  logoPink: {
-    color: "#B74BD9",
-  },
-  logoBlue: {
-    color: "#6E5BFF",
-  },
-  logoTeal: {
-    color: "#46E4D6",
-  },
   form: {
-    backgroundColor: "#09031A",
-    borderRadius: 16,
-    padding: 20,
-    gap: 16,
-    borderColor: "#1F1A2F",
-    borderWidth: 1,
-    shadowColor: "#000",
-    shadowOpacity: 0.25,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 4,
-  },
-  title: {
-    color: "#FFFFFF",
-    fontSize: 20,
-    fontWeight: "800",
-  },
-  subtitle: {
-    color: "#6E6881",
-    fontSize: 14,
-    lineHeight: 20,
+    gap: 20,
   },
   errorBox: {
     backgroundColor: "#2C1026",
-    borderColor: "#FF6B6B",
+    borderColor: COLORS.error,
     borderWidth: 1,
     borderRadius: 12,
     padding: 12,
+  },
+  errorText: {
+    color: COLORS.error,
+    fontSize: 13,
+    fontFamily: "Poppins-Medium",
   },
   fieldGroup: {
     gap: 8,
   },
   label: {
-    color: "#FFFFFF",
-    fontSize: 14,
-    fontWeight: "700",
+    ...TYPO.label,
+    color: COLORS.textPrimary,
   },
   input: {
-    backgroundColor: "#0F0A24",
-    borderRadius: 12,
-    paddingHorizontal: 16,
+    backgroundColor: COLORS.inputBackground,
+    borderRadius: 16,
+    paddingHorizontal: 18,
     paddingVertical: 14,
-    color: "#FFFFFF",
-    fontSize: 15,
+    color: COLORS.textPrimary,
+    fontSize: TYPO.body.fontSize,
+    fontFamily: TYPO.body.fontFamily,
     borderWidth: 1,
-    borderColor: "#1F1A2F",
-  },
-  errorText: {
-    color: "#FF6B6B",
-    fontSize: 13,
+    borderColor: COLORS.neutralGray800,
   },
   primaryButton: {
-    backgroundColor: "#7C5BBF",
-    borderRadius: 14,
-    paddingVertical: 14,
-    alignItems: "center",
-    justifyContent: "center",
-    marginTop: 8,
-    shadowColor: "#7C5BBF",
+    marginTop: 24,
+    alignSelf: "center",
+    paddingVertical: 12,
+    paddingHorizontal: 48,
+    borderRadius: 18,
+    backgroundColor: COLORS.primary,
+    shadowColor: COLORS.secondary,
     shadowOpacity: 0.35,
     shadowRadius: 12,
     shadowOffset: { width: 0, height: 8 },
@@ -383,24 +414,25 @@ const styles = StyleSheet.create({
     opacity: 0.6,
   },
   primaryButtonText: {
-    color: "#FFFFFF",
-    fontSize: 16,
-    fontWeight: "700",
+    ...TYPO.button,
+    color: COLORS.textPrimary,
   },
   divider: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    marginVertical: 20,
+    marginTop: 32,
+    marginBottom: 20,
   },
   line: {
     flex: 1,
     height: 1,
-    backgroundColor: "#1F1A2F",
+    backgroundColor: COLORS.neutralGray800,
   },
   dividerText: {
-    color: "#6E6881",
+    color: COLORS.textSecondary,
     fontSize: 13,
+    fontFamily: "Poppins-Regular",
   },
   socialButtons: {
     gap: 12,
@@ -409,32 +441,44 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
-    backgroundColor: "#0F0A24",
-    paddingVertical: 14,
+    paddingVertical: 12,
     paddingHorizontal: 16,
-    borderRadius: 12,
-    borderColor: "#1F1A2F",
-    borderWidth: 1,
+    borderRadius: 16,
   },
-  socialButtonText: {
-    color: "#FFFFFF",
+  googleButton: {
+    backgroundColor: "#FFFFFF",
+  },
+  appleButton: {
+    backgroundColor: "#000000",
+    borderWidth: 1,
+    borderColor: COLORS.neutralGray800,
+  },
+  googleButtonText: {
     fontSize: 15,
-    fontWeight: "700",
+    fontFamily: "Poppins-Medium",
+    color: "#000000",
+  },
+  appleButtonText: {
+    fontSize: 15,
+    fontFamily: "Poppins-Medium",
+    color: COLORS.textPrimary,
   },
   footer: {
+    marginTop: 28,
     flexDirection: "row",
-    alignItems: "center",
     justifyContent: "center",
+    alignItems: "center",
     gap: 6,
-    marginTop: 24,
   },
   footerText: {
-    color: "#FFFFFF",
     fontSize: 14,
+    fontFamily: "Poppins-Regular",
+    color: COLORS.textPrimary,
   },
   link: {
-    color: "#46E4D6",
     fontSize: 14,
-    fontWeight: "700",
+    fontFamily: "Poppins-Medium",
+    color: COLORS.secondary,
+    textDecorationLine: "underline",
   },
 });

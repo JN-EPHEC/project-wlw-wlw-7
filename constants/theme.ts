@@ -1,53 +1,81 @@
+// constants/theme.ts
+
 /**
- * Below are the colors that are used in the app. The colors are defined in the light and dark mode.
- * There are many other ways to style your app. For example, [Nativewind](https://www.nativewind.dev/), [Tamagui](https://tamagui.dev/), [unistyles](https://reactnativeunistyles.vercel.app), etc.
+ * Thème global de l'app (couleurs + typos)
  */
-
-import { Platform } from 'react-native';
-
-const tintColorLight = '#0a7ea4';
-const tintColorDark = '#fff';
 
 export const Colors = {
   light: {
-    text: '#11181C',
-    background: '#fff',
-    tint: tintColorLight,
-    icon: '#687076',
-    tabIconDefault: '#687076',
-    tabIconSelected: tintColorLight,
+    // si un jour tu fais un mode clair, tu pourras l’affiner,
+    // pour l’instant on met quelque chose de cohérent
+    text: "#11181C",
+    background: "#FFFFFF",
+    tint: "#3A2A60",
+    icon: "#687076",
+    tabIconDefault: "#687076",
+    tabIconSelected: "#3A2A60",
+
+    // tokens communs
+    primary: "#3A2A60",
+    secondary: "#B57BFF",
+    textPrimary: "#11181C",
+    textSecondary: "#4B5563",
+    textDisabled: "#6B7280",
+    success: "#10B981",
+    error: "#EF4444",
+    warning: "#F59E0B",
+    info: "#3B82F6",
+    neutralGray800: "#1F2937",
+    overlay: "rgba(59,130,246,0.6)",
+
+    logoGradientStart: "#A259FF",
+    logoGradientEnd: "#00A3FF",
+    backgroundGradientStart: "#110A1E",
+    backgroundGradientEnd: "#0A0612",
   },
+
   dark: {
-    text: '#ECEDEE',
-    background: '#151718',
-    tint: tintColorDark,
-    icon: '#9BA1A6',
-    tabIconDefault: '#9BA1A6',
-    tabIconSelected: tintColorDark,
+    // ce que ton app utilise vraiment
+    text: "#F9FAFB",
+    background: "#0A0612", // couleur dominante du gradient
+    tint: "#B57BFF",
+    icon: "#9CA3AF",
+    tabIconDefault: "#9CA3AF",
+    tabIconSelected: "#B57BFF",
+
+    primary: "#3A2A60",
+    secondary: "#B57BFF",
+    textPrimary: "#F9FAFB",
+    textSecondary: "#9CA3AF",
+    textDisabled: "#6B7280",
+    success: "#10B981",
+    error: "#EF4444",
+    warning: "#F59E0B",
+    info: "#3B82F6",
+    neutralGray800: "#1F2937",
+    overlay: "rgba(59,130,246,0.6)",
+
+    logoGradientStart: "#A259FF",
+    logoGradientEnd: "#00A3FF",
+    backgroundGradientStart: "#110A1E",
+    backgroundGradientEnd: "#0A0612",
   },
 };
 
-export const Fonts = Platform.select({
-  ios: {
-    /** iOS `UIFontDescriptorSystemDesignDefault` */
-    sans: 'system-ui',
-    /** iOS `UIFontDescriptorSystemDesignSerif` */
-    serif: 'ui-serif',
-    /** iOS `UIFontDescriptorSystemDesignRounded` */
-    rounded: 'ui-rounded',
-    /** iOS `UIFontDescriptorSystemDesignMonospaced` */
-    mono: 'ui-monospace',
-  },
-  default: {
-    sans: 'normal',
-    serif: 'serif',
-    rounded: 'normal',
-    mono: 'monospace',
-  },
-  web: {
-    sans: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
-    serif: "Georgia, 'Times New Roman', serif",
-    rounded: "'SF Pro Rounded', 'Hiragino Maru Gothic ProN', Meiryo, 'MS PGothic', sans-serif",
-    mono: "SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
-  },
-});
+// familles de fonts utilisées par les composants "themed-text" / "themed-view"
+export const Fonts = {
+  // ton texte par défaut = Poppins
+  sans: "Poppins-Regular",
+  serif: "Poppins-Regular",
+  rounded: "Poppins-Medium",
+  mono: "Poppins-Regular",
+};
+
+// optionnel mais pratique : tokens de typo réutilisables
+export const Typography = {
+  h1: { fontFamily: "Poppins-Bold", fontSize: 32 },
+  h2: { fontFamily: "Poppins-SemiBold", fontSize: 22 },
+  body: { fontFamily: "Poppins-Regular", fontSize: 16 },
+  label: { fontFamily: "Poppins-Medium", fontSize: 14 },
+  button: { fontFamily: "Poppins-SemiBold", fontSize: 16 },
+};
