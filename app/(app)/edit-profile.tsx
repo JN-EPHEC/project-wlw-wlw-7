@@ -1,7 +1,8 @@
 // app/(app)/edit-profile.tsx
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { doc, getDoc } from "firebase/firestore";
+import { updateProfile } from "firebase/auth";
+import { collection, doc, getDoc, getDocs, query, setDoc, where } from "firebase/firestore";
 import React, { useEffect, useMemo, useState } from "react";
 import {
     ActivityIndicator,
@@ -11,6 +12,7 @@ import {
     StyleSheet,
     Text,
     TouchableOpacity,
+    TextInput,
     View,
 } from "react-native";
 import { useAuth } from "../lib/auth-context";
@@ -26,13 +28,40 @@ type ProfileDoc = {
   accountType?: string | null;
   interests?: string[];
   photoURL?: string | null;
+  updatedAt?: Date;
+  usernameLower?: string;
 };
+
+const ACCOUNT_TYPES = [
+  { key: "solo", label: "Solo" },
+  { key: "group", label: "En groupe" },
+];
+
+const INTERESTS = [
+  "Bars",
+  "Restaurants",
+  "Cinéma",
+  "Musées",
+  "Concerts",
+  "Escape Games",
+  "Sport",
+  "Randonnées",
+  "Théâtre",
+  "Jeux de société",
+];
 
 export default function EditProfileScreen() {
   const router = useRouter();
   const { user } = useAuth();
   const [profile, setProfile] = useState<ProfileDoc>({});
   const [loading, setLoading] = useState(true);
+  const [username, setUsername] = useState("");
+  const [photoUrl, setPhotoUrl] = useState("");
+  const [accountType, setAccountType] = useState<string | null>(null);
+  const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -42,6 +71,14 @@ export default function EditProfileScreen() {
         const snap = await getDoc(doc(db, "users", user.uid));
         if (snap.exists()) {
           setProfile(snap.data() as ProfileDoc);
+          const data = snap.data() as ProfileDoc;
+          setUsername(data.username || user.displayName || "");
+          setPhotoUrl(data.photoURL || user.photoURL || "");
+          setAccountType(data.accountType || null);
+          setSelectedInterests(data.interests || []);
+        } else {
+          setUsername(user.displayName || "");
+          setPhotoUrl(user.photoURL || "");
         }
       } finally {
         setLoading(false);
@@ -52,19 +89,76 @@ export default function EditProfileScreen() {
   }, [user]);
 
   const displayName = useMemo(
-    () => profile.username || user?.displayName || "Utilisateur",
-    [profile.username, user?.displayName]
+    () => username || user?.displayName || "Utilisateur",
+    [username, user?.displayName]
   );
 
   const avatarSource = useMemo(() => {
-    const url = profile.photoURL || user?.photoURL;
+    const url = photoUrl || profile.photoURL || user?.photoURL;
     return url ? { uri: url } : null;
-  }, [profile.photoURL, user?.photoURL]);
+  }, [photoUrl, profile.photoURL, user?.photoURL]);
 
-  const interests = profile.interests || [];
-  const accountTypeLabel = profile.accountType
-    ? ACCOUNT_TYPE_LABELS[profile.accountType] || profile.accountType
+  const accountTypeLabel = accountType
+    ? ACCOUNT_TYPE_LABELS[accountType] || accountType
     : "Non renseigné";
+
+  const toggleInterest = (interest: string) => {
+    setSelectedInterests((prev) =>
+      prev.includes(interest) ? prev.filter((i) => i !== interest) : [...prev, interest]
+    );
+    setSuccess(false);
+  };
+
+  const saveProfile = async () => {
+    if (!user) return;
+    const normalizedUsername = username.trim();
+    if (!normalizedUsername) {
+      setError("Merci d'indiquer un nom d'utilisateur.");
+      return;
+    }
+
+    setSaving(true);
+    setError(null);
+    setSuccess(false);
+
+    try {
+      const normalizedLower = normalizedUsername.toLowerCase();
+      const existingUsernames = await getDocs(
+        query(collection(db, "users"), where("usernameLower", "==", normalizedLower))
+      );
+
+      const conflict = existingUsernames.docs.find((doc) => doc.id !== user.uid);
+      if (conflict) {
+        setError("Ce nom d'utilisateur est déjà utilisé.");
+        return;
+      }
+
+      const updates: ProfileDoc & { usernameLower?: string } = {
+        username: normalizedUsername,
+        usernameLower: normalizedLower,
+        photoURL: photoUrl || null,
+        accountType: accountType || null,
+        interests: selectedInterests,
+        updatedAt: new Date(),
+      };
+
+      await Promise.all([
+        setDoc(doc(db, "users", user.uid), updates, { merge: true }),
+        updateProfile(user, {
+          displayName: normalizedUsername,
+          photoURL: photoUrl || undefined,
+        }),
+      ]);
+
+      setProfile((prev) => ({ ...prev, ...updates }));
+      setSuccess(true);
+    } catch (err) {
+      console.error("Unable to update profile", err);
+      setError("Impossible d'enregistrer les modifications.");
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -100,6 +194,44 @@ export default function EditProfileScreen() {
         </View>
 
         <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Identité</Text>
+          <View style={styles.fieldGroup}>
+            <Text style={styles.infoLabel}>Nom d'utilisateur</Text>
+            <TextInput
+              placeholder="Ton nom d'utilisateur"
+              placeholderTextColor="#6C6680"
+              style={styles.input}
+              value={username}
+              onChangeText={(text) => {
+                setUsername(text);
+                setSuccess(false);
+              }}
+              editable={!saving}
+              autoCapitalize="none"
+            />
+          </View>
+
+          <View style={styles.fieldGroup}>
+            <Text style={styles.infoLabel}>Photo de profil</Text>
+            <TextInput
+              placeholder="URL de ta photo"
+              placeholderTextColor="#6C6680"
+              style={styles.input}
+              value={photoUrl}
+              onChangeText={(text) => {
+                setPhotoUrl(text);
+                setSuccess(false);
+              }}
+              editable={!saving}
+              autoCapitalize="none"
+            />
+            <Text style={styles.helperText}>
+              Colle un lien d'image pour mettre à jour ta photo de profil.
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.section}>
           <Text style={styles.sectionTitle}>Informations de connexion</Text>
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>Email</Text>
@@ -109,32 +241,86 @@ export default function EditProfileScreen() {
             <Text style={styles.infoLabel}>Type de compte</Text>
             <Text style={styles.infoValue}>{accountTypeLabel}</Text>
           </View>
+          <View style={styles.choices}>
+            {ACCOUNT_TYPES.map((type) => (
+              <TouchableOpacity
+                key={type.key}
+                style={[styles.choice, accountType === type.key && styles.choiceActive]}
+                onPress={() => {
+                  setAccountType(type.key);
+                  setSuccess(false);
+                }}
+                activeOpacity={0.9}
+                disabled={saving}
+              >
+                <Text style={styles.choiceLabel}>{type.label}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
         </View>
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Tes préférences</Text>
           {loading ? (
             <ActivityIndicator color="#9B5DE5" />
-          ) : interests.length > 0 ? (
-            <View style={styles.chipGrid}>
-              {interests.map((item) => (
-                <View key={item} style={styles.chip}>
-                  <Text style={styles.chipText}>{item}</Text>
-                </View>
-              ))}
-            </View>
           ) : (
+            <View style={styles.chipGrid}>
+              {INTERESTS.map((item) => {
+                const active = selectedInterests.includes(item);
+                return (
+                  <TouchableOpacity
+                    key={item}
+                    style={[styles.chip, active && styles.chipActive]}
+                    onPress={() => toggleInterest(item)}
+                    activeOpacity={0.85}
+                    disabled={saving}
+                  >
+                    <Text style={[styles.chipText, active && styles.chipTextActive]}>
+                      {item}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          )}
+          {!loading && selectedInterests.length === 0 && (
             <Text style={styles.emptyText}>Aucune préférence enregistrée.</Text>
           )}
         </View>
+        {error && (
+          <View style={styles.errorBox}>
+            <Text style={styles.errorText}>{error}</Text>
+          </View>
+        )}
+        {success && (
+          <View style={styles.successBox}>
+            <Text style={styles.successText}>Profil mis à jour !</Text>
+          </View>
+        )}
 
-        <TouchableOpacity
-          style={styles.primaryButton}
-          activeOpacity={0.9}
-          onPress={() => router.push("/(app)/premium")}
-        >
-          <Text style={styles.primaryButtonText}>Changer d'abonnement</Text>
-        </TouchableOpacity>
+        <View style={styles.buttonRow}>
+          <TouchableOpacity
+            style={[styles.secondaryButton, saving && styles.buttonDisabled]}
+            activeOpacity={0.9}
+            onPress={() => router.push("/(app)/premium")}
+            disabled={saving}
+          >
+            <Text style={styles.secondaryButtonText}>Changer d'abonnement</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.primaryButton, saving && styles.buttonDisabled]}
+            activeOpacity={0.9}
+            onPress={saveProfile}
+            disabled={saving}
+          >
+            {saving ? (
+              <ActivityIndicator color="#FFFFFF" />
+            ) : (
+              <Text style={styles.primaryButtonText}>Enregistrer</Text>
+            )}
+          </TouchableOpacity>
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -160,79 +346,7 @@ const styles = StyleSheet.create({
     width: 40,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "#1F1A2F",
-    backgroundColor: "#0D081F",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  title: {
-    color: "#FFFFFF",
-    fontSize: 20,
-    fontWeight: "700",
-  },
-  headerSpacer: {
-    width: 40,
-  },
-  card: {
-    backgroundColor: "#0A051C",
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: "#3C276B",
-    padding: 20,
-    alignItems: "center",
-    gap: 10,
-    shadowColor: "#000",
-    shadowOpacity: 0.25,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 10 },
-  },
-  avatarWrapper: {
-    padding: 6,
-    borderRadius: 999,
-    backgroundColor: "#140E2B",
-    borderWidth: 1,
-    borderColor: "#2E2452",
-  },
-  avatarPlaceholder: {
-    height: 86,
-    width: 86,
-    borderRadius: 43,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#1C0F3A",
-    borderWidth: 1,
-    borderColor: "#7848FF",
-  },
-  avatarImage: {
-    height: 86,
-    width: 86,
-    borderRadius: 43,
-  },
-  name: {
-    color: "#FFFFFF",
-    fontSize: 22,
-    fontWeight: "800",
-  },
-  email: {
-    color: "#B4ACC8",
-    fontSize: 14,
-  },
-  section: {
-    backgroundColor: "#0A051C",
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: "#1F1A2F",
-    padding: 16,
-    gap: 12,
-  },
-  sectionTitle: {
-    color: "#FFFFFF",
-    fontSize: 16,
-    fontWeight: "700",
-  },
-  infoRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
+@@ -236,46 +422,136 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingVertical: 6,
   },
@@ -258,24 +372,114 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#3C276B",
   },
+  chipActive: {
+    backgroundColor: "#7B5CFF",
+    borderColor: "#A685FF",
+  },
   chipText: {
     color: "#FFFFFF",
     fontWeight: "600",
+  },
+  chipTextActive: {
+    color: "#FFFFFF",
   },
   emptyText: {
     color: "#B4ACC8",
     fontSize: 14,
   },
+  fieldGroup: {
+    gap: 6,
+  },
+  input: {
+    backgroundColor: "#0E0824",
+    borderWidth: 1,
+    borderColor: "#1F1A2F",
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    color: "#FFFFFF",
+    fontSize: 14,
+  },
+  helperText: {
+    color: "#8B84A2",
+    fontSize: 12,
+  },
+  choices: {
+    flexDirection: "row",
+    gap: 12,
+  },
+  choice: {
+    flex: 1,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#2A2140",
+    padding: 14,
+    backgroundColor: "#0E0824",
+    gap: 6,
+  },
+  choiceActive: {
+    borderColor: "#7B5CFF",
+    backgroundColor: "#130F32",
+  },
+  choiceLabel: {
+    color: "#FFFFFF",
+    fontWeight: "700",
+    fontSize: 16,
+  },
+  buttonRow: {
+    flexDirection: "row",
+    gap: 12,
+    marginBottom: 12,
+  },
   primaryButton: {
+    flex: 1,
     backgroundColor: "#4BB5F9",
     paddingVertical: 14,
     borderRadius: 30,
     alignItems: "center",
-    marginBottom: 12,
   },
   primaryButtonText: {
     color: "#FFFFFF",
     fontWeight: "700",
     fontSize: 15,
+  },
+  secondaryButton: {
+    flex: 1,
+    backgroundColor: "#1F1A2F",
+    paddingVertical: 14,
+    borderRadius: 30,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#2E2452",
+  },
+  secondaryButtonText: {
+    color: "#FFFFFF",
+    fontWeight: "700",
+    fontSize: 15,
+  },
+  buttonDisabled: {
+    opacity: 0.6,
+  },
+  errorBox: {
+    backgroundColor: "#2D0F1F",
+    borderColor: "#F06366",
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 12,
+  },
+  errorText: {
+    color: "#F06366",
+    fontWeight: "600",
+  },
+  successBox: {
+    backgroundColor: "#0F2D1F",
+    borderColor: "#46E4D6",
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 12,
+  },
+  successText: {
+    color: "#46E4D6",
+    fontWeight: "700",
   },
 });
