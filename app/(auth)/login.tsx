@@ -206,21 +206,25 @@ export default function LoginScreen() {
           behavior={Platform.OS === "ios" ? "padding" : undefined}
         >
           <View style={styles.container}>
-            {/* Logo gradient */}
+            {/* Logo gradient (mobile) / couleur simple (web) */}
             <View style={styles.header}>
-              <MaskedView
-                maskElement={<Text style={styles.logoText}>What2Do</Text>}
-              >
-                <LinearGradient
-                  colors={[COLORS.logoStart, COLORS.logoEnd]}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
+              {Platform.OS === "web" ? (
+                <Text style={styles.logoTextWeb}>What2Do</Text>
+              ) : (
+                <MaskedView
+                  maskElement={<Text style={styles.logoText}>What2Do</Text>}
                 >
-                  <Text style={[styles.logoText, { opacity: 0 }]}>
-                    What2Do
-                  </Text>
-                </LinearGradient>
-              </MaskedView>
+                  <LinearGradient
+                    colors={[COLORS.logoStart, COLORS.logoEnd]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                  >
+                    <Text style={[styles.logoText, { opacity: 0 }]}>
+                      What2Do
+                    </Text>
+                  </LinearGradient>
+                </MaskedView>
+              )}
             </View>
 
             {/* Form */}
@@ -364,6 +368,12 @@ const styles = StyleSheet.create({
     color: COLORS.textPrimary,
     letterSpacing: 0.5,
   },
+  // pour le web on met une couleur secondaire (MaskView bug sur web)
+  logoTextWeb: {
+    ...TYPO.h1,
+    color: COLORS.secondary,
+    letterSpacing: 0.5,
+  },
   form: {
     gap: 20,
   },
@@ -378,6 +388,7 @@ const styles = StyleSheet.create({
     color: COLORS.error,
     fontSize: 13,
     fontFamily: "Poppins-Medium",
+    textAlign: "center",
   },
   fieldGroup: {
     gap: 8,
@@ -385,6 +396,7 @@ const styles = StyleSheet.create({
   label: {
     ...TYPO.label,
     color: COLORS.textPrimary,
+    textAlign: "center",
   },
   input: {
     backgroundColor: COLORS.inputBackground,
@@ -396,6 +408,7 @@ const styles = StyleSheet.create({
     fontFamily: TYPO.body.fontFamily,
     borderWidth: 1,
     borderColor: COLORS.neutralGray800,
+    textAlign: "center", // texte + placeholder centrés
   },
   primaryButton: {
     marginTop: 24,
@@ -416,6 +429,7 @@ const styles = StyleSheet.create({
   primaryButtonText: {
     ...TYPO.button,
     color: COLORS.textPrimary,
+    textAlign: "center",
   },
   divider: {
     flexDirection: "row",
@@ -433,6 +447,7 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
     fontSize: 13,
     fontFamily: "Poppins-Regular",
+    textAlign: "center",
   },
   socialButtons: {
     gap: 12,
@@ -444,6 +459,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 16,
     borderRadius: 16,
+    justifyContent: "center", // centre le contenu (icône + texte)
   },
   googleButton: {
     backgroundColor: "#FFFFFF",
@@ -457,11 +473,13 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontFamily: "Poppins-Medium",
     color: "#000000",
+    textAlign: "center",
   },
   appleButtonText: {
     fontSize: 15,
     fontFamily: "Poppins-Medium",
     color: COLORS.textPrimary,
+    textAlign: "center",
   },
   footer: {
     marginTop: 28,
