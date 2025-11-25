@@ -1,12 +1,28 @@
 // app/(app)/edit-profile.tsx
 import { Ionicons } from "@expo/vector-icons";
+import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
 import { updateProfile } from "firebase/auth";
-import { collection, doc, getDoc, getDocs, query, setDoc, where } from "firebase/firestore";
-import React, { useEffect, useMemo, useState } from "react";
+import {
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  query,
+  setDoc,
+  where,
+} from "firebase/firestore";
+import React, {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   ActivityIndicator,
+  Alert,
   Image,
+  ImageSourcePropType,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -28,8 +44,9 @@ type ProfileDoc = {
   accountType?: string | null;
   interests?: string[];
   photoURL?: string | null;
-  updatedAt?: Date;
+  updatedAt?: any;
   usernameLower?: string;
+  subscriptionStatus?: "free" | "premium" | string;
 };
 
 const ACCOUNT_TYPES = [
@@ -62,16 +79,24 @@ export default function EditProfileScreen() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [preferencesOpen, setPreferencesOpen] = useState(false);
+  const usernameInputRef = useRef<TextInput | null>(null);
 
   useEffect(() => {
     const loadProfile = async () => {
-      if (!user) return;
+      if (!user) {
+        setLoading(false);
+        return;
+      }
+
+      setLoading(true);
+      setError(null);
 
       try {
         const snap = await getDoc(doc(db, "users", user.uid));
         if (snap.exists()) {
-          setProfile(snap.data() as ProfileDoc);
           const data = snap.data() as ProfileDoc;
+          setProfile(data);
           setUsername(data.username || user.displayName || "");
           setPhotoUrl(data.photoURL || user.photoURL || "");
           setAccountType(data.accountType || null);
@@ -80,6 +105,9 @@ export default function EditProfileScreen() {
           setUsername(user.displayName || "");
           setPhotoUrl(user.photoURL || "");
         }
+      } catch (err) {
+        console.error("Unable to load profile", err);
+        setError("Impossible de charger ton profil.");
       } finally {
         setLoading(false);
       }
@@ -93,24 +121,36 @@ export default function EditProfileScreen() {
     [username, user?.displayName]
   );
 
-  const avatarSource = useMemo(() => {
+  const avatarSource: ImageSourcePropType | undefined = useMemo(() => {
     const url = photoUrl || profile.photoURL || user?.photoURL;
-    return url ? { uri: url } : null;
+    return url ? { uri: url } : undefined;
   }, [photoUrl, profile.photoURL, user?.photoURL]);
 
   const accountTypeLabel = accountType
     ? ACCOUNT_TYPE_LABELS[accountType] || accountType
     : "Non renseigné";
 
+  const subscriptionLabel =
+    profile.subscriptionStatus === "premium" ? "Premium" : "Free";
+
+  const subscriptionBadgeStyle =
+    profile.subscriptionStatus === "premium"
+      ? styles.subscriptionBadgePremium
+      : styles.subscriptionBadgeFree;
+
   const toggleInterest = (interest: string) => {
     setSelectedInterests((prev) =>
-      prev.includes(interest) ? prev.filter((i) => i !== interest) : [...prev, interest]
+      prev.includes(interest)
+        ? prev.filter((i) => i !== interest)
+        : [...prev, interest]
     );
+    setError(null);
     setSuccess(false);
   };
 
   const saveProfile = async () => {
     if (!user) return;
+
     const normalizedUsername = username.trim();
     if (!normalizedUsername) {
       setError("Merci d'indiquer un nom d'utilisateur.");
@@ -123,20 +163,30 @@ export default function EditProfileScreen() {
 
     try {
       const normalizedLower = normalizedUsername.toLowerCase();
+
+      // Vérifier l’unicité du username
       const existingUsernames = await getDocs(
-        query(collection(db, "users"), where("usernameLower", "==", normalizedLower))
+        query(
+          collection(db, "users"),
+          where("usernameLower", "==", normalizedLower)
+        )
       );
 
-      const conflict = existingUsernames.docs.find((doc) => doc.id !== user.uid);
-      if (conflict) {
-        setError("Ce nom d'utilisateur est déjà utilisé.");
-        return;
+      if (!existingUsernames.empty) {
+        const clash = existingUsernames.docs.find(
+          (d) => d.id !== user.uid
+        );
+        if (clash) {
+          setError("Ce nom d'utilisateur est déjà pris.");
+          setSaving(false);
+          return;
+        }
       }
 
-      const updates: ProfileDoc & { usernameLower?: string } = {
+      const updates: ProfileDoc = {
         username: normalizedUsername,
         usernameLower: normalizedLower,
-        photoURL: photoUrl || null,
+        photoURL: photoUrl.trim() || null,
         accountType: accountType || null,
         interests: selectedInterests,
         updatedAt: new Date(),
@@ -146,7 +196,7 @@ export default function EditProfileScreen() {
         setDoc(doc(db, "users", user.uid), updates, { merge: true }),
         updateProfile(user, {
           displayName: normalizedUsername,
-          photoURL: photoUrl || undefined,
+          photoURL: photoUrl.trim() || undefined,
         }),
       ]);
 
@@ -160,6 +210,81 @@ export default function EditProfileScreen() {
     }
   };
 
+  const requestCameraPermission = async () => {
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert(
+        "Permission requise",
+        "Active l'accès à la caméra dans tes réglages pour prendre une photo."
+      );
+      return false;
+    }
+    return true;
+  };
+
+  const requestLibraryPermission = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert(
+        "Permission requise",
+        "Active l'accès à ta galerie pour choisir une photo."
+      );
+      return false;
+    }
+    return true;
+  };
+
+  const handleTakePhoto = async () => {
+    const allowed = await requestCameraPermission();
+    if (!allowed) return;
+
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.7,
+    });
+
+    if (!result.canceled && result.assets?.[0]?.uri) {
+      setPhotoUrl(result.assets[0].uri);
+      setError(null);
+      setSuccess(false);
+    }
+  };
+
+  const handlePickImage = async () => {
+    const allowed = await requestLibraryPermission();
+    if (!allowed) return;
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.7,
+    });
+
+    if (!result.canceled && result.assets?.[0]?.uri) {
+      setPhotoUrl(result.assets[0].uri);
+      setError(null);
+      setSuccess(false);
+    }
+  };
+
+  const handleAvatarPress = () => {
+    Alert.alert("Photo de profil", "Comment veux-tu changer ta photo ?", [
+      { text: "Prendre une photo", onPress: handleTakePhoto },
+      { text: "Choisir dans la galerie", onPress: handlePickImage },
+      { text: "Annuler", style: "cancel" },
+    ]);
+  };
+
+  const handleChangePassword = () => {
+    Alert.alert(
+      "Modifier le mot de passe",
+      "Cette action ouvrira la mise à jour du mot de passe dans l'application."
+    );
+  };
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView
@@ -167,6 +292,7 @@ export default function EditProfileScreen() {
         contentContainerStyle={styles.container}
         showsVerticalScrollIndicator={false}
       >
+        {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity
             style={styles.iconButton}
@@ -179,8 +305,14 @@ export default function EditProfileScreen() {
           <View style={styles.headerSpacer} />
         </View>
 
+        {/* Card profil */}
         <View style={styles.card}>
-          <View style={styles.avatarWrapper}>
+          <TouchableOpacity
+            style={styles.avatarWrapper}
+            activeOpacity={0.9}
+            onPress={handleAvatarPress}
+            disabled={saving}
+          >
             {avatarSource ? (
               <Image source={avatarSource} style={styles.avatarImage} />
             ) : (
@@ -188,66 +320,81 @@ export default function EditProfileScreen() {
                 <Ionicons name="person" size={48} color="#FFFFFF" />
               </View>
             )}
-          </View>
+            <View style={styles.editAvatarBadge}>
+              <Ionicons name="pencil" size={16} color="#050013" />
+            </View>
+          </TouchableOpacity>
+
           <Text style={styles.name}>{displayName}</Text>
-          <Text style={styles.email}>{user?.email}</Text>
+
+          <View style={[styles.subscriptionBadge, subscriptionBadgeStyle]}>
+            <Text style={styles.subscriptionText}>{subscriptionLabel}</Text>
+          </View>
+
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>Email</Text>
+            <Text style={styles.infoValue}>
+              {user?.email || "Non renseigné"}
+            </Text>
+          </View>
+          <Text style={styles.helperText}>
+            L&apos;email est lié à ton compte et n&apos;est pas modifiable.
+          </Text>
         </View>
 
+        {/* Nom d'utilisateur */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Identité</Text>
+          <Text style={styles.sectionTitle}>Nom d&apos;utilisateur</Text>
           <View style={styles.fieldGroup}>
-            <Text style={styles.infoLabel}>Nom d'utilisateur</Text>
-            <TextInput
-              placeholder="Ton nom d'utilisateur"
-              placeholderTextColor="#6C6680"
-              style={styles.input}
-              value={username}
-              onChangeText={(text) => {
-                setUsername(text);
-                setSuccess(false);
-              }}
-              editable={!saving}
-              autoCapitalize="none"
-            />
-          </View>
-
-          <View style={styles.fieldGroup}>
-            <Text style={styles.infoLabel}>Photo de profil</Text>
-            <TextInput
-              placeholder="URL de ta photo"
-              placeholderTextColor="#6C6680"
-              style={styles.input}
-              value={photoUrl}
-              onChangeText={(text) => {
-                setPhotoUrl(text);
-                setSuccess(false);
-              }}
-              editable={!saving}
-              autoCapitalize="none"
-            />
+            <View style={styles.inputWithIcon}>
+              <TextInput
+                ref={usernameInputRef}
+                placeholder="Ton nom d'utilisateur"
+                placeholderTextColor="#6C6680"
+                style={[styles.input, styles.inputPaddingRight]}
+                value={username}
+                onChangeText={(text) => {
+                  setUsername(text);
+                  setError(null);
+                  setSuccess(false);
+                }}
+                editable={!saving}
+                autoCapitalize="none"
+              />
+              <TouchableOpacity
+                style={styles.editIcon}
+                onPress={() => usernameInputRef.current?.focus()}
+                activeOpacity={0.9}
+                disabled={saving}
+              >
+                <Ionicons name="pencil" size={16} color="#CFC8E6" />
+              </TouchableOpacity>
+            </View>
             <Text style={styles.helperText}>
-              Colle un lien d'image pour mettre à jour ta photo de profil.
+              C&apos;est le nom visible par les autres utilisateurs.
             </Text>
           </View>
         </View>
 
+        {/* Compte */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Informations de connexion</Text>
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Email</Text>
-            <Text style={styles.infoValue}>{user?.email || "Non renseigné"}</Text>
-          </View>
+          <Text style={styles.sectionTitle}>Compte</Text>
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>Type de compte</Text>
             <Text style={styles.infoValue}>{accountTypeLabel}</Text>
           </View>
+
           <View style={styles.choices}>
             {ACCOUNT_TYPES.map((type) => (
               <TouchableOpacity
                 key={type.key}
-                style={[styles.choice, accountType === type.key && styles.choiceActive]}
+                style={[
+                  styles.choice,
+                  accountType === type.key && styles.choiceActive,
+                ]}
                 onPress={() => {
                   setAccountType(type.key);
+                  setError(null);
                   setSuccess(false);
                 }}
                 activeOpacity={0.9}
@@ -259,34 +406,82 @@ export default function EditProfileScreen() {
           </View>
         </View>
 
+        {/* Sécurité */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Tes préférences</Text>
-          {loading ? (
-            <ActivityIndicator color="#9B5DE5" />
-          ) : (
-            <View style={styles.chipGrid}>
-              {INTERESTS.map((item) => {
-                const active = selectedInterests.includes(item);
-                return (
-                  <TouchableOpacity
-                    key={item}
-                    style={[styles.chip, active && styles.chipActive]}
-                    onPress={() => toggleInterest(item)}
-                    activeOpacity={0.85}
-                    disabled={saving}
-                  >
-                    <Text style={[styles.chipText, active && styles.chipTextActive]}>
-                      {item}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          )}
-          {!loading && selectedInterests.length === 0 && (
-            <Text style={styles.emptyText}>Aucune préférence enregistrée.</Text>
+          <Text style={styles.sectionTitle}>Sécurité</Text>
+          <TouchableOpacity
+            style={styles.outlineButton}
+            activeOpacity={0.9}
+            onPress={handleChangePassword}
+            disabled={saving}
+          >
+            <Ionicons name="lock-closed" size={16} color="#CFC8E6" />
+            <Text style={styles.outlineButtonText}>
+              Modifier mon mot de passe
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Préférences */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Préférences</Text>
+          <TouchableOpacity
+            style={styles.outlineButton}
+            activeOpacity={0.9}
+            onPress={() => setPreferencesOpen((prev) => !prev)}
+            disabled={loading || saving}
+          >
+            <Ionicons name="options" size={16} color="#CFC8E6" />
+            <Text style={styles.outlineButtonText}>
+              {preferencesOpen
+                ? "Fermer mes préférences"
+                : "Modifier mes préférences"}
+            </Text>
+          </TouchableOpacity>
+
+          {preferencesOpen && (
+            <>
+              {loading ? (
+                <ActivityIndicator color="#9B5DE5" />
+              ) : (
+                <View style={styles.chipGrid}>
+                  {INTERESTS.map((item) => {
+                    const active = selectedInterests.includes(item);
+                    return (
+                      <TouchableOpacity
+                        key={item}
+                        style={[
+                          styles.chip,
+                          active && styles.chipActive,
+                        ]}
+                        onPress={() => toggleInterest(item)}
+                        activeOpacity={0.85}
+                        disabled={saving}
+                      >
+                        <Text
+                          style={[
+                            styles.chipText,
+                            active && styles.chipTextActive,
+                          ]}
+                        >
+                          {item}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              )}
+
+              {!loading && selectedInterests.length === 0 && (
+                <Text style={styles.emptyText}>
+                  Aucune préférence enregistrée.
+                </Text>
+              )}
+            </>
           )}
         </View>
+
+        {/* Messages d'erreur / succès */}
         {error && (
           <View style={styles.errorBox}>
             <Text style={styles.errorText}>{error}</Text>
@@ -298,24 +493,33 @@ export default function EditProfileScreen() {
           </View>
         )}
 
+        {/* Boutons bas de page */}
         <View style={styles.buttonRow}>
           <TouchableOpacity
-            style={[styles.secondaryButton, saving && styles.buttonDisabled]}
+            style={[
+              styles.secondaryButton,
+              saving && styles.buttonDisabled,
+            ]}
             activeOpacity={0.9}
             onPress={() => router.push("/(app)/premium")}
             disabled={saving}
           >
-            <Text style={styles.secondaryButtonText}>Changer d'abonnement</Text>
+            <Text style={styles.secondaryButtonText}>
+              Changer d'abonnement
+            </Text>
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[styles.primaryButton, saving && styles.buttonDisabled]}
+            style={[
+              styles.primaryButton,
+              saving && styles.buttonDisabled,
+            ]}
             activeOpacity={0.9}
             onPress={saveProfile}
             disabled={saving}
           >
             {saving ? (
-              <ActivityIndicator color="#FFFFFF" />
+              <ActivityIndicator />
             ) : (
               <Text style={styles.primaryButtonText}>Enregistrer</Text>
             )}
@@ -332,91 +536,122 @@ const styles = StyleSheet.create({
     backgroundColor: "#050013",
   },
   container: {
-    paddingHorizontal: 24,
-    paddingVertical: 24,
-    gap: 20,
+    padding: 16,
+    gap: 16,
+    paddingBottom: 32,
   },
   header: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-  },
-  title: {
-    color: "#FFFFFF",
-    fontSize: 22,
-    fontWeight: "700",
-    textAlign: "center",
-    flex: 1,
+    marginBottom: 8,
   },
   iconButton: {
     height: 40,
     width: 40,
-    borderRadius: 12,
-    borderWidth: 1,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#1F1A2F",
+  },
+  title: {
+    color: "#FFFFFF",
+    fontSize: 20,
+    fontWeight: "700",
   },
   headerSpacer: {
     width: 40,
-    height: 40,
   },
   card: {
-    backgroundColor: "#140E2B",
-    borderRadius: 16,
+    backgroundColor: "#0A051C",
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: "#3C276B",
     padding: 20,
     alignItems: "center",
-    marginBottom: 20,
+    gap: 10,
+    shadowColor: "#000",
+    shadowOpacity: 0.25,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 10 },
   },
   avatarWrapper: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
-    backgroundColor: "#2A2140",
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 12,
-  },
-  avatarImage: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
+    padding: 6,
+    borderRadius: 999,
+    backgroundColor: "#140E2B",
+    borderWidth: 1,
+    borderColor: "#2E2452",
+    position: "relative",
   },
   avatarPlaceholder: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
-    backgroundColor: "#3C276B",
+    height: 86,
+    width: 86,
+    borderRadius: 43,
     alignItems: "center",
     justifyContent: "center",
+    backgroundColor: "#1C0F3A",
+    borderWidth: 1,
+    borderColor: "#7848FF",
+  },
+  avatarImage: {
+    height: 86,
+    width: 86,
+    borderRadius: 43,
+  },
+  editAvatarBadge: {
+    position: "absolute",
+    bottom: 0,
+    right: 0,
+    height: 32,
+    width: 32,
+    borderRadius: 16,
+    backgroundColor: "#7C5BFF",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 2,
+    borderColor: "#0A051C",
   },
   name: {
     color: "#FFFFFF",
-    fontSize: 18,
-    fontWeight: "700",
-    marginBottom: 4,
-    textAlign: "center",
+    fontSize: 22,
+    fontWeight: "800",
   },
-  // email style for the small email text shown under the display name
-  email: {
-    color: "#B4ACC8",
-    fontSize: 14,
-    marginBottom: 8,
-    textAlign: "center",
-  },
-  // added section container style used in the component
   section: {
-    marginBottom: 12,
+    backgroundColor: "#0A051C",
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#1F1A2F",
+    padding: 16,
     gap: 12,
   },
-  // added sectionTitle to fix the missing style reference
+  subscriptionBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginTop: 4,
+  },
+  subscriptionBadgeFree: {
+    backgroundColor: "#0E1F29",
+    borderColor: "#46E4D6",
+  },
+  subscriptionBadgePremium: {
+    backgroundColor: "#24103E",
+    borderColor: "#E4C046",
+  },
+  subscriptionText: {
+    color: "#FFFFFF",
+    fontWeight: "700",
+  },
   sectionTitle: {
     color: "#FFFFFF",
     fontSize: 16,
     fontWeight: "700",
-    marginBottom: 8,
   },
   infoRow: {
     flexDirection: "row",
-    alignItems: "center",
     justifyContent: "space-between",
+    alignItems: "center",
     paddingVertical: 6,
   },
   infoLabel: {
@@ -427,6 +662,11 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontSize: 14,
     fontWeight: "600",
+  },
+  chipGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
   },
   chip: {
     paddingHorizontal: 12,
@@ -447,17 +687,16 @@ const styles = StyleSheet.create({
   chipTextActive: {
     color: "#FFFFFF",
   },
-  chipGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 10,
-  },
   emptyText: {
     color: "#B4ACC8",
     fontSize: 14,
+    marginTop: 8,
   },
   fieldGroup: {
     gap: 6,
+  },
+  inputWithIcon: {
+    position: "relative",
   },
   input: {
     backgroundColor: "#0E0824",
@@ -468,6 +707,22 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     color: "#FFFFFF",
     fontSize: 14,
+  },
+  inputPaddingRight: {
+    paddingRight: 44,
+  },
+  editIcon: {
+    position: "absolute",
+    right: 12,
+    top: 8,
+    height: 28,
+    width: 28,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#1C1232",
+    borderWidth: 1,
+    borderColor: "#2E2452",
   },
   helperText: {
     color: "#8B84A2",
@@ -484,7 +739,6 @@ const styles = StyleSheet.create({
     borderColor: "#2A2140",
     padding: 14,
     backgroundColor: "#0E0824",
-    gap: 6,
   },
   choiceActive: {
     borderColor: "#7B5CFF",
@@ -495,10 +749,28 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     fontSize: 16,
   },
+  outlineButton: {
+    marginTop: 2,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#2E2452",
+    backgroundColor: "#0E0824",
+  },
+  outlineButtonText: {
+    color: "#FFFFFF",
+    fontWeight: "700",
+    fontSize: 14,
+  },
   buttonRow: {
     flexDirection: "row",
     gap: 12,
     marginBottom: 12,
+    marginTop: 8,
   },
   primaryButton: {
     flex: 1,
@@ -523,32 +795,34 @@ const styles = StyleSheet.create({
   },
   secondaryButtonText: {
     color: "#FFFFFF",
-    fontWeight: "700",
-    fontSize: 15,
+    fontWeight: "600",
+    fontSize: 14,
   },
   buttonDisabled: {
     opacity: 0.6,
   },
   errorBox: {
-    backgroundColor: "#2D0F1F",
-    borderColor: "#F06366",
+    marginTop: 8,
+    backgroundColor: "#3B1A2A",
+    borderRadius: 10,
+    padding: 10,
     borderWidth: 1,
-    borderRadius: 12,
-    padding: 12,
+    borderColor: "#FF4D6A",
   },
   errorText: {
-    color: "#F06366",
-    fontWeight: "600",
+    color: "#FFD0DA",
+    fontSize: 13,
   },
   successBox: {
-    backgroundColor: "#0F2D1F",
-    borderColor: "#46E4D6",
+    marginTop: 8,
+    backgroundColor: "#17312C",
+    borderRadius: 10,
+    padding: 10,
     borderWidth: 1,
-    borderRadius: 12,
-    padding: 12,
+    borderColor: "#46E4D6",
   },
   successText: {
-    color: "#46E4D6",
-    fontWeight: "700",
+    color: "#CCFFF7",
+    fontSize: 13,
   },
 });
