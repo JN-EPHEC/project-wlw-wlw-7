@@ -5,15 +5,15 @@ import { updateProfile } from "firebase/auth";
 import { collection, doc, getDoc, getDocs, query, setDoc, where } from "firebase/firestore";
 import React, { useEffect, useMemo, useState } from "react";
 import {
-    ActivityIndicator,
-    Image,
-    SafeAreaView,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    TextInput,
-    View,
+  ActivityIndicator,
+  Image,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { useAuth } from "../lib/auth-context";
 import { db } from "../lib/firebaseConfig";
@@ -341,13 +341,82 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
   },
+  title: {
+    color: "#FFFFFF",
+    fontSize: 22,
+    fontWeight: "700",
+    textAlign: "center",
+    flex: 1,
+  },
   iconButton: {
     height: 40,
     width: 40,
     borderRadius: 12,
     borderWidth: 1,
-@@ -236,46 +422,136 @@ const styles = StyleSheet.create({
+  },
+  headerSpacer: {
+    width: 40,
+    height: 40,
+  },
+  card: {
+    backgroundColor: "#140E2B",
+    borderRadius: 16,
+    padding: 20,
     alignItems: "center",
+    marginBottom: 20,
+  },
+  avatarWrapper: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    backgroundColor: "#2A2140",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 12,
+  },
+  avatarImage: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+  },
+  avatarPlaceholder: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    backgroundColor: "#3C276B",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  name: {
+    color: "#FFFFFF",
+    fontSize: 18,
+    fontWeight: "700",
+    marginBottom: 4,
+    textAlign: "center",
+  },
+  // email style for the small email text shown under the display name
+  email: {
+    color: "#B4ACC8",
+    fontSize: 14,
+    marginBottom: 8,
+    textAlign: "center",
+  },
+  // added section container style used in the component
+  section: {
+    marginBottom: 12,
+    gap: 12,
+  },
+  // added sectionTitle to fix the missing style reference
+  sectionTitle: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "700",
+    marginBottom: 8,
+  },
+  infoRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingVertical: 6,
   },
   infoLabel: {
@@ -358,11 +427,6 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontSize: 14,
     fontWeight: "600",
-  },
-  chipGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 10,
   },
   chip: {
     paddingHorizontal: 12,
@@ -382,6 +446,11 @@ const styles = StyleSheet.create({
   },
   chipTextActive: {
     color: "#FFFFFF",
+  },
+  chipGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
   },
   emptyText: {
     color: "#B4ACC8",
