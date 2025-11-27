@@ -40,6 +40,8 @@ type AuthContextType = {
   logout: () => Promise<void>;
   lastAuthError: unknown | null;
   clearAuthError: () => void;
+  markOnboardingCompleted: () => void;
+
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -176,8 +178,14 @@ export function AuthProvider({ children }: { children?: ReactNode }) {
     setProfileChecked(true);
   };
 
+  const markOnboardingCompleted = () => setOnboardingCompleted(true);
+
   const logout = async () => {
     await signOut(auth);
+    // reset local auth-related state after sign out
+    setUser(null);
+    setOnboardingCompleted(null);
+    setProfileChecked(false);
   };
 
   return (
@@ -194,6 +202,7 @@ export function AuthProvider({ children }: { children?: ReactNode }) {
         logout,
         lastAuthError,
         clearAuthError: () => setLastAuthError(null),
+        markOnboardingCompleted
       }}
     >
       {children}

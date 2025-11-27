@@ -60,7 +60,7 @@ const INTERESTS = [
 ];
 
 export default function RegisterNextScreen() {
-  const { user } = useAuth();
+  const { user, markOnboardingCompleted } = useAuth();
   const router = useRouter();
 
   const [step, setStep] = useState<1 | 2 | 3>(1);
@@ -112,7 +112,8 @@ export default function RegisterNextScreen() {
         { merge: true }
       );
 
-      router.replace("/home");
+      markOnboardingCompleted();
+      router.replace("/(app)/home");    
     } catch (e) {
       console.error(e);
       setError("Impossible d'enregistrer vos préférences pour le moment.");

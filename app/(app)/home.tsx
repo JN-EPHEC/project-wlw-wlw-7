@@ -8,7 +8,29 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { getSampleRecommendations } from "../lib/recommendation";
+
+function getSampleRecommendations() {
+  return [
+    {
+      id: "1",
+      location: "Centre-ville",
+      distance: "2 km",
+      title: "Musée d'Art Moderne",
+      description: "Découvrez les collections contemporaines",
+      tags: ["Musée", "Art", "Culture"],
+      timing: "10:00 - 18:00",
+    },
+    {
+      id: "2",
+      location: "Uccle",
+      distance: "5 km",
+      title: "Parc de la Cambre",
+      description: "Promenade verdoyante et relaxante",
+      tags: ["Nature", "Parc", "Détente"],
+      timing: "08:00 - 20:00",
+    },
+  ];
+}
 
 const cards = getSampleRecommendations();
 

@@ -148,7 +148,7 @@ export default function RegisterScreen() {
       setSubmitting(true);
       setErrors({});
       await register(trimmedEmail, password, trimmedUsername);
-      router.replace("/sondage-preference");
+      router.replace("/(auth)/sondage-preference");
     } catch (err) {
       console.log("Register error:", (err as any)?.code, err);
       const message = mapRegisterError(err);

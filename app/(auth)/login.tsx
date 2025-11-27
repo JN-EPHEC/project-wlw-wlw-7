@@ -134,11 +134,11 @@ export default function LoginScreen() {
     if (loading || checking || !user) return;
 
     if (needsOnboarding) {
-      router.replace("/sondage-preference");
+      router.replace("/(auth)/sondage-preference");      
       return;
     }
 
-    router.replace("/home");
+    router.replace("/(app)/home");
   }, [user, loading, checking, needsOnboarding, router]);
 
   const handleLogin = async () => {

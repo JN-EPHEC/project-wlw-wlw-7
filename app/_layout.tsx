@@ -8,15 +8,15 @@ import * as SplashScreen from "expo-splash-screen";
 SplashScreen.preventAutoHideAsync();
 
 function NavigationGuard() {
-  const { user, loading } = useAuth();
+  const { user, loading, onboardingCompleted, profileChecked } = useAuth();
   const segments = useSegments();
   const router = useRouter();
 
   useEffect(() => {
-    if (loading) return;
+    if (loading || !profileChecked) return;
 
     const inAuthGroup = segments[0] === "(auth)";
-    const inAppGroup = segments[0] === "(app)";
+    const isOnboardingRoute = inAuthGroup && segments[1] === "sondage-preference";
 
     // Pas connecté → redirige vers login
     if (!user && !inAuthGroup) {
@@ -24,12 +24,29 @@ function NavigationGuard() {
       return;
     }
 
+    if (user && onboardingCompleted === null) {
+      return;
+    }
+
+    // Connecté mais onboarding non terminé → forcer le passage par le sondage
+    if (user && onboardingCompleted === false && !isOnboardingRoute) {
+      router.replace("/(auth)/sondage-preference");
+      return;
+    }
+
     // Connecté → redirige vers home s'il reste dans (auth)
-    if (user && inAuthGroup) {
+    if (user && onboardingCompleted !== false && inAuthGroup) {
       router.replace("/(app)/home");
       return;
     }
-  }, [loading, user, segments, router]);
+  }, [
+    loading,
+    profileChecked,
+    user,
+    onboardingCompleted,
+    segments,
+    router,
+  ]);
 
   return <Slot />;
 }
