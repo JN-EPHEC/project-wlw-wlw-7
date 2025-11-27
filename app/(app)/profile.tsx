@@ -16,8 +16,6 @@ import { useAuth } from "../lib/auth-context";
 import { db } from "../lib/firebaseConfig";
 
 const ACCOUNT_TYPE_LABELS: Record<string, string> = {
-  solo: "Solo",
-  group: "En groupe",
   personnel: "Personnel",
   professionnel: "Professionnel",
 };
@@ -32,6 +30,7 @@ type ProfileDoc = {
 export default function ProfileScreen() {
   const { user, logout } = useAuth();
   const router = useRouter();
+
   const [profile, setProfile] = useState<ProfileDoc | null>(null);
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -72,6 +71,7 @@ export default function ProfileScreen() {
   const accountTypeLabel = profile?.accountType
     ? ACCOUNT_TYPE_LABELS[profile.accountType] || profile.accountType
     : "Non renseigné";
+
   const interests = profile?.interests || [];
   const city = profile?.city || "Non renseignée";
   const subscriptionLabel =
@@ -83,6 +83,7 @@ export default function ProfileScreen() {
         contentContainerStyle={styles.container}
         showsVerticalScrollIndicator={false}
       >
+        {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity
             style={styles.iconButton}
@@ -91,10 +92,11 @@ export default function ProfileScreen() {
           >
             <Ionicons name="arrow-back" size={22} color="#FFFFFF" />
           </TouchableOpacity>
-          <Text style={styles.title}>Profile</Text>
+          <Text style={styles.title}>Profil</Text>
           <View style={styles.headerSpacer} />
         </View>
 
+        {/* Carte profil */}
         <View style={styles.card}>
           <View style={styles.avatarWrapper}>
             <View style={styles.avatarCircle}>
@@ -136,10 +138,13 @@ export default function ProfileScreen() {
           </View>
         </View>
 
+        {/* Carte préférences */}
         <View style={styles.preferencesCard}>
           <View style={styles.preferencesHeader}>
             <Text style={styles.sectionTitle}>Préférences</Text>
-            {loadingProfile && <ActivityIndicator size="small" color="#7C5BBF" />}
+            {loadingProfile && (
+              <ActivityIndicator size="small" color="#7C5BBF" />
+            )}
           </View>
 
           {error && <Text style={styles.errorText}>{error}</Text>}
@@ -155,9 +160,12 @@ export default function ProfileScreen() {
           </View>
 
           <View style={styles.interestsBlock}>
-            <Text style={styles.infoLabel}>Centres d&apos;intérêt</Text>
+            <Text style={styles.infoLabel}>Centres d’intérêt</Text>
+
             {interests.length === 0 ? (
-              <Text style={styles.infoValue}>Aucun centre d&apos;intérêt renseigné.</Text>
+              <Text style={styles.infoValue}>
+                Aucun centre d’intérêt renseigné.
+              </Text>
             ) : (
               <View style={styles.chipsWrapper}>
                 {interests.map((interest) => (
@@ -195,6 +203,8 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     borderColor: "#2A1A4A",
+    alignItems: "center",
+    justifyContent: "center",
   },
   title: {
     color: "#FFFFFF",
@@ -213,6 +223,38 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     alignItems: "center",
     gap: 12,
+  },
+  avatarWrapper: {
+    marginBottom: 8,
+  },
+  avatarCircle: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: "#1C0F3A",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  name: {
+    color: "#FFFFFF",
+    fontSize: 18,
+    fontWeight: "700",
+  },
+  email: {
+    color: "#B4ACC8",
+    fontSize: 14,
+  },
+  badge: {
+    marginTop: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: "#1C0F3A",
+  },
+  badgeText: {
+    color: "#FBBF24",
+    fontSize: 12,
+    fontWeight: "700",
   },
   buttonGroup: {
     width: "100%",
@@ -273,11 +315,13 @@ const styles = StyleSheet.create({
   },
   interestsBlock: {
     gap: 8,
+    marginTop: 4,
   },
   chipsWrapper: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 8,
+    marginTop: 4,
   },
   chip: {
     backgroundColor: "#1C0F3A",
