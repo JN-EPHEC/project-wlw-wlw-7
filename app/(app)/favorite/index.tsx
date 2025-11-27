@@ -4,17 +4,17 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import React from "react";
 import {
-    ActivityIndicator,
-    SafeAreaView,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 // import { collection, getDocs } from "firebase/firestore";
 // import { db } from "../lib/firebaseConfig";
-import { useAuth } from "../lib/auth-context";
+import { useAuth } from "../../lib/auth-context";
 
 const COLORS = {
   backgroundStart: "#110A1E",
