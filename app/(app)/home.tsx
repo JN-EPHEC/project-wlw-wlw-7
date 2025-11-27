@@ -382,7 +382,7 @@ const styles = StyleSheet.create({
   },
   logoText: {
     fontFamily: "Poppins-Bold",
-    fontSize: 28,
+    fontSize: 32,
     lineHeight: 32,
     color: COLORS.textPrimary,
   },

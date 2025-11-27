@@ -83,6 +83,12 @@ export default function AppLayout() {
           ),
         }}
       />
+      
+      {/* ROUTES CACHÉES (hors onglets) */}
+      <Tabs.Screen name="favorite/index" options={{ href: null }} />
+      <Tabs.Screen name="payment" options={{ href: null }} />
+      <Tabs.Screen name="premium" options={{ href: null }} />
+      <Tabs.Screen name="edit-profile" options={{ href: null }} />
     
     </Tabs>
   );
