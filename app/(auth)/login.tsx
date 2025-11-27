@@ -134,7 +134,7 @@ export default function LoginScreen() {
     if (loading || checking || !user) return;
 
     if (needsOnboarding) {
-      router.replace("/register-next");
+      router.replace("/sondage-preference");
       return;
     }
 
@@ -206,11 +206,22 @@ export default function LoginScreen() {
           behavior={Platform.OS === "ios" ? "padding" : undefined}
         >
           <View style={styles.container}>
-            {/* Logo gradient (mobile) / couleur simple (web) */}
+            {/* Logo gradient */}
             <View style={styles.header}>
               {Platform.OS === "web" ? (
-                <Text style={styles.logoTextWeb}>What2Do</Text>
+                // Gradient CSS pour le web
+                <Text
+                  style={{
+                    ...styles.logoText,
+                    backgroundImage: "linear-gradient(90deg, #A259FF, #00A3FF)",
+                    WebkitBackgroundClip: "text",
+                    color: "transparent",
+                  } as any}
+                >
+                  What2Do
+                </Text>
               ) : (
+                // MaskedView + LinearGradient pour mobile
                 <MaskedView
                   maskElement={<Text style={styles.logoText}>What2Do</Text>}
                 >
@@ -282,7 +293,7 @@ export default function LoginScreen() {
             </View>
 
             {/* Divider */}
-            <View style={styles.divider}>
+            <View className="divider" style={styles.divider}>
               <View style={styles.line} />
               <Text style={styles.dividerText}>Ou continuer avec</Text>
               <View style={styles.line} />
@@ -367,12 +378,7 @@ const styles = StyleSheet.create({
     ...TYPO.h1,
     color: COLORS.textPrimary,
     letterSpacing: 0.5,
-  },
-  // pour le web on met une couleur secondaire (MaskView bug sur web)
-  logoTextWeb: {
-    ...TYPO.h1,
-    color: COLORS.secondary,
-    letterSpacing: 0.5,
+    textAlign: "center",
   },
   form: {
     gap: 20,
@@ -408,7 +414,7 @@ const styles = StyleSheet.create({
     fontFamily: TYPO.body.fontFamily,
     borderWidth: 1,
     borderColor: COLORS.neutralGray800,
-    textAlign: "center", // texte + placeholder centrés
+    textAlign: "center",
   },
   primaryButton: {
     marginTop: 24,
@@ -459,7 +465,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 16,
     borderRadius: 16,
-    justifyContent: "center", // centre le contenu (icône + texte)
+    justifyContent: "center",
   },
   googleButton: {
     backgroundColor: "#FFFFFF",
