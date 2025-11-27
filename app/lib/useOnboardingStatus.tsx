@@ -4,8 +4,8 @@ import { useAuth } from "./auth-context";
 import { db } from "./firebaseConfig";
 
 export function useOnboardingStatus() {
-  const { user, loading, onboardingCompleted, profileChecked } = useAuth();  const [checking, setChecking] = useState(true);
-  const [needsOnboarding, setNeedsOnboarding] = useState(false);
+ const { user, loading, onboardingCompleted, profileChecked } = useAuth();
+  const [checking, setChecking] = useState(true);  const [needsOnboarding, setNeedsOnboarding] = useState(false);
 
   useEffect(() => {
     const check = async () => {
