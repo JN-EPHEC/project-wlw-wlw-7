@@ -25,7 +25,7 @@ export default function AppLayout() {
   }
 
   if (needsOnboarding) {
-    return <Redirect href="/register-next" />;
+    return <Redirect href="/sondage-preference" />;
   }
   return (
     <Tabs
