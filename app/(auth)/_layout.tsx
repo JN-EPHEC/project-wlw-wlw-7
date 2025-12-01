@@ -7,7 +7,7 @@ export default function AuthLayout() {
   const { user, loading } = useAuth();
   const { needsOnboarding, checking } = useOnboardingStatus();
   const pathname = usePathname();
-  const isOnboarding = pathname?.includes("register-next");
+  const isOnboarding = pathname?.includes("sondage-preference");
 
   if (loading || checking)
     return (
@@ -24,7 +24,7 @@ export default function AuthLayout() {
 
   if (user && !isOnboarding) {
     if (needsOnboarding) {
-      return <Redirect href="/register-next" />;
+      return <Redirect href="/sondage-preference" />;
     }
       return <Redirect href="/home" />;
   }
@@ -33,7 +33,7 @@ export default function AuthLayout() {
      <Stack screenOptions={{ headerShown: false }} initialRouteName="login">
       <Stack.Screen name="login" />
       <Stack.Screen name="register" />
-      <Stack.Screen name="register-next" />
+      <Stack.Screen name="sondage-preference" />
     </Stack>
   );
 }

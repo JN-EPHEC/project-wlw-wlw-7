@@ -23,7 +23,7 @@ export default function Index() {
     return <Redirect href="/login" />;  }
 
   if (needsOnboarding) {
-    return <Redirect href="/register-next" />;
+    return <Redirect href="/sondage-preference" />;
   }
 
   return <Redirect href="/home" />;
