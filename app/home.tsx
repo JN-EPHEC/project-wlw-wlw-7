@@ -187,7 +187,7 @@ export default function HomeScreen() {
               <TouchableOpacity
                 style={styles.iconButton}
                 activeOpacity={0.8}
-                onPress={() => router.push("/favorite/index")}
+                onPress={() => router.push("./favorite/index")}
               >
                 <Ionicons name="heart" size={18} color="#EF4444" />
               </TouchableOpacity>

@@ -85,7 +85,6 @@ export default function LoginScreen() {
     user,
     login,
     loginWithGoogle,
-    loginWithApple,
     loading,
     lastAuthError,
     clearAuthError,
@@ -134,11 +133,11 @@ export default function LoginScreen() {
     if (loading || checking || !user) return;
 
     if (needsOnboarding) {
-      router.replace("/(auth)/sondage-preference");      
+      router.replace("/sondage-preference");      
       return;
     }
 
-    router.replace("/(app)/home");
+    router.replace("/home");
   }, [user, loading, checking, needsOnboarding, router]);
 
   const handleLogin = async () => {
@@ -171,8 +170,6 @@ export default function LoginScreen() {
     try {
       if (provider === "google") {
         await loginWithGoogle();
-      } else {
-        await loginWithApple();
       }
     } catch (err) {
       setError(mapAuthError(err));
