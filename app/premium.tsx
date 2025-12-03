@@ -24,7 +24,7 @@ export default function PremiumScreen() {
         {
           text: "OK",
           style: "default",
-          onPress: () => router.push("/(app)/payment"),
+          onPress: () => router.push("/payment"),
         },
       ]
     );
@@ -39,7 +39,7 @@ export default function PremiumScreen() {
         <View style={styles.header}>
           <TouchableOpacity
             style={styles.backButton}
-            onPress={() => router.replace("/(app)/profile")}
+            onPress={() => router.replace("/profile")}
             activeOpacity={0.8}
           >
             <Ionicons name="arrow-back" size={22} color="#FFFFFF" />

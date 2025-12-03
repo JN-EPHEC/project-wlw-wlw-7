@@ -14,7 +14,7 @@ import {
 } from "react-native";
 // import { collection, getDocs } from "firebase/firestore";
 // import { db } from "../lib/firebaseConfig";
-import { useAuth } from "../../lib/auth-context";
+import { useAuth } from "../lib/auth-context";
 
 const COLORS = {
   backgroundStart: "#110A1E",
@@ -154,7 +154,7 @@ export default function FavoritesScreen() {
               <TouchableOpacity
                 style={styles.goDiscoverButton}
                 activeOpacity={0.9}
-                onPress={() => router.push("/(app)/home")}
+                onPress={() => router.push("/home")}
               >
                 <Text style={styles.goDiscoverButtonText}>
                   Découvrir des activités
@@ -197,9 +197,9 @@ export default function FavoritesScreen() {
   activeOpacity={0.9}
   onPress={() => {
     if (item.type === "game") {
-      router.push("/(app)/games");
+      router.push("/games");
     } else {
-      router.push("/(app)/home");
+      router.push("/home");
     }
   }}
 >

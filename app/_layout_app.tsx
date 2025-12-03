@@ -2,8 +2,8 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Redirect, Tabs } from "expo-router";
 import { ActivityIndicator, SafeAreaView, View } from "react-native";
-import { useAuth } from "../lib/auth-context";
-import { useOnboardingStatus } from "../lib/useOnboardingStatus";
+import { useAuth } from "./lib/auth-context";
+import { useOnboardingStatus } from "./lib/useOnboardingStatus";
 
 export default function AppLayout() {
   const { user, loading } = useAuth();

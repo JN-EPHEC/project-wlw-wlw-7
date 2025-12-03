@@ -14,11 +14,11 @@ function NavigationGuard() {
     debugger;
     if (loading || !profileChecked) return;
 
-    const inAuthGroup = segments[0] === "(auth)";
-    const isOnboardingRoute = inAuthGroup && segments[1] === "sondage-preference";
+    // PROBLEME ;
+    const isOnboardingRoute = segments[0] === "sondage-preference";
 
     // Pas connecté → redirige vers login
-    if (!user && !inAuthGroup) {
+    if (!user && isOnboardingRoute) {
       debugger;
       router.replace("/login");
       return;
@@ -30,13 +30,13 @@ function NavigationGuard() {
 
     // Connecté mais onboarding non terminé → forcer le passage par le sondage
     if (user && onboardingCompleted === false && !isOnboardingRoute) {
-      router.replace("/(auth)/sondage-preference");
+      router.replace("/sondage-preference");
       return;
     }
 
     // Connecté → redirige vers home s'il reste dans (auth)
-    if (user && onboardingCompleted !== false && inAuthGroup) {
-      router.replace("/(app)/home");
+    if (user && onboardingCompleted !== false && isOnboardingRoute) {
+      router.replace("/home");
       return;
     }
   }, [

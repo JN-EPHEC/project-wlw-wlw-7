@@ -1,8 +1,8 @@
 // app/(auth)/_layout.tsx
 import { Redirect, Stack, usePathname } from "expo-router";
 import { ActivityIndicator, SafeAreaView, View } from "react-native";
-import { useAuth } from "../lib/auth-context";
-import { useOnboardingStatus } from "../lib/useOnboardingStatus";
+import { useAuth } from "./lib/auth-context";
+import { useOnboardingStatus } from "./lib/useOnboardingStatus";
 export default function AuthLayout() {
   const { user, loading } = useAuth();
   const { needsOnboarding, checking } = useOnboardingStatus();

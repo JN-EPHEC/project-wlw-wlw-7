@@ -17,8 +17,8 @@ import {
   View,
 } from "react-native";
 
-import { useAuth } from "../lib/auth-context";
-import { db } from "../lib/firebaseConfig";
+import { db } from "../firebaseConfig";
+import { useAuth } from "./lib/auth-context";
 
 const COLORS = {
   backgroundStart: "#110A1E",
@@ -132,7 +132,7 @@ export default function RegisterNextScreen() {
     markOnboardingCompleted();
 
     // ⚠️ Vérifie que cette route existe bien dans ton app/
-    router.replace("/(app)/home");
+    router.replace("/home");
 
     console.log("[register-next] ✅ router.replace('/(app)/home') appelé");
   } catch (e: any) {

@@ -17,7 +17,7 @@ import {
   View,
 } from "react-native";
 
-import { useAuth } from "../lib/auth-context";
+import { useAuth } from "./lib/auth-context";
 
 const COLORS = {
   backgroundStart: "#110A1E",
@@ -148,7 +148,7 @@ export default function RegisterScreen() {
       setSubmitting(true);
       setErrors({});
       await register(trimmedEmail, password, trimmedUsername);
-      router.replace("/(auth)/sondage-preference");
+      router.replace("/sondage-preference");
     } catch (err) {
       console.log("Register error:", (err as any)?.code, err);
       const message = mapRegisterError(err);

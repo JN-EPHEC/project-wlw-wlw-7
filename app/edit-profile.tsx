@@ -31,8 +31,8 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { useAuth } from "../lib/auth-context";
-import { db } from "../lib/firebaseConfig";
+import { db } from "../firebaseConfig";
+import { useAuth } from "./lib/auth-context";
 
 const ACCOUNT_TYPE_LABELS: Record<string, string> = {
   solo: "Solo",
@@ -501,7 +501,7 @@ export default function EditProfileScreen() {
               saving && styles.buttonDisabled,
             ]}
             activeOpacity={0.9}
-            onPress={() => router.push("/(app)/premium")}
+            onPress={() => router.push("/premium")}
             disabled={saving}
           >
             <Text style={styles.secondaryButtonText}>

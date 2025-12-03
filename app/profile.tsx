@@ -12,8 +12,8 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { useAuth } from "../lib/auth-context";
-import { db } from "../lib/firebaseConfig";
+import { db } from "../firebaseConfig";
+import { useAuth } from "./lib/auth-context";
 
 const ACCOUNT_TYPE_LABELS: Record<string, string> = {
   personnel: "Personnel",
@@ -115,7 +115,7 @@ export default function ProfileScreen() {
             <TouchableOpacity
               style={[styles.actionButton, styles.editButton]}
               activeOpacity={0.9}
-              onPress={() => router.push("/(app)/edit-profile")}
+              onPress={() => router.push("/edit-profile")}
             >
               <Text style={styles.actionText}>Modifier mon profil</Text>
             </TouchableOpacity>
@@ -131,7 +131,7 @@ export default function ProfileScreen() {
             <TouchableOpacity
               style={[styles.actionButton, styles.premiumButton]}
               activeOpacity={0.9}
-              onPress={() => router.push("/(app)/premium")}
+              onPress={() => router.push("/premium")}
             >
               <Text style={styles.actionText}>Passer en premium</Text>
             </TouchableOpacity>

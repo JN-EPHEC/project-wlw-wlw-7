@@ -1,7 +1,7 @@
 import { doc, getDoc } from "firebase/firestore";
 import { useEffect, useState } from "react";
+import { db } from "../../firebaseConfig";
 import { useAuth } from "./auth-context";
-import { db } from "./firebaseConfig";
 
 export function useOnboardingStatus() {
 const { user, loading, onboardingCompleted, profileChecked } = useAuth();

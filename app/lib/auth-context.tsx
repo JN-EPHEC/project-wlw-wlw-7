@@ -26,7 +26,7 @@ import React, {
   useState,
 } from "react";
 import { Platform } from "react-native";
-import { appleProvider, auth, db, googleProvider } from "./firebaseConfig";
+import { auth, db, googleProvider } from "../../firebaseConfig";
 
 type AuthContextType = {
   user: User | null;
@@ -35,7 +35,6 @@ type AuthContextType = {
   profileChecked: boolean;
   login: (email: string, password: string) => Promise<void>;
   loginWithGoogle: () => Promise<void>;
-  loginWithApple: () => Promise<void>;
   register: (email: string, password: string, username: string) => Promise<void>;
   logout: () => Promise<void>;
   lastAuthError: unknown | null;
@@ -136,15 +135,6 @@ export function AuthProvider({ children }: { children?: ReactNode }) {
     }
   };
 
-  const loginWithApple = async () => {
-    const performLogin = loginWithProvider();
-    try {
-      await performLogin(auth, appleProvider);
-    } catch (error) {
-      setLastAuthError(error);
-      throw error;
-    }
-  };
 
   const register = async (email: string, password: string, username: string) => {
     const normalizedUsername = username.trim();
@@ -197,7 +187,6 @@ export function AuthProvider({ children }: { children?: ReactNode }) {
         profileChecked,
         login,
         loginWithGoogle,
-        loginWithApple,
         register,
         logout,
         lastAuthError,
