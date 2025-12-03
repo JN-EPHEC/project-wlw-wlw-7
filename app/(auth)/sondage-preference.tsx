@@ -5,16 +5,16 @@ import { useRouter } from "expo-router";
 import { doc, setDoc } from "firebase/firestore";
 import React, { useState } from "react";
 import {
-    ActivityIndicator,
-    KeyboardAvoidingView,
-    Platform,
-    SafeAreaView,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 
 import { useAuth } from "../lib/auth-context";
@@ -64,14 +64,19 @@ export default function RegisterNextScreen() {
   const router = useRouter();
 
   const [step, setStep] = useState<1 | 2 | 3>(1);
-  const [accountType, setAccountType] = useState<"personnel" | "professionnel" | null>(null);
+  const [accountType, setAccountType] = useState<
+    "personnel" | "professionnel" | null
+  >(null);
   const [interests, setInterests] = useState<string[]>([]);
   const [city, setCity] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   if (!user) {
-    // si quelqu’un arrive ici sans être connecté -> retour login
+    // Si quelqu’un arrive ici sans être connecté -> retour login
+    console.warn(
+      "[register-next] Aucun user dans le contexte, redirection vers /login"
+    );
     router.replace("/login");
     return null;
   }
@@ -88,38 +93,59 @@ export default function RegisterNextScreen() {
     (step === 3 && city.trim().length > 1);
 
   const handleNext = async () => {
-    if (!canContinue) return;
+  if (!canContinue) {
+    console.log("[register-next] handleNext appelé mais canContinue = false");
+    return;
+  }
 
-    if (step < 3) {
-      setStep((prev) => (prev + 1) as 2 | 3);
-      return;
-    }
+  // Étapes 1 & 2 : juste passer à l'étape suivante
+  if (step < 3) {
+    console.log("[register-next] Passage de l'étape", step, "à", step + 1);
+    setStep((prev) => (prev + 1) as 2 | 3);
+    return;
+  }
 
-    // Dernière étape -> on sauvegarde en base
-    try {
-      setSaving(true);
-      setError(null);
+  // Étape 3 : sauvegarde en base SANS timeout custom
+  try {
+    setSaving(true);
+    setError(null);
 
-      const userRef = doc(db, "users", user.uid);
-      await setDoc(
-        userRef,
-        {
-          accountType,
-          interests,
-          city: city.trim(),
-          onboardingCompleted: true,
-        },
-        { merge: true }
-      );
+    console.log("[register-next] Début sauvegarde préférences");
 
-      markOnboardingCompleted();
-      router.replace("/(app)/home");    
-    } catch (e) {
-      console.error(e);
-      setError("Impossible d'enregistrer vos préférences pour le moment.");
-      setSaving(false);
-    }
-  };
+    const userRef = doc(db, "users", user.uid);
+
+    await setDoc(
+      userRef,
+      {
+        accountType,
+        interests,
+        city: city.trim(),
+        onboardingCompleted: true,
+      },
+      { merge: true }
+    );
+
+    console.log(
+      "[register-next] ✅ setDoc terminé, on appelle markOnboardingCompleted + navigation"
+    );
+
+    markOnboardingCompleted();
+
+    // ⚠️ Vérifie que cette route existe bien dans ton app/
+    router.replace("/(app)/home");
+
+    console.log("[register-next] ✅ router.replace('/(app)/home') appelé");
+  } catch (e: any) {
+    console.error("[register-next] ❌ Erreur Firestore réelle :", e);
+
+    // Ici on affiche directement le message brut pour debug
+    setError(
+      "Erreur Firestore : " + (e?.message ?? "Une erreur inconnue s'est produite.")
+    );
+  } finally {
+    setSaving(false);
+  }
+};
 
   const renderStepContent = () => {
     if (step === 1) {
@@ -127,7 +153,8 @@ export default function RegisterNextScreen() {
         <>
           <Text style={styles.title}>Bienvenue 👋</Text>
           <Text style={styles.subtitle}>
-            Dis-nous comment tu veux utiliser What2Do. On personnalise tout pour toi.
+            Dis-nous comment tu veux utiliser What2Do. On personnalise tout
+            pour toi.
           </Text>
 
           <View style={styles.cardsContainer}>
@@ -163,7 +190,8 @@ export default function RegisterNextScreen() {
               <View style={[styles.cardInner, styles.cardInnerAlt]}>
                 <Text style={styles.cardTitle}>Professionnel</Text>
                 <Text style={styles.cardText}>
-                  Pour l&apos;équipe, les afterworks, les activités de cohésion, etc.
+                  Pour l&apos;équipe, les afterworks, les activités de cohésion,
+                  etc.
                 </Text>
               </View>
             </TouchableOpacity>
@@ -177,7 +205,8 @@ export default function RegisterNextScreen() {
         <>
           <Text style={styles.title}>Qu&apos;est-ce qui t&apos;intéresse ?</Text>
           <Text style={styles.subtitle}>
-            Dis-nous ce que tu veux faire. On te proposera les meilleures idées autour de toi.
+            Dis-nous ce que tu veux faire. On te proposera les meilleures idées
+            autour de toi.
           </Text>
 
           <View style={styles.chipsContainer}>
@@ -186,10 +215,7 @@ export default function RegisterNextScreen() {
               return (
                 <TouchableOpacity
                   key={item}
-                  style={[
-                    styles.chip,
-                    selected && styles.chipSelected,
-                  ]}
+                  style={[styles.chip, selected && styles.chipSelected]}
                   activeOpacity={0.8}
                   onPress={() => toggleInterest(item)}
                 >
@@ -213,7 +239,8 @@ export default function RegisterNextScreen() {
       <>
         <Text style={styles.title}>Où habites-tu ?</Text>
         <Text style={styles.subtitle}>
-          Dis-nous ta ville pour qu&apos;on puisse adapter les propositions à ton secteur.
+          Dis-nous ta ville pour qu&apos;on puisse adapter les propositions à
+          ton secteur.
         </Text>
 
         <View style={styles.cityField}>
@@ -248,12 +275,15 @@ export default function RegisterNextScreen() {
             <View style={styles.logoContainer}>
               {Platform.OS === "web" ? (
                 <Text
-                  style={{
-                    ...styles.logoText,
-                    backgroundImage: "linear-gradient(90deg, #A259FF, #00A3FF)",
-                    WebkitBackgroundClip: "text",
-                    color: "transparent",
-                  } as any}
+                  style={
+                    {
+                      ...styles.logoText,
+                      backgroundImage:
+                        "linear-gradient(90deg, #A259FF, #00A3FF)",
+                      WebkitBackgroundClip: "text",
+                      color: "transparent",
+                    } as any
+                  }
                 >
                   What2Do
                 </Text>
@@ -302,10 +332,7 @@ export default function RegisterNextScreen() {
                 {[1, 2, 3].map((s) => (
                   <View
                     key={s}
-                    style={[
-                      styles.dot,
-                      step === s && styles.dotActive,
-                    ]}
+                    style={[styles.dot, step === s && styles.dotActive]}
                   />
                 ))}
               </View>

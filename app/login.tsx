@@ -17,8 +17,8 @@ import {
   View,
 } from "react-native";
 
-import { useAuth } from "../lib/auth-context";
-import { useOnboardingStatus } from "../lib/useOnboardingStatus";
+import { useAuth } from "./lib/auth-context";
+import { useOnboardingStatus } from "./lib/useOnboardingStatus";
 
 const COLORS = {
   backgroundStart: "#110A1E",

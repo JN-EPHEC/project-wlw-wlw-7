@@ -11,6 +11,7 @@ function NavigationGuard() {
   const router = useRouter();
 
   useEffect(() => {
+    debugger;
     if (loading || !profileChecked) return;
 
     const inAuthGroup = segments[0] === "(auth)";
@@ -18,7 +19,8 @@ function NavigationGuard() {
 
     // Pas connecté → redirige vers login
     if (!user && !inAuthGroup) {
-      router.replace("/(auth)/login");
+      debugger;
+      router.replace("/login");
       return;
     }
 
@@ -60,6 +62,7 @@ useFonts({
  
 
   return (
+    
     <AuthProvider>
       <NavigationGuard />
     </AuthProvider>
