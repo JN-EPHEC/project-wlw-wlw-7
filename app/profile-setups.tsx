@@ -33,7 +33,7 @@ export default function ProfileSetupScreen() {
     }
 
     if (hasCompletedProfile) {
-      router.replace('/(tabs)');
+       router.replace('/(tabs)/index');
     }
   }, [hasCompletedProfile, isAuthenticated, router]);
 
@@ -53,7 +53,7 @@ export default function ProfileSetupScreen() {
       .filter(Boolean);
 
     try {
-      await completeProfile({
+        const saveProfile = completeProfile({
         displayName: displayName.trim(),
         city: city.trim(),
         persona: persona.trim() || undefined,
@@ -61,7 +61,27 @@ export default function ProfileSetupScreen() {
         interests: interestList,
       });
 
-      router.replace('/(tabs)');
+const saveWithTimeout = new Promise<void>((resolve, reject) => {
+        const timer = setTimeout(
+          () => reject(new Error('Le réseau semble lent. Vérifie ta connexion et réessaie.')),
+          12000,
+        );
+
+        saveProfile
+          .then(() => {
+            clearTimeout(timer);
+            resolve();
+          })
+          .catch((error) => {
+            clearTimeout(timer);
+            reject(error);
+          });
+      });
+
+      await saveWithTimeout;
+
+      router.replace('/(tabs)/index');
+      
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Impossible de finaliser le profil.');
     } finally {
