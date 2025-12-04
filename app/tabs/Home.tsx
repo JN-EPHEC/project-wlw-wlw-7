@@ -1,142 +1,96 @@
-// On importe React pour pouvoir créer des composants fonctionnels.
-import React from 'react';
-
-// On importe les composants de base de React Native.
+import { LinearGradient } from "expo-linear-gradient";
+import React from "react";
 import {
-  SafeAreaView, // Zones cliquables (boutons, chips…).
-  ScrollView // Zone scrollable pour la liste d’activités.
-  , // Affichage de texte.
-  StyleSheet, // Conteneur générique.
-  Text, // Pour créer les styles (équivalent CSS).
-  TextInput, // Champ de recherche.
-  TouchableOpacity, // Gère les zones safe sur iOS/Android (notch, etc.)
-  View
-} from 'react-native';
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import Icon from "react-native-vector-icons/Ionicons";
+import { COLORS } from "../../components/Colors";
 
-// Dégradé de fond (background 110A1E → 0A0612).
-import { LinearGradient } from 'expo-linear-gradient';
-
-// Icônes (flèche retour, cœur, etc.)
-import Icon from 'react-native-vector-icons/Ionicons';
-
-// Données mock pour afficher quelques cartes activité.
 const activities = [
   {
-    id: '1',
-    title: 'Concert 🎶',
-    date: 'Today'
+    id: "1",
+    title: "Concert",
+    date: "Today",
   },
   {
-    id: '2',
-    title: 'Escape Game 🗝',
-    date: 'Tomorrow'
+    id: "2",
+    title: "Escape Game",
+    date: "Tomorrow",
   },
-  {
-    id: '3',
-    title: 'Karaoké 🎤',
-    date: 'Friday'
-  }
 ];
 
-// Composant principal de la page d’accueil.
-const HomeScreen = () => {
+export default function HomeScreen() {
   return (
-    // SafeAreaView pour respecter les bords de l’écran.
     <SafeAreaView style={styles.safeArea}>
-      {/* Dégradé de fond principal : 110A1E → 0A0612 */}
       <LinearGradient
-        colors={['#110A1E', '#0A0612']} // Tes couleurs de background.
-        style={styles.backgroundGradient}
+        colors={[COLORS.backgroundTop, COLORS.backgroundBottom]}
+        style={styles.background}
       >
-        {/* Contenu scrollable de la page */}
         <ScrollView
-          contentContainerStyle={styles.scrollContent}
+          style={styles.scrollView}
+          contentContainerStyle={styles.contentContainer}
           showsVerticalScrollIndicator={false}
         >
-          {/* HEADER */}
           <View style={styles.header}>
-            {/* Flèche retour */}
-            <TouchableOpacity style={styles.backButton}>
-              <Icon name="chevron-back" size={22} color="#F9FAFB" />
-            </TouchableOpacity>
-
-            {/* Titre "What2do" (utilisation dégradé A259FF–00A3FF simplifiée) */}
-            <Text style={styles.appTitle}>What2do</Text>
-
-            {/* Icônes à droite : cœur + avatar */}
-            <View style={styles.headerRight}>
-              <TouchableOpacity style={styles.iconCircle}>
-                <Icon name="heart" size={18} color="#B57BFF" />
-              </TouchableOpacity>
-
-              <TouchableOpacity style={styles.avatarCircle}>
-                <Icon name="person" size={18} color="#F9FAFB" />
-              </TouchableOpacity>
+            <View style={styles.titleContainer}>
+              <Text style={[styles.title, styles.titleGradientStart]}>What</Text>
+              <Text style={[styles.title, styles.titleGradientEnd]}>2do</Text>
             </View>
+            <TouchableOpacity style={styles.iconButton}>
+              <Icon name="heart" size={18} color={COLORS.secondary} />
+            </TouchableOpacity>
           </View>
 
-          {/* BARRE DE RECHERCHE */}
-          <View style={styles.searchContainer}>
-            <Icon
-              name="search"
-              size={18}
-              color="#9CA3AF" // gris clair pour l’icône search.
-              style={styles.searchIcon}
-            />
+          <View style={styles.searchBar}>
+            <Icon name="search" size={18} color={COLORS.textSecondary} />
             <TextInput
               placeholder="Search an activity"
-              placeholderTextColor="#9CA3AF" // gris placeholder.
+              placeholderTextColor={COLORS.textSecondary}
               style={styles.searchInput}
             />
             <TouchableOpacity>
-              <Icon name="close" size={18} color="#9CA3AF" />
+              <Icon name="close" size={18} color={COLORS.textSecondary} />
             </TouchableOpacity>
           </View>
 
-          {/* FILTRES (chips) */}
-          <View style={styles.filtersRow}>
-            {/* Filtre "Près de moi" actif */}
-            <TouchableOpacity style={[styles.filterChip, styles.filterChipActive]}>
-              <Text style={[styles.filterText, styles.filterTextActive]}>
-                Près de moi
-              </Text>
+          <View style={styles.filters}>
+            <TouchableOpacity style={[styles.chip, styles.chipActive]}>
+              <Text style={[styles.chipText, styles.chipTextActive]}>Près de moi</Text>
             </TouchableOpacity>
-
-            {/* Filtre "Gratuit" */}
-            <TouchableOpacity style={styles.filterChip}>
-              <Text style={styles.filterText}>Gratuit</Text>
+            <TouchableOpacity style={styles.chip}>
+              <Text style={styles.chipText}>Gratuit</Text>
             </TouchableOpacity>
-
-            {/* Filtre "Nouveau" */}
-            <TouchableOpacity style={styles.filterChip}>
-              <Text style={styles.filterText}>Nouveau</Text>
+            <TouchableOpacity style={styles.chip}>
+              <Text style={styles.chipText}>Nouveau</Text>
             </TouchableOpacity>
           </View>
 
-          {/* LISTE DES ACTIVITÉS */}
-          <View style={styles.cardList}>
-            {activities.map(activity => (
+          <View style={styles.cards}>
+            {activities.map((activity, index) => (
               <View key={activity.id} style={styles.card}>
-                {/* Image / bannière de la carte (fond violet B57BFF) */}
-                <View style={styles.cardImagePlaceholder}>
-                  <Text style={styles.cardImageText}>Image</Text>
-                </View>
+                <LinearGradient
+                  colors={index % 2 === 0 ? ["#7C3AED", "#5B21B6"] : ["#9F7AEA", "#6B46C1"]}
+                  style={styles.cardImage}
+                >
+                  <Text style={styles.cardTag}>Découvrir</Text>
+                </LinearGradient>
 
-                {/* Cœur favoris dans le coin */}
                 <TouchableOpacity style={styles.cardHeart}>
-                  <Icon name="heart-outline" size={20} color="#F9FAFB" />
+                  <Icon name="heart-outline" size={20} color={COLORS.textPrimary} />
                 </TouchableOpacity>
 
-                {/* Contenu texte de la carte */}
                 <View style={styles.cardContent}>
                   <Text style={styles.cardTitle}>{activity.title}</Text>
-
-                  {/* Ligne bouton + date */}
                   <View style={styles.cardFooter}>
                     <TouchableOpacity style={styles.cardButton}>
                       <Text style={styles.cardButtonText}>Découvrir</Text>
                     </TouchableOpacity>
-
                     <Text style={styles.cardDate}>{activity.date}</Text>
                   </View>
                 </View>
@@ -144,263 +98,163 @@ const HomeScreen = () => {
             ))}
           </View>
         </ScrollView>
-
-        {/* BOTTOM TAB BAR */}
-        <View style={styles.tabBar}>
-          {/* Onglet Accueil actif */}
-          <TouchableOpacity style={styles.tabItem}>
-            <Icon name="home" size={22} color="#A259FF" />
-            <Text style={styles.tabLabelActive}>Accueil</Text>
-          </TouchableOpacity>
-
-          {/* Onglet Jeux */}
-          <TouchableOpacity style={styles.tabItem}>
-            <Icon name="game-controller" size={22} color="#6B7280" />
-            <Text style={styles.tabLabel}>Jeux</Text>
-          </TouchableOpacity>
-
-          {/* Onglet Groupes */}
-          <TouchableOpacity style={styles.tabItem}>
-            <Icon name="people" size={22} color="#6B7280" />
-            <Text style={styles.tabLabel}>Groupes</Text>
-          </TouchableOpacity>
-
-          {/* Onglet Profile */}
-          <TouchableOpacity style={styles.tabItem}>
-            <Icon name="person" size={22} color="#6B7280" />
-            <Text style={styles.tabLabel}>Profile</Text>
-          </TouchableOpacity>
-        </View>
       </LinearGradient>
     </SafeAreaView>
   );
-};
+}
 
-// Styles (équivalent CSS)
 const styles = StyleSheet.create({
-  // Fond safe area noir/violet.
   safeArea: {
     flex: 1,
-    backgroundColor: '#110A1E' // Couleur basse du gradient, au cas où.
+    backgroundColor: COLORS.backgroundTop,
   },
-
-  // Conteneur principal du dégradé.
-  backgroundGradient: {
-    flex: 1
+  background: {
+    flex: 1,
   },
-
-  // Padding du contenu scrollable.
-  scrollContent: {
+  contentContainer: {
     paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: 90 // Laisser la place pour la tab bar.
+    paddingTop: 20,
+    paddingBottom: 80,
+    gap: 20,
+    flexGrow: 1,
   },
-
-  // HEADER
+  scrollView: {
+    flex: 1,
+  },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 24
+    position: "relative",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
   },
-
-  backButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: '#3A2A60', // Bordeau violet foncé.
-    alignItems: 'center',
-    justifyContent: 'center'
+  titleContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
   },
-
-  // Titre principal de l’app.
-  appTitle: {
-    fontSize: 24,
-    fontWeight: '700',
-    // On utilise une des couleurs du dégradé de titre (A259FF) pour rester lisible.
-    color: '#A259FF'
+  title: {
+    fontSize: 32,
+    fontWeight: "800",
   },
-
-  headerRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12
+  titleGradientStart: {
+    color: COLORS.titleGradientStart,
   },
-
-  iconCircle: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#3A2A60',
-    alignItems: 'center',
-    justifyContent: 'center'
+  titleGradientEnd: {
+    color: COLORS.titleGradientEnd,
   },
-
-  avatarCircle: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#B57BFF', // Accent violet plus vif pour l’avatar.
-    alignItems: 'center',
-    justifyContent: 'center'
+  iconButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#1C122D",
+    alignItems: "center",
+    justifyContent: "center",
+    position: "absolute",
+    right: 0,
   },
-
-  // BARRE DE RECHERCHE
-  searchContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#3A2A60', // Fond du champ.
+  searchBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#1C122D",
     borderRadius: 16,
     paddingHorizontal: 12,
     paddingVertical: 10,
-    marginBottom: 16
+    gap: 10,
   },
-
-  searchIcon: {
-    marginRight: 8
-  },
-
   searchInput: {
     flex: 1,
-    color: '#F9FAFB', // Texte blanc cassé.
-    fontSize: 14
+    color: COLORS.textPrimary,
+    fontSize: 14,
   },
-
-  // FILTRES
-  filtersRow: {
-    flexDirection: 'row',
-    gap: 8,
-    marginBottom: 20
+  filters: {
+    flexDirection: "row",
+    gap: 10,
   },
-
-  filterChip: {
+  chip: {
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: '#3A2A60',
-    backgroundColor: 'transparent'
+    borderColor: "#2A1B3D",
+    backgroundColor: "transparent",
   },
-
-  filterChipActive: {
-    backgroundColor: '#3A2A60'
+  chipActive: {
+    backgroundColor: "#2A1B3D",
   },
-
-  filterText: {
+  chipText: {
     fontSize: 12,
-    color: '#9CA3AF' // Gris clair pour texte de filtre inactif.
+    color: COLORS.textSecondary,
   },
-
-  filterTextActive: {
-    color: '#F9FAFB' // Texte blanc pour filtre actif.
+  chipTextActive: {
+    color: COLORS.textPrimary,
+    fontWeight: "600",
   },
-
-  // LISTE DE CARTES
-  cardList: {
-    gap: 16
+  cards: {
+    gap: 16,
   },
-
   card: {
-    backgroundColor: '#1F102F', // Légèrement plus clair que le fond pour détacher la carte.
+    backgroundColor: "#1A0F2A",
     borderRadius: 24,
-    padding: 12,
-    marginBottom: 12
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.05)",
   },
-
-  cardImagePlaceholder: {
-    height: 160,
-    borderRadius: 18,
-    backgroundColor: '#B57BFF', // Fond violet vif simulant l’illustration.
-    alignItems: 'center',
-    justifyContent: 'center'
+  cardImage: {
+    height: 180,
+    borderRadius: 24,
+    margin: 12,
+    padding: 14,
+    justifyContent: "flex-start",
   },
-
-  cardImageText: {
-    color: '#F9FAFB',
-    fontWeight: '600',
-    opacity: 0.7
+  cardTag: {
+    alignSelf: "flex-start",
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 999,
+    backgroundColor: "rgba(0,0,0,0.25)",
+    color: COLORS.textPrimary,
+    fontWeight: "600",
+    fontSize: 12,
   },
-
   cardHeart: {
-    position: 'absolute',
-    top: 16,
-    right: 16,
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: 'rgba(17,10,30,0.7)',
-    alignItems: 'center',
-    justifyContent: 'center'
+    position: "absolute",
+    top: 18,
+    right: 18,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(0,0,0,0.35)",
+    alignItems: "center",
+    justifyContent: "center",
   },
-
   cardContent: {
-    marginTop: 12
+    paddingHorizontal: 20,
+    paddingBottom: 16,
+    gap: 12,
   },
-
   cardTitle: {
     fontSize: 18,
-    fontWeight: '600',
-    color: '#F9FAFB',
-    marginBottom: 10
+    fontWeight: "700",
+    color: COLORS.textPrimary,
   },
-
   cardFooter: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between'
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
-
   cardButton: {
-    backgroundColor: '#A259FF', // Accent de bouton (même famille que le titre).
+    backgroundColor: COLORS.secondary,
     paddingHorizontal: 18,
-    paddingVertical: 8,
-    borderRadius: 999
-  },
-
-  cardButtonText: {
-    color: '#F9FAFB',
-    fontSize: 14,
-    fontWeight: '600'
-  },
-
-  cardDate: {
-    color: '#9CA3AF',
-    fontSize: 12
-  },
-
-  // TAB BAR
-  tabBar: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    alignItems: 'center',
     paddingVertical: 10,
-    paddingBottom: 18,
-    backgroundColor: '#110A1E',
-    borderTopWidth: 1,
-    borderTopColor: '#3A2A60'
+    borderRadius: 999,
   },
-
-  tabItem: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 2
+  cardButtonText: {
+    color: COLORS.textPrimary,
+    fontSize: 14,
+    fontWeight: "700",
   },
-
-  tabLabel: {
-    fontSize: 11,
-    color: '#6B7280' // Gris plus sombre pour onglets inactifs.
+  cardDate: {
+    color: COLORS.textSecondary,
+    fontSize: 12,
   },
-
-  tabLabelActive: {
-    fontSize: 11,
-    color: '#F9FAFB', // Onglet actif en blanc cassé.
-    fontWeight: '600'
-  }
 });
-
-export default HomeScreen;
