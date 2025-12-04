@@ -18,7 +18,7 @@ export const unstable_settings = {
 export default function RootLayout() {
   const colorScheme = useColorScheme();
 
-  const [fontsLoaded] = useFonts({
+  const [loaded] = useFonts({
     "Poppins-Regular": require("../assets/fonts/Poppins-Regular.ttf"),
     "Poppins-Medium": require("../assets/fonts/Poppins-Medium.ttf"),
     "Poppins-SemiBold": require("../assets/fonts/Poppins-SemiBold.ttf"),
@@ -26,12 +26,12 @@ export default function RootLayout() {
   });
 
   useEffect(() => {
-    if (fontsLoaded) {
+    if (loaded) {
       SplashScreen.hideAsync();
     }
-  }, [fontsLoaded]);
+  }, [loaded]);
 
-  if (!fontsLoaded) {
+  if (!loaded) {
     return null;
   }
 
