@@ -39,6 +39,10 @@ export default function ProfileScreen() {
     }
   };
 
+  const handleEditProfile = () => {
+    router.push("../Profile/Modif-prof");
+  };
+
   return (
     <LinearGradient
       colors={[COLORS.backgroundTop, COLORS.backgroundBottom]}
@@ -76,7 +80,10 @@ export default function ProfileScreen() {
           </View>
 
           {/* BUTTONS */}
-          <TouchableOpacity style={styles.buttonWrapper}>
+          <TouchableOpacity 
+            style={styles.buttonWrapper}
+            onPress={handleEditProfile}
+          >
             <LinearGradient
               colors={[COLORS.titleGradientStart, COLORS.titleGradientEnd]}
               start={{ x: 0, y: 0 }}
