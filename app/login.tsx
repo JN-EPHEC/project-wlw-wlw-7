@@ -107,5 +107,5 @@ const styles = StyleSheet.create({
     marginTop: 18,
     textAlign: "center",
     textDecorationLine: "underline",
-  },
+    },
 });

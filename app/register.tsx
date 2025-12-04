@@ -71,8 +71,17 @@ export default function RegisterScreen() {
         style={styles.input}
         secureTextEntry
         value={password}
-        onChangeText={setPasswordConfirm}
+        onChangeText={setPassword}
         placeholder="Entrez votre mot de passe"
+      />
+
+      <Text style={styles.label}>Confirmer votre mot de passe</Text>
+      <TextInput 
+        style={styles.input}
+        secureTextEntry
+        value={passwordConfirm}
+        onChangeText={setPasswordConfirm}
+        placeholder="Entrez le même mot de passe"
       />
       
       <Pressable
