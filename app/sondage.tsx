@@ -3,16 +3,16 @@ import { useRouter } from "expo-router";
 import { doc, updateDoc } from "firebase/firestore";
 import React, { useEffect, useRef, useState } from "react";
 import {
-    Alert,
-    Animated,
-    KeyboardAvoidingView,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  Alert,
+  Animated,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { COLORS } from "../components/Colors";
 import { auth, db } from "../firebase_Config";
@@ -86,23 +86,25 @@ export default function SurveyScreen() {
       }
 
       try {
-        const userRef = doc(db, "users", user.uid);
-        await updateDoc(userRef, {
-          surveyCompleted: true,
-          accountType: accountType,
-          interests: selectedInterests,
-          city: finalCity,
-        });
+  const userRef = doc(db, "users", user.uid);
 
-        if (accountType === "private") {
-          router.replace("./tabs/Home");
-        } else {
-          router.replace("/work_in_progress");
-        }
-      } catch (e: any) {
-        console.error(e);
-        Alert.alert("Erreur", e.message || "Impossible d’enregistrer le sondage.");
-      }
+  await updateDoc(userRef, {
+    surveyCompleted: true,
+    accountType: accountType,
+    interests: selectedInterests,
+    city: finalCity,
+  });
+
+  if (accountType === "private") {
+    router.replace("./tabs/Home");
+  } else {
+    router.replace("/work_in_progress");
+  }
+} catch (e: any) {
+  console.error(e);
+  Alert.alert("Erreur", e.message || "Impossible d’enregistrer le sondage.");
+}
+
     }
   };
 
