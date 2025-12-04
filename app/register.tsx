@@ -29,6 +29,8 @@ export default function RegisterScreen() {
   const [submitting, setSubmitting] = useState(false);
 
   const handleRegister = async () => {
+    console.log("▶ handleRegister called");
+
     if (!email || !username || !password || !confirmPassword) {
       Alert.alert("Erreur", "Tous les champs sont obligatoires.");
       return;
@@ -46,17 +48,22 @@ export default function RegisterScreen() {
 
     try {
       setSubmitting(true);
+      console.log("▶ Creating user in Firebase Auth...");
 
       // 1) Création du compte dans Firebase Auth
       const cred = await createUserWithEmailAndPassword(auth, email, password);
       const user = cred.user;
+      console.log("✅ User created:", user.uid);
 
-      // 2) Optionnel : définir le displayName dans Auth
+      // 2) Optionnel : username dans le profile Auth
+      console.log("▶ Updating profile...");
       await updateProfile(user, {
         displayName: username,
       });
+      console.log("✅ Profile updated");
 
-      // 3) Création du document Firestore users/{uid}
+      // 3) Créer le document Firestore users/{uid}
+      console.log("▶ Creating user document in Firestore...");
       const userRef = doc(db, "users", user.uid);
 
       await setDoc(userRef, {
@@ -64,19 +71,20 @@ export default function RegisterScreen() {
         email: email.toLowerCase(),
         username: username.trim(),
         createdAt: serverTimestamp(),
-
-        // champs pour le sondage (on les remplira plus tard)
         surveyCompleted: false,
         surveyData: null,
       });
+      console.log("✅ Firestore doc created");
 
-      // 4) Rediriger vers la page de sondage (à créer)
-      router.replace("/sondage"); // tu créeras /survey plus tard
+      // 4) Rediriger vers le sondage
+      console.log("▶ Redirecting to /survey");
+      router.replace("/sondage");
     } catch (e: any) {
-      console.error(e);
+      console.error("❌ Error in handleRegister:", e);
       Alert.alert("Erreur", e.message || "Inscription impossible.");
     } finally {
       setSubmitting(false);
+      console.log("▶ handleRegister finished");
     }
   };
 
@@ -103,7 +111,6 @@ export default function RegisterScreen() {
 
           {/* FORM */}
           <View style={styles.form}>
-            {/* Email */}
             <View style={styles.fieldGroup}>
               <Text style={styles.label}>Email</Text>
               <TextInput
@@ -117,7 +124,6 @@ export default function RegisterScreen() {
               />
             </View>
 
-            {/* Username */}
             <View style={styles.fieldGroup}>
               <Text style={styles.label}>Nom d'utilisateur</Text>
               <TextInput
@@ -130,7 +136,6 @@ export default function RegisterScreen() {
               />
             </View>
 
-            {/* Mot de passe */}
             <View style={styles.fieldGroup}>
               <Text style={styles.label}>Mot de passe</Text>
               <TextInput
@@ -143,12 +148,11 @@ export default function RegisterScreen() {
               />
             </View>
 
-            {/* Confirmer mot de passe */}
             <View style={styles.fieldGroup}>
               <Text style={styles.label}>Confirmer mot de passe</Text>
               <TextInput
                 style={styles.input}
-                placeholder="Entrez votre mot de passe"
+                placeholder="Confirmez votre mot de passe"
                 placeholderTextColor={COLORS.textSecondary}
                 secureTextEntry
                 value={confirmPassword}
@@ -156,14 +160,17 @@ export default function RegisterScreen() {
               />
             </View>
 
-            {/* BOUTON CRÉER UN COMPTE */}
             <TouchableOpacity
               style={styles.primaryButtonWrapper}
               onPress={handleRegister}
               disabled={submitting}
             >
               <LinearGradient
-                colors={[COLORS.titleGradientStart, COLORS.titleGradientEnd]}
+                colors={
+                  submitting
+                    ? ["#666666", "#666666"]
+                    : [COLORS.titleGradientStart, COLORS.titleGradientEnd]
+                }
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 0 }}
                 style={styles.primaryButton}
@@ -177,7 +184,6 @@ export default function RegisterScreen() {
             </TouchableOpacity>
           </View>
 
-          {/* BOTTOM : déjà un compte ? */}
           <View style={styles.bottom}>
             <Text style={styles.bottomText}>Vous avez un compte?</Text>
             <TouchableOpacity onPress={() => router.push("/login")}>
@@ -191,10 +197,7 @@ export default function RegisterScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-
+  container: { flex: 1 },
   scrollContent: {
     flexGrow: 1,
     paddingHorizontal: 24,
@@ -202,46 +205,32 @@ const styles = StyleSheet.create({
     paddingBottom: 32,
     justifyContent: "flex-start",
   },
-
-  /* LOGO */
-
   logoContainer: {
     marginBottom: 40,
     alignItems: "center",
   },
-
   logoText: {
     fontSize: 34,
     fontFamily: "Poppins-Bold",
   },
-
   logoWhat: {
     color: COLORS.titleGradientStart,
   },
-
   logo2Do: {
     color: COLORS.titleGradientEnd,
   },
-
-  /* FORM */
-
   form: {
     marginBottom: 32,
   },
-
   fieldGroup: {
     marginBottom: 18,
   },
-
   label: {
     fontFamily: "Poppins-Regular",
     fontSize: 13,
     color: COLORS.textPrimary,
     marginBottom: 8,
-    textAlign: "center",
-    alignItems: "center",
   },
-
   input: {
     width: "100%",
     height: 52,
@@ -255,41 +244,33 @@ const styles = StyleSheet.create({
     fontSize: 14,
     textAlign: "center",
   },
-
   primaryButtonWrapper: {
     marginTop: 24,
     width: "100%",
     borderRadius: 999,
     overflow: "hidden",
   },
-
   primaryButton: {
     height: 52,
     borderRadius: 999,
     justifyContent: "center",
     alignItems: "center",
   },
-
   primaryButtonText: {
     fontFamily: "Poppins-Medium",
     fontSize: 15,
     color: COLORS.textPrimary,
   },
-
-  /* BOTTOM */
-
   bottom: {
     marginTop: 28,
     alignItems: "center",
   },
-
   bottomText: {
     fontFamily: "Poppins-Regular",
     fontSize: 13,
     color: COLORS.textSecondary,
     marginBottom: 4,
   },
-
   bottomLink: {
     fontFamily: "Poppins-SemiBold",
     fontSize: 13,
