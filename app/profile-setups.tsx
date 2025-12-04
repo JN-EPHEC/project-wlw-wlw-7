@@ -33,7 +33,7 @@ export default function ProfileSetupScreen() {
     }
 
     if (hasCompletedProfile) {
-       router.replace('/(tabs)/index');
+       router.replace('../(tabs)/index');
     }
   }, [hasCompletedProfile, isAuthenticated, router]);
 
@@ -80,8 +80,8 @@ const saveWithTimeout = new Promise<void>((resolve, reject) => {
 
       await saveWithTimeout;
 
-      router.replace('/(tabs)/index');
-      
+      router.replace('../(tabs)/index');
+
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Impossible de finaliser le profil.');
     } finally {
