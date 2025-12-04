@@ -14,8 +14,9 @@ import {
     TouchableOpacity,
     View,
 } from "react-native";
+
 import { COLORS } from "../components/Colors";
-import { auth, db } from "../firebase_Config";
+import { auth, db } from "../firebase_Config"; // assure-toi que le fichier s'appelle bien comme ça
 
 type AccountType = "private" | "pro";
 
@@ -43,6 +44,8 @@ export default function SurveyScreen() {
   };
 
   const handleContinue = async () => {
+    console.log("▶ handleContinue step =", step);
+
     // STEP 1 → STEP 2
     if (step === 1) {
       if (!accountType) {
@@ -82,10 +85,12 @@ export default function SurveyScreen() {
       const user = auth.currentUser;
       if (!user) {
         Alert.alert("Erreur", "Utilisateur non connecté.");
+        console.log("❌ Pas de user auth.currentUser dans survey");
         return;
       }
 
       try {
+        console.log("▶ Updating user doc in Firestore...", user.uid);
         const userRef = doc(db, "users", user.uid);
         await updateDoc(userRef, {
           surveyCompleted: true,
@@ -93,23 +98,26 @@ export default function SurveyScreen() {
           interests: selectedInterests,
           city: finalCity,
         });
+        console.log("✅ Firestore survey updated");
 
         if (accountType === "private") {
+          console.log("▶ Redirecting to ./tabs/Home");
           router.replace("./tabs/Home");
         } else {
+          console.log("▶ Redirecting to /work_in_progress");
           router.replace("/work_in_progress");
         }
       } catch (e: any) {
-        console.error(e);
+        console.error("❌ Error in survey handleContinue:", e);
         Alert.alert("Erreur", e.message || "Impossible d’enregistrer le sondage.");
       }
     }
   };
 
-  // ---------- RENDU STEP 1 AVEC GRADIENT + ANIMATION ----------
+  // ---------- RENDU STEP 1 ----------
 
   const renderStep1 = () => (
-    <>
+    <View>
       <Text style={styles.title}>Bienvenue 👋</Text>
       <Text style={styles.subtitle}>
         Dis-nous comment tu veux utiliser What2do. On personnalise tout pour toi
@@ -132,13 +140,13 @@ export default function SurveyScreen() {
         title="Professionnel"
         desc="Pour l’équipe, les afterworks, les activités de cohésion, etc."
       />
-    </>
+    </View>
   );
 
   // ---------- RENDU STEP 2 ----------
 
   const renderStep2 = () => (
-    <>
+    <View>
       <Text style={styles.title}>Qu’est-ce qui t’intéresse ?</Text>
       <Text style={styles.subtitle}>
         Dis-nous ce que tu veux faire. On te proposera les meilleures idées autour de toi.
@@ -160,13 +168,13 @@ export default function SurveyScreen() {
           );
         })}
       </View>
-    </>
+    </View>
   );
 
   // ---------- RENDU STEP 3 ----------
 
   const renderStep3 = () => (
-    <>
+    <View>
       <Text style={styles.title}>Tu es où ? 🌍</Text>
       <Text style={styles.subtitle}>
         On a besoin de ta ville pour te proposer des idées vraiment proches de toi.
@@ -201,7 +209,7 @@ export default function SurveyScreen() {
           />
         </View>
       )}
-    </>
+    </View>
   );
 
   return (
