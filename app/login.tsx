@@ -6,6 +6,9 @@ import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -56,49 +59,108 @@ export default function LoginScreen() {
       colors={[COLORS.backgroundTop, COLORS.backgroundBottom]}
       style={styles.container}
     >
-      <Text style={styles.title}>Connexion</Text>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+      >
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+        >
+          {/* LOGO */}
+          <View style={styles.logoContainer}>
+            <Text style={styles.logoText}>
+              <Text style={styles.logoWhat}>What</Text>
+              <Text style={styles.logo2Do}>2Do</Text>
+            </Text>
+          </View>
 
-      {/* EMAIL */}
-      <TextInput
-        style={styles.input}
-        placeholder="Email"
-        placeholderTextColor={COLORS.textSecondary}
-        value={email}
-        autoCapitalize="none"
-        keyboardType="email-address"
-        onChangeText={setEmail}
-      />
+          {/* FORM */}
+          <View style={styles.form}>
+            {/* EMAIL */}
+            <View style={styles.fieldGroup}>
+              <Text style={styles.label}>Email</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Entrez votre email"
+                placeholderTextColor={COLORS.textSecondary}
+                value={email}
+                autoCapitalize="none"
+                keyboardType="email-address"
+                onChangeText={setEmail}
+              />
+            </View>
 
-      {/* PASSWORD */}
-      <View style={styles.passwordContainer}>
-        <TextInput
-          style={styles.passwordInput}
-          placeholder="Mot de passe"
-          placeholderTextColor={COLORS.textSecondary}
-          secureTextEntry={!passwordVisible}
-          value={password}
-          onChangeText={setPassword}
-        />
-        <TouchableOpacity onPress={() => setPasswordVisible(!passwordVisible)}>
-          <Ionicons
-            name={passwordVisible ? "eye" : "eye-off"}
-            size={20}
-            color={COLORS.textSecondary}
-          />
-        </TouchableOpacity>
-      </View>
+            {/* PASSWORD */}
+            <View style={styles.fieldGroup}>
+              <Text style={styles.label}>Mot de passe</Text>
+              <View style={styles.passwordContainer}>
+                <TextInput
+                  style={styles.passwordInput}
+                  placeholder="Entrez votre mot de passe"
+                  placeholderTextColor={COLORS.textSecondary}
+                  secureTextEntry={!passwordVisible}
+                  value={password}
+                  onChangeText={setPassword}
+                />
+                <TouchableOpacity
+                  onPress={() => setPasswordVisible(!passwordVisible)}
+                >
+                  <Ionicons
+                    name={passwordVisible ? "eye" : "eye-off"}
+                    size={20}
+                    color={COLORS.textSecondary}
+                  />
+                </TouchableOpacity>
+              </View>
+            </View>
 
-      {/* LOGIN BUTTON */}
-      <TouchableOpacity style={styles.button} onPress={handleLogin}>
-        <Text style={styles.buttonText}>Se connecter</Text>
-      </TouchableOpacity>
+            {/* LOGIN BUTTON */}
+            <TouchableOpacity style={styles.primaryButton} onPress={handleLogin}>
+              <Text style={styles.primaryButtonText}>Se connecter</Text>
+            </TouchableOpacity>
+          </View>
 
-      {/* LINK REGISTER */}
-      <Text style={styles.altText}>Pas de compte ?</Text>
+          {/* SOCIAL LOGIN */}
+          <View style={styles.socialSection}>
+            <Text style={styles.socialSeparatorText}>Ou continuer avec</Text>
 
-      <Text style={styles.signupLink} onPress={() => router.push("/register")}>
-        Inscris-toi
-      </Text>
+            <TouchableOpacity style={styles.socialButtonLight}>
+              <Ionicons
+                name="logo-google"
+                size={18}
+                color="#000000"
+                style={styles.socialIcon}
+              />
+              <Text style={styles.socialButtonLightText}>
+                Continuer avec Google
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.socialButtonDark}>
+              <Ionicons
+                name="logo-apple"
+                size={18}
+                color="#FFFFFF"
+                style={styles.socialIcon}
+              />
+              <Text style={styles.socialButtonDarkText}>
+                Continuer avec Apple
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* BOTTOM SIGNUP */}
+          <View style={styles.bottom}>
+            <Text style={styles.bottomText}>
+              Vous n’avez pas de compte?
+            </Text>
+            <TouchableOpacity onPress={() => router.push("/register")}>
+              <Text style={styles.bottomLink}>Inscrivez-vous</Text>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </LinearGradient>
   );
 }
@@ -106,77 +168,184 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: 24,
-    justifyContent: "center",
   },
-  center: { flex: 1, justifyContent: "center", alignItems: "center" },
 
-  title: {
-    fontSize: 32,
+  scrollContent: {
+    flexGrow: 1,
+    paddingHorizontal: 24,
+    paddingTop: 80,
+    paddingBottom: 32,
+    justifyContent: "flex-start",
+  },
+
+  center: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: COLORS.backgroundBottom,
+  },
+
+  /* LOGO */
+
+  logoContainer: {
+    marginBottom: 40,
+    alignItems: "center",
+  },
+
+  logoText: {
+    fontSize: 34,
     fontFamily: "Poppins-Bold",
-    color: COLORS.secondary,
+  },
+
+  logoWhat: {
+    color: COLORS.titleGradientStart,
+  },
+
+  logo2Do: {
+    color: COLORS.titleGradientEnd,
+  },
+
+  /* FORM */
+
+  form: {
+    marginBottom: 32,
+  },
+
+  fieldGroup: {
+    marginBottom: 18,
+  },
+
+  label: {
+    fontFamily: "Poppins-Regular",
+    fontSize: 13,
+    color: COLORS.textPrimary,
+    marginBottom: 8,
     textAlign: "center",
-    marginBottom: 24,
   },
 
   input: {
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.1)",
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 14,
-    color: COLORS.textPrimary,
+    width: "100%",
+    height: 52,
+    borderRadius: 16,
+    paddingHorizontal: 16,
     backgroundColor: COLORS.neutralGray800,
-    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    color: COLORS.textPrimary,
     fontFamily: "Poppins-Regular",
-    fontSize: 16,
+    fontSize: 14,
+    textAlign: "center",
   },
 
   passwordContainer: {
     flexDirection: "row",
     alignItems: "center",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.1)",
-    borderRadius: 12,
-    paddingHorizontal: 12,
+    width: "100%",
+    height: 52,
+    borderRadius: 16,
+    paddingHorizontal: 16,
     backgroundColor: COLORS.neutralGray800,
-    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: COLORS.border,
   },
 
   passwordInput: {
     flex: 1,
-    paddingVertical: 14,
     color: COLORS.textPrimary,
-    fontSize: 16,
     fontFamily: "Poppins-Regular",
+    fontSize: 14,
+    textAlign: "center",
   },
 
-  button: {
+  primaryButton: {
+    marginTop: 24,
+    width: "100%",
+    height: 52,
+    borderRadius: 999,
     backgroundColor: COLORS.primary,
-    paddingVertical: 14,
-    borderRadius: 12,
-    marginTop: 10,
+    justifyContent: "center",
+    alignItems: "center",
   },
 
-  buttonText: {
+  primaryButtonText: {
     fontFamily: "Poppins-Medium",
-    textAlign: "center",
+    fontSize: 15,
     color: COLORS.textPrimary,
-    fontSize: 16,
   },
 
-  altText: {
-    marginTop: 26,
+  /* SOCIAL */
+
+  socialSection: {
+    marginTop: 16,
+  },
+
+  socialSeparatorText: {
     textAlign: "center",
-    color: COLORS.textSecondary,
     fontFamily: "Poppins-Regular",
+    fontSize: 13,
+    color: COLORS.textSecondary,
+    marginBottom: 16,
   },
 
-  signupLink: {
+  socialButtonLight: {
+    flexDirection: "row",
+    alignItems: "center",
+    position: "relative",
+    borderRadius: 999,
+    backgroundColor: "#FFFFFF",
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    marginBottom: 12,
+  },
+
+  socialButtonDark: {
+    flexDirection: "row",
+    alignItems: "center",
+    position: "relative",
+    borderRadius: 999,
+    backgroundColor: "#000000",
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+  },
+
+  socialIcon: {
+    position: "absolute",
+    left: 18,
+  },
+
+  socialButtonLightText: {
+    flex: 1,
+    fontFamily: "Poppins-Medium",
+    fontSize: 14,
+    color: "#000000",
     textAlign: "center",
-    marginTop: 4,
-    color: COLORS.secondary,
+  },
+
+  socialButtonDarkText: {
+    flex: 1,
+    fontFamily: "Poppins-Medium",
+    fontSize: 14,
+    color: "#FFFFFF",
+    textAlign: "center",
+  },
+
+  /* BOTTOM */
+
+  bottom: {
+    marginTop: 28,
+    alignItems: "center",
+  },
+
+  bottomText: {
+    fontFamily: "Poppins-Regular",
+    fontSize: 13,
+    color: COLORS.textSecondary,
+    marginBottom: 4,
+  },
+
+  bottomLink: {
     fontFamily: "Poppins-SemiBold",
-    fontSize: 16,
-  },
+    fontSize: 13,
+    color: COLORS.secondary,
+  },
 });
