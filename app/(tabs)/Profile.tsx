@@ -10,6 +10,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import Icon from "react-native-vector-icons/Ionicons";
 import { COLORS } from "../../components/Colors";
 import { auth } from "../../firebase_Config";
 
@@ -40,7 +41,15 @@ export default function ProfileScreen() {
   };
 
   const handleEditProfile = () => {
-    router.push("../Profile/Modif-prof");
+    (router as any).push("/Profile/Modif_prof");
+  };
+
+  const handleFriendRequests = () => {
+    (router as any).push("/Profile/Friends_request");
+  };
+
+  const handleSearchFriends = () => {
+    (router as any).push("/Profile/Search_friends");
   };
 
   return (
@@ -49,9 +58,23 @@ export default function ProfileScreen() {
       style={styles.container}
     >
       <ScrollView contentContainerStyle={styles.scrollContent}>
-        {/* HEADER */}
-        <View style={styles.header}>
+        {/* HEADER avec boutons */}
+        <View style={styles.topBar}>
           <Text style={styles.headerTitle}>Profile</Text>
+          <View style={styles.headerButtons}>
+            <TouchableOpacity
+              style={styles.iconButton}
+              onPress={handleFriendRequests}
+            >
+              <Icon name="person-add" size={20} color={COLORS.textPrimary} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.iconButton}
+              onPress={handleSearchFriends}
+            >
+              <Icon name="search" size={20} color={COLORS.textPrimary} />
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* PROFILE CARD */}
@@ -129,14 +152,30 @@ const styles = StyleSheet.create({
     paddingTop: 60,
     paddingBottom: 100,
   },
-  header: {
-    marginBottom: 32,
+  topBar: {
+    flexDirection: "row",
     alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 32,
   },
   headerTitle: {
     fontSize: 28,
     fontWeight: "700",
     color: COLORS.textPrimary,
+  },
+  headerButtons: {
+    flexDirection: "row",
+    gap: 12,
+  },
+  iconButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: COLORS.neutralGray800,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    justifyContent: "center",
+    alignItems: "center",
   },
   profileCard: {
     backgroundColor: COLORS.neutralGray800,

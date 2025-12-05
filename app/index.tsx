@@ -17,7 +17,7 @@ export default function Index() {
       
       if (currentUser) {
         // Si connecté → Home
-        router.replace("/");
+        router.replace("/(tabs)/Home");
       } else {
         // Si non connecté → Login
         router.replace("/login");

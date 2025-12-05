@@ -4,38 +4,40 @@ import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import "react-native-reanimated";
 import { useColorScheme } from "../hooks/use-color-scheme";
+import { useNotifications } from "../hooks/useNotifications";
 
-export const unstable_settings = {
-  initialRouteName: "login", // La landing page est le login
-};
-
-export default function RootLayout() {
+function RootLayoutContent() {
   const colorScheme = useColorScheme();
+  
+  // Initialiser les notifications
+  useNotifications();
 
   return (
+    <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
+      <Stack screenOptions={{ headerShown: false }}>
+        {/* Landing page */}
+        <Stack.Screen name="index" options={{ headerShown: false }} />
+        
+        {/* Auth pages */}
+        <Stack.Screen name="login" options={{ headerShown: false }} />
+        <Stack.Screen name="register" options={{ headerShown: false }} />
+        <Stack.Screen name="sondage" options={{ headerShown: false }} />
+        
+        {/* Edit profile (hors tabs) */}
+        <Stack.Screen name="Profile/Modif-prof" options={{ headerShown: false }} />
+        
+        {/* Tabs (Home, Jeux, Groupes, Profile) */}
+        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+      </Stack>
+      <StatusBar style="auto" />
+    </ThemeProvider>
+  );
+}
+
+export default function RootLayout() {
+  return (
     <AuthProvider>
-      <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
-        <Stack screenOptions={{ headerShown: false }}>
-          {/* LOGIN est la première page */}
-          <Stack.Screen name="login" options={{ headerShown: false }} />
-          
-          {/* REGISTER */}
-          <Stack.Screen name="register" options={{ headerShown: false }} />
-          
-          {/* SONDAGE */}
-          <Stack.Screen name="sondage" options={{ headerShown: false }} />
-          
-          {/* TABS (Home, etc.) */}
-          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-          
-          {/* MODAL */}
-          <Stack.Screen
-            name="modal"
-            options={{ presentation: "modal", title: "Modal" }}
-          />
-        </Stack>
-        <StatusBar style="auto" />
-      </ThemeProvider>
+      <RootLayoutContent />
     </AuthProvider>
   );
 }

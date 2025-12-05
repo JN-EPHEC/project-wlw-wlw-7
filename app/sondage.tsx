@@ -96,7 +96,7 @@ export default function SurveyScreen() {
   });
 
   if (accountType === "private") {
-    router.replace("./tabs/Home");
+    router.replace("/(tabs)/Home");
   } else {
     router.replace("/work_in_progress");
   }

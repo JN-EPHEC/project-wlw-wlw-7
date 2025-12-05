@@ -27,7 +27,7 @@ export default function LoginScreen() {
 
   useEffect(() => {
     if (!loading && user) {
-      router.replace("./tabs/Home");
+      router.replace("/(tabs)/Home");
     }
   }, [loading, user]);
 
@@ -39,7 +39,7 @@ export default function LoginScreen() {
 
     try {
       await signInWithEmail(email, password);
-      router.replace("./tabs/Home");
+      router.replace("/(tabs)/Home");
     } catch (e: any) {
       Alert.alert("Erreur", e.message || "Connexion impossible.");
     }

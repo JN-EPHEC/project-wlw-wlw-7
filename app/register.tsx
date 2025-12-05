@@ -24,11 +24,11 @@ export default function RegisterScreen() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [error, setError] = useState(""); // État pour afficher les erreurs
+  const [error, setError] = useState("");
 
   const handleRegister = async () => {
     console.log("▶ handleRegister called");
-    setError(""); // Réinitialiser l'erreur
+    setError("");
 
     if (!email || !username || !password || !confirmPassword) {
       setError("Tous les champs sont obligatoires.");
@@ -67,6 +67,8 @@ export default function RegisterScreen() {
         accountType: null,
         interests: [],
         city: null,
+        friends: [], // ← IMPORTANT pour le système d'amis
+        expoPushToken: null, // ← IMPORTANT pour les notifications
       };
       
       await setDoc(userRef, userData);
