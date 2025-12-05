@@ -13,5 +13,5 @@ export const COLORS = {
   error: "#EF4444",
   warning: "#F59E0B",
   info: "#3B82F6",
-  neutralGray800: "#1F2937",
+  neutralGray800:"#1F2937",
 };

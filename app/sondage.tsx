@@ -90,27 +90,25 @@ export default function SurveyScreen() {
       }
 
       try {
-        console.log("▶ Updating user doc in Firestore...", user.uid);
-        const userRef = doc(db, "users", user.uid);
-        await updateDoc(userRef, {
-          surveyCompleted: true,
-          accountType: accountType,
-          interests: selectedInterests,
-          city: finalCity,
-        });
-        console.log("✅ Firestore survey updated");
+  const userRef = doc(db, "users", user.uid);
 
-        if (accountType === "private") {
-          console.log("▶ Redirecting to ./tabs/Home");
-          router.replace("./tabs/Home");
-        } else {
-          console.log("▶ Redirecting to /work_in_progress");
-          router.replace("/work_in_progress");
-        }
-      } catch (e: any) {
-        console.error("❌ Error in survey handleContinue:", e);
-        Alert.alert("Erreur", e.message || "Impossible d’enregistrer le sondage.");
-      }
+  await updateDoc(userRef, {
+    surveyCompleted: true,
+    accountType: accountType,
+    interests: selectedInterests,
+    city: finalCity,
+  });
+
+  if (accountType === "private") {
+    router.replace("/(tabs)/Home");
+  } else {
+    router.replace("/work_in_progress");
+  }
+} catch (e: any) {
+  console.error(e);
+  Alert.alert("Erreur", e.message || "Impossible d’enregistrer le sondage.");
+}
+
     }
   };
 
