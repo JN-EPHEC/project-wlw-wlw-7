@@ -1,28 +1,28 @@
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import {
-    arrayUnion,
-    collection,
-    deleteDoc,
-    doc,
-    getDocs,
-    query,
-    updateDoc,
-    where
+  arrayUnion,
+  collection,
+  deleteDoc,
+  doc,
+  getDocs,
+  query,
+  updateDoc,
+  where
 } from "firebase/firestore";
 import React, { useEffect, useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import Icon from "react-native-vector-icons/Ionicons";
 import { COLORS } from "../../components/Colors";
-import { auth, db } from "../../firebase_Config";
+import { auth, db } from "../../Firebase_env";
 import { notifyUser } from "../../service/notificationService";
 
 export default function FriendRequestsScreen() {
