@@ -14,7 +14,7 @@ import {
 } from "react-native";
 import Icon from "react-native-vector-icons/Ionicons";
 import { COLORS } from "../../components/Colors";
-import { auth, db } from "../../firebase_Config";
+import { auth, db } from "../../firebase_env";
 
 interface Group {
   id: string;

@@ -3,20 +3,20 @@ import { useRouter } from "expo-router";
 import { addDoc, collection, doc, getDoc } from "firebase/firestore";
 import React, { useEffect, useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    KeyboardAvoidingView,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import Icon from "react-native-vector-icons/Ionicons";
 import { COLORS } from "../../components/Colors";
-import { auth, db } from "../../firebase_Config";
+import { auth, db } from "../../firebase_env";
 import { notifyUser } from "../../service/notificationService";
 
 const EMOJIS = ["🎳", "🎮", "🍕", "🎬", "⚽", "🎵", "🎨", "📚", "✈️", "🏖️", "🎉", "💼"];

@@ -1,9 +1,9 @@
 import { useRouter } from 'expo-router';
 import { useEffect } from 'react';
-import { auth } from '../firebase_Config';
+import { auth } from '../firebase_env';
 import {
-    registerForPushNotificationsAsync,
-    setupNotificationListeners
+  registerForPushNotificationsAsync,
+  setupNotificationListeners
 } from '../service/notifications';
 
 export function useNotifications() {

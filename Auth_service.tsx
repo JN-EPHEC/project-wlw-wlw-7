@@ -6,7 +6,7 @@ import {
   User,
 } from "firebase/auth";
 import { doc, serverTimestamp, setDoc } from "firebase/firestore";
-import { auth, db } from "./firebase_Config";
+import { auth, db } from "./firebase_env";
 
 
 export const signUp = async (email: string, password: string) => {

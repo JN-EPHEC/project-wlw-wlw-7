@@ -3,17 +3,17 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { arrayRemove, deleteDoc, doc, getDoc, updateDoc } from "firebase/firestore";
 import React, { useEffect, useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import Icon from "react-native-vector-icons/Ionicons";
 import { COLORS } from "../../components/Colors";
-import { auth, db } from "../../firebase_Config";
+import { auth, db } from "../../firebase_env";
 
 interface GroupData {
   name: string;
