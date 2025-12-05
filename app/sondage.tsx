@@ -3,20 +3,20 @@ import { useRouter } from "expo-router";
 import { doc, updateDoc } from "firebase/firestore";
 import React, { useEffect, useRef, useState } from "react";
 import {
-    Alert,
-    Animated,
-    KeyboardAvoidingView,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  Alert,
+  Animated,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 
 import { COLORS } from "../components/Colors";
-import { auth, db } from "../firebase_config"; // assure-toi que le fichier s'appelle bien comme ça
+import { auth, db } from "../firebase_Config"; // assure-toi que le fichier s'appelle bien comme ça
 
 type AccountType = "private" | "pro";
 
