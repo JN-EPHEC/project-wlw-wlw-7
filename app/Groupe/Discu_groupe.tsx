@@ -1,181 +1,201 @@
 import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import {
-    addDoc,
-    arrayRemove,
-    arrayUnion,
-    collection,
-    doc,
-    getDoc,
-    onSnapshot,
-    orderBy,
-    query,
-    Timestamp,
-    updateDoc
-} from "firebase/firestore";
+import { arrayRemove, collection, deleteDoc, doc, getDoc, getDocs, query, updateDoc, where } from "firebase/firestore";
 import React, { useEffect, useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import Icon from "react-native-vector-icons/Ionicons";
 import { COLORS } from "../../components/Colors";
 import { auth, db } from "../../firebase_Config";
 
-const QUICK_REACTIONS = [
-  { emoji: "👍", text: "D'accord", color: "#10B981" },
-  { emoji: "👎", text: "Pas d'accord", color: "#EF4444" },
-  { emoji: "😂", text: "MDR", color: "#F59E0B" },
-  { emoji: "❤️", text: "J'adore", color: "#EF4444" },
-  { emoji: "🔥", text: "Chaud !", color: "#F97316" },
-  { emoji: "🤔", text: "Réfléchis", color: "#8B5CF6" },
-  { emoji: "👀", text: "Vu", color: "#3B82F6" },
-  { emoji: "⏰", text: "En retard", color: "#F59E0B" },
-  { emoji: "✅", text: "C'est fait", color: "#10B981" },
-  { emoji: "❌", text: "Annulé", color: "#EF4444" },
-];
-
-interface Message {
-  id: string;
+interface GroupData {
+  name: string;
   emoji: string;
-  text: string;
-  userId: string;
-  username: string;
-  timestamp: any;
-  reactions: { [emoji: string]: string[] };
+  members: string[];
+  memberCount: number;
+  createdBy: string;
+  createdAt: string;
+  lastActivity: string;
 }
 
-export default function GroupDiscussionScreen() {
+interface Member {
+  id: string;
+  username: string;
+  email: string;
+}
+
+export default function GroupDetailScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams();
   const groupId = Array.isArray(id) ? id[0] : id;
 
-  const [groupName, setGroupName] = useState("");
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [group, setGroup] = useState<GroupData | null>(null);
+  const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
-  const [sending, setSending] = useState(false);
+  const [isCreator, setIsCreator] = useState(false);
 
   useEffect(() => {
     if (groupId) {
-      loadGroupName();
-      subscribeToMessages();
+      loadGroupDetails();
     }
   }, [groupId]);
 
-  const loadGroupName = async () => {
-    if (!groupId) return;
+  const loadGroupDetails = async () => {
+    const currentUser = auth.currentUser;
+    if (!currentUser || !groupId) return;
+
     try {
       const groupDoc = await getDoc(doc(db, "groups", groupId));
-      if (groupDoc.exists()) {
-        setGroupName(groupDoc.data().name);
+      
+      if (!groupDoc.exists()) {
+        Alert.alert("Erreur", "Groupe introuvable");
+        router.back();
+        return;
       }
+
+      const groupData = groupDoc.data() as GroupData;
+      setGroup(groupData);
+      setIsCreator(groupData.createdBy === currentUser.uid);
+
+      const membersData: Member[] = [];
+      for (const memberId of groupData.members) {
+        const memberDoc = await getDoc(doc(db, "users", memberId));
+        if (memberDoc.exists()) {
+          membersData.push({
+            id: memberId,
+            username: memberDoc.data().username || "Utilisateur",
+            email: memberDoc.data().email || "",
+          });
+        }
+      }
+      setMembers(membersData);
     } catch (error) {
       console.error("Error loading group:", error);
+      Alert.alert("Erreur", "Impossible de charger le groupe");
+    } finally {
+      setLoading(false);
     }
   };
 
-  const subscribeToMessages = () => {
+  const openDiscussion = () => {
+    (router as any).push(`/Groupe/Discu_groupe?id=${groupId}`);
+  };
+
+  const leaveGroup = async () => {
+    const currentUser = auth.currentUser;
+    if (!currentUser || !groupId) return;
+
+    Alert.alert(
+      "Quitter le groupe",
+      `Voulez-vous vraiment quitter "${group?.name}" ?`,
+      [
+        { text: "Annuler", style: "cancel" },
+        {
+          text: "Quitter",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              const groupRef = doc(db, "groups", groupId);
+              const newMemberCount = (group?.memberCount || 1) - 1;
+              
+              // Si c'est le dernier membre, supprimer le groupe
+              if (newMemberCount === 0) {
+                await deleteGroupCompletely();
+                Alert.alert("Info", "Vous étiez le dernier membre, le groupe a été supprimé", [
+                  { text: "OK", onPress: () => router.back() }
+                ]);
+                return;
+              }
+
+              // Sinon, retirer le user de la liste
+              await updateDoc(groupRef, {
+                members: arrayRemove(currentUser.uid),
+                memberCount: newMemberCount,
+              });
+
+              Alert.alert("Succès", "Vous avez quitté le groupe", [
+                { text: "OK", onPress: () => router.back() }
+              ]);
+            } catch (error) {
+              console.error("Error leaving group:", error);
+              Alert.alert("Erreur", "Impossible de quitter le groupe");
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const deleteGroupCompletely = async () => {
     if (!groupId) return;
 
-    const messagesRef = collection(db, "groups", groupId, "messages");
-    const q = query(messagesRef, orderBy("timestamp", "desc"));
-
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const messagesList: Message[] = snapshot.docs.map(doc => ({
-        id: doc.id,
-        emoji: doc.data().emoji,
-        text: doc.data().text,
-        userId: doc.data().userId,
-        username: doc.data().username,
-        timestamp: doc.data().timestamp,
-        reactions: doc.data().reactions || {},
-      }));
-
-      setMessages(messagesList);
-      setLoading(false);
-    });
-
-    return unsubscribe;
-  };
-
-  const sendReaction = async (reaction: typeof QUICK_REACTIONS[0]) => {
-    const currentUser = auth.currentUser;
-    if (!currentUser || !groupId) return;
-
-    setSending(true);
     try {
-      const messagesRef = collection(db, "groups", groupId, "messages");
+      // 1. Supprimer tous les sondages du groupe
+      const pollsQuery = query(
+        collection(db, "polls"),
+        where("groupId", "==", groupId)
+      );
+      const pollsSnapshot = await getDocs(pollsQuery);
       
-      await addDoc(messagesRef, {
-        emoji: reaction.emoji,
-        text: reaction.text,
-        userId: currentUser.uid,
-        username: currentUser.displayName || "Utilisateur",
-        timestamp: Timestamp.now(),
-        reactions: {},
-      });
+      const deletePromises = pollsSnapshot.docs.map(pollDoc => 
+        deleteDoc(doc(db, "polls", pollDoc.id))
+      );
+      await Promise.all(deletePromises);
 
-      // Mettre à jour lastActivity du groupe
-      await updateDoc(doc(db, "groups", groupId), {
-        lastActivity: reaction.text,
-      });
+      // 2. Supprimer tous les messages du groupe (si tu as une collection messages)
+      const messagesQuery = query(
+        collection(db, "messages"),
+        where("groupId", "==", groupId)
+      );
+      const messagesSnapshot = await getDocs(messagesQuery);
+      
+      const deleteMessagesPromises = messagesSnapshot.docs.map(msgDoc => 
+        deleteDoc(doc(db, "messages", msgDoc.id))
+      );
+      await Promise.all(deleteMessagesPromises);
 
-      console.log("✅ Reaction sent");
+      // 3. Supprimer le groupe lui-même
+      await deleteDoc(doc(db, "groups", groupId));
+      
+      console.log("✅ Group and all related data deleted");
     } catch (error) {
-      console.error("Error sending reaction:", error);
-      Alert.alert("Erreur", "Impossible d'envoyer la réaction");
-    } finally {
-      setSending(false);
+      console.error("Error deleting group completely:", error);
+      throw error;
     }
   };
 
-  const reactToMessage = async (messageId: string, emoji: string) => {
-    const currentUser = auth.currentUser;
-    if (!currentUser || !groupId) return;
+  const deleteGroup = async () => {
+    if (!groupId) return;
 
-    try {
-      const messageRef = doc(db, "groups", groupId, "messages", messageId);
-      const messageDoc = await getDoc(messageRef);
-      
-      if (!messageDoc.exists()) return;
-
-      const currentReactions = messageDoc.data().reactions || {};
-      const usersWhoReacted = currentReactions[emoji] || [];
-
-      // Toggle : si déjà réagi, on retire, sinon on ajoute
-      if (usersWhoReacted.includes(currentUser.uid)) {
-        await updateDoc(messageRef, {
-          [`reactions.${emoji}`]: arrayRemove(currentUser.uid)
-        });
-      } else {
-        await updateDoc(messageRef, {
-          [`reactions.${emoji}`]: arrayUnion(currentUser.uid)
-        });
-      }
-    } catch (error) {
-      console.error("Error reacting to message:", error);
-    }
-  };
-
-  const formatTime = (timestamp: any) => {
-    if (!timestamp) return "";
-    const date = timestamp.toDate();
-    const now = new Date();
-    const diff = now.getTime() - date.getTime();
-    const minutes = Math.floor(diff / 60000);
-    const hours = Math.floor(diff / 3600000);
-    const days = Math.floor(diff / 86400000);
-
-    if (minutes < 1) return "À l'instant";
-    if (minutes < 60) return `Il y a ${minutes} min`;
-    if (hours < 24) return `Il y a ${hours}h`;
-    if (days < 7) return `Il y a ${days}j`;
-    return date.toLocaleDateString();
+    Alert.alert(
+      "Supprimer le groupe",
+      `Voulez-vous vraiment supprimer "${group?.name}" ? Cette action est irréversible et supprimera tous les sondages et messages associés.`,
+      [
+        { text: "Annuler", style: "cancel" },
+        {
+          text: "Supprimer",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await deleteGroupCompletely();
+              Alert.alert("Succès", "Groupe et toutes les données associées supprimés", [
+                { text: "OK", onPress: () => router.back() }
+              ]);
+            } catch (error) {
+              console.error("Error deleting group:", error);
+              Alert.alert("Erreur", "Impossible de supprimer le groupe complètement");
+            }
+          },
+        },
+      ]
+    );
   };
 
   if (loading) {
@@ -191,12 +211,25 @@ export default function GroupDiscussionScreen() {
     );
   }
 
+  if (!group) {
+    return (
+      <LinearGradient
+        colors={[COLORS.backgroundTop, COLORS.backgroundBottom]}
+        style={styles.container}
+      >
+        <View style={styles.loadingContainer}>
+          <Text style={styles.errorText}>Groupe introuvable</Text>
+        </View>
+      </LinearGradient>
+    );
+  }
+
   return (
     <LinearGradient
       colors={[COLORS.backgroundTop, COLORS.backgroundBottom]}
       style={styles.container}
     >
-      <View style={styles.content}>
+      <ScrollView contentContainerStyle={styles.scrollContent}>
         {/* HEADER */}
         <View style={styles.header}>
           <TouchableOpacity
@@ -205,146 +238,128 @@ export default function GroupDiscussionScreen() {
           >
             <Icon name="chevron-back" size={24} color={COLORS.textPrimary} />
           </TouchableOpacity>
-          <View style={styles.headerCenter}>
-            <Text style={styles.headerTitle}>{groupName}</Text>
-            <Text style={styles.headerSubtitle}>Discussion rapide</Text>
-          </View>
           <View style={{ width: 40 }} />
         </View>
 
-        {/* MESSAGES */}
-        <ScrollView
-          style={styles.messagesContainer}
-          contentContainerStyle={styles.messagesList}
-          showsVerticalScrollIndicator={false}
-        >
-          {messages.length === 0 ? (
-            <View style={styles.emptyContainer}>
-              <Icon name="chatbubbles-outline" size={64} color={COLORS.textSecondary} />
-              <Text style={styles.emptyText}>
-                Aucune réaction pour le moment
-              </Text>
-              <Text style={styles.emptySubtext}>
-                Soyez le premier à réagir !
-              </Text>
+        {/* GROUP INFO CARD */}
+        <View style={styles.groupCard}>
+          <View style={styles.groupAvatar}>
+            <Text style={styles.groupEmoji}>{group.emoji}</Text>
+          </View>
+          <Text style={styles.groupName}>{group.name}</Text>
+          <Text style={styles.groupMembers}>
+            {group.memberCount} membre{group.memberCount > 1 ? "s" : ""}
+          </Text>
+          {isCreator && (
+            <View style={styles.creatorBadge}>
+              <Icon name="star" size={12} color="#FFD700" />
+              <Text style={styles.creatorBadgeText}>Créateur</Text>
             </View>
-          ) : (
-            messages.map((message) => {
-              const isOwn = message.userId === auth.currentUser?.uid;
-              const totalReactions = Object.values(message.reactions).reduce(
-                (sum, users) => sum + users.length, 
-                0
-              );
-
-              return (
-                <View
-                  key={message.id}
-                  style={[styles.messageCard, isOwn && styles.messageCardOwn]}
-                >
-                  <View style={styles.messageHeader}>
-                    <View style={styles.messageUserInfo}>
-                      <View style={styles.messageAvatar}>
-                        <Text style={styles.messageAvatarText}>
-                          {message.username.charAt(0).toUpperCase()}
-                        </Text>
-                      </View>
-                      <View>
-                        <Text style={styles.messageUsername}>
-                          {isOwn ? "Vous" : message.username}
-                        </Text>
-                        <Text style={styles.messageTime}>
-                          {formatTime(message.timestamp)}
-                        </Text>
-                      </View>
-                    </View>
-                  </View>
-
-                  <View style={styles.messageContent}>
-                    <Text style={styles.messageEmoji}>{message.emoji}</Text>
-                    <Text style={styles.messageText}>{message.text}</Text>
-                  </View>
-
-                  {/* REACTIONS TO MESSAGE */}
-                  {totalReactions > 0 && (
-                    <View style={styles.messageReactions}>
-                      {Object.entries(message.reactions).map(([emoji, users]) => 
-                        users.length > 0 ? (
-                          <TouchableOpacity
-                            key={emoji}
-                            style={styles.reactionBubble}
-                            onPress={() => reactToMessage(message.id, emoji)}
-                          >
-                            <Text style={styles.reactionEmoji}>{emoji}</Text>
-                            <Text style={styles.reactionCount}>{users.length}</Text>
-                          </TouchableOpacity>
-                        ) : null
-                      )}
-                    </View>
-                  )}
-
-                  {/* QUICK REACT BUTTONS */}
-                  <View style={styles.quickReactButtons}>
-                    {["❤️", "😂", "👍", "🔥"].map(emoji => (
-                      <TouchableOpacity
-                        key={emoji}
-                        style={styles.quickReactButton}
-                        onPress={() => reactToMessage(message.id, emoji)}
-                      >
-                        <Text style={styles.quickReactEmoji}>{emoji}</Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                </View>
-              );
-            })
           )}
-        </ScrollView>
-
-        {/* QUICK REACTIONS BAR */}
-        <View style={styles.reactionsBar}>
-          <Text style={styles.reactionsBarTitle}>Réaction rapide</Text>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.reactionsScroll}
-          >
-            {QUICK_REACTIONS.map((reaction) => (
-              <TouchableOpacity
-                key={reaction.emoji}
-                style={styles.reactionButton}
-                onPress={() => sendReaction(reaction)}
-                disabled={sending}
-              >
-                <Text style={styles.reactionButtonEmoji}>{reaction.emoji}</Text>
-                <Text style={styles.reactionButtonText}>{reaction.text}</Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
         </View>
-      </View>
+
+        {/* MEMBERS LIST */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Membres ({members.length})</Text>
+          <View style={styles.membersList}>
+            {members.map((member) => (
+              <View key={member.id} style={styles.memberCard}>
+                <View style={styles.memberAvatar}>
+                  <Text style={styles.memberAvatarText}>
+                    {member.username.charAt(0).toUpperCase()}
+                  </Text>
+                </View>
+                <View style={styles.memberInfo}>
+                  <Text style={styles.memberName}>{member.username}</Text>
+                  <Text style={styles.memberEmail}>{member.email}</Text>
+                </View>
+                {member.id === group.createdBy && (
+                  <Icon name="star" size={16} color="#FFD700" />
+                )}
+              </View>
+            ))}
+          </View>
+        </View>
+
+        {/* ACTIONS */}
+        <View style={styles.actionsSection}>
+          <Text style={styles.sectionTitle}>Actions</Text>
+
+          {/* Bouton Discussion */}
+          <TouchableOpacity
+            style={styles.actionButton}
+            onPress={openDiscussion}
+          >
+            <Icon name="chatbubbles" size={20} color={COLORS.secondary} />
+            <Text style={styles.actionButtonText}>Discussion du groupe</Text>
+            <Icon name="chevron-forward" size={20} color={COLORS.textSecondary} />
+          </TouchableOpacity>
+
+          {/* Bouton Modifier (si créateur) */}
+          {isCreator && (
+            <TouchableOpacity
+              style={styles.actionButton}
+              onPress={() => (router as any).push(`/Groupe/Edit_groupe?id=${groupId}`)}
+            >
+              <Icon name="settings" size={20} color={COLORS.secondary} />
+              <Text style={styles.actionButtonText}>Modifier le groupe</Text>
+              <Icon name="chevron-forward" size={20} color={COLORS.textSecondary} />
+            </TouchableOpacity>
+          )}
+
+          {/* Bouton Quitter le groupe */}
+          <TouchableOpacity
+            style={[styles.actionButton, styles.dangerButton]}
+            onPress={leaveGroup}
+          >
+            <Icon name="exit" size={20} color={COLORS.error} />
+            <Text style={[styles.actionButtonText, styles.dangerText]}>
+              Quitter le groupe
+            </Text>
+            <Icon name="chevron-forward" size={20} color={COLORS.error} />
+          </TouchableOpacity>
+
+          {/* Bouton Supprimer (si créateur) */}
+          {isCreator && (
+            <TouchableOpacity
+              style={[styles.actionButton, styles.dangerButton]}
+              onPress={deleteGroup}
+            >
+              <Icon name="trash" size={20} color={COLORS.error} />
+              <Text style={[styles.actionButtonText, styles.dangerText]}>
+                Supprimer le groupe
+              </Text>
+              <Icon name="chevron-forward" size={20} color={COLORS.error} />
+            </TouchableOpacity>
+          )}
+        </View>
+      </ScrollView>
     </LinearGradient>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  content: {
-    flex: 1,
+  scrollContent: {
+    flexGrow: 1,
+    paddingHorizontal: 24,
+    paddingTop: 60,
+    paddingBottom: 100,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
   },
+  errorText: {
+    fontSize: 16,
+    color: COLORS.textSecondary,
+  },
   header: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 20,
-    paddingTop: 60,
-    paddingBottom: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
+    marginBottom: 24,
   },
   backButton: {
     width: 40,
@@ -356,176 +371,126 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  headerCenter: {
+  groupCard: {
+    backgroundColor: COLORS.neutralGray800,
+    borderRadius: 24,
+    padding: 32,
     alignItems: "center",
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    marginBottom: 32,
   },
-  headerTitle: {
+  groupAvatar: {
+    width: 100,
+    height: 100,
+    borderRadius: 24,
+    backgroundColor: COLORS.primary,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  groupEmoji: {
+    fontSize: 48,
+  },
+  groupName: {
+    fontSize: 24,
+    fontWeight: "700",
+    color: COLORS.textPrimary,
+    marginBottom: 8,
+    textAlign: "center",
+  },
+  groupMembers: {
+    fontSize: 14,
+    color: COLORS.textSecondary,
+    marginBottom: 12,
+  },
+  creatorBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: COLORS.primary,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+  },
+  creatorBadgeText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#FFD700",
+  },
+  section: {
+    marginBottom: 32,
+  },
+  sectionTitle: {
     fontSize: 18,
     fontWeight: "700",
     color: COLORS.textPrimary,
+    marginBottom: 16,
   },
-  headerSubtitle: {
+  membersList: {
+    gap: 12,
+  },
+  memberCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: COLORS.neutralGray800,
+    borderRadius: 16,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    gap: 12,
+  },
+  memberAvatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: COLORS.primary,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  memberAvatarText: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: COLORS.textPrimary,
+  },
+  memberInfo: {
+    flex: 1,
+  },
+  memberName: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: COLORS.textPrimary,
+  },
+  memberEmail: {
     fontSize: 12,
     color: COLORS.textSecondary,
     marginTop: 2,
   },
-  messagesContainer: {
-    flex: 1,
+  actionsSection: {
+    marginBottom: 32,
   },
-  messagesList: {
-    padding: 20,
-    paddingBottom: 40,
-  },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: "center",
+  actionButton: {
+    flexDirection: "row",
     alignItems: "center",
-    paddingTop: 100,
-  },
-  emptyText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: COLORS.textPrimary,
-    marginTop: 16,
-  },
-  emptySubtext: {
-    fontSize: 14,
-    color: COLORS.textSecondary,
-    marginTop: 8,
-  },
-  messageCard: {
     backgroundColor: COLORS.neutralGray800,
     borderRadius: 16,
     padding: 16,
-    marginBottom: 12,
     borderWidth: 1,
     borderColor: COLORS.border,
-  },
-  messageCardOwn: {
-    borderColor: COLORS.secondary,
-    backgroundColor: "rgba(181, 123, 255, 0.1)",
-  },
-  messageHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
+    gap: 12,
     marginBottom: 12,
   },
-  messageUserInfo: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-  },
-  messageAvatar: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: COLORS.primary,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  messageAvatarText: {
+  actionButtonText: {
+    flex: 1,
     fontSize: 16,
-    fontWeight: "700",
-    color: COLORS.textPrimary,
-  },
-  messageUsername: {
-    fontSize: 14,
     fontWeight: "600",
     color: COLORS.textPrimary,
   },
-  messageTime: {
-    fontSize: 11,
-    color: COLORS.textSecondary,
-    marginTop: 2,
+  dangerButton: {
+    borderColor: COLORS.error,
+    backgroundColor: "rgba(239, 68, 68, 0.1)",
   },
-  messageContent: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    marginBottom: 12,
-  },
-  messageEmoji: {
-    fontSize: 32,
-  },
-  messageText: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: COLORS.textPrimary,
-  },
-  messageReactions: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-    marginBottom: 8,
-  },
-  reactionBubble: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    backgroundColor: COLORS.primary,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 999,
-  },
-  reactionEmoji: {
-    fontSize: 16,
-  },
-  reactionCount: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: COLORS.textPrimary,
-  },
-  quickReactButtons: {
-    flexDirection: "row",
-    gap: 8,
-  },
-  quickReactButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: COLORS.primary,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  quickReactEmoji: {
-    fontSize: 18,
-  },
-  reactionsBar: {
-    backgroundColor: COLORS.neutralGray800,
-    borderTopWidth: 1,
-    borderTopColor: COLORS.border,
-    paddingTop: 16,
-    paddingBottom: 32,
-  },
-  reactionsBarTitle: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: COLORS.textSecondary,
-    paddingHorizontal: 20,
-    marginBottom: 12,
-  },
-  reactionsScroll: {
-    paddingHorizontal: 20,
-    gap: 12,
-  },
-  reactionButton: {
-    backgroundColor: COLORS.primary,
-    borderRadius: 999,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    alignItems: "center",
-    minWidth: 100,
-  },
-  reactionButtonEmoji: {
-    fontSize: 24,
-    marginBottom: 4,
-  },
-  reactionButtonText: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: COLORS.textPrimary,
+  dangerText: {
+    color: COLORS.error,
   },
 });

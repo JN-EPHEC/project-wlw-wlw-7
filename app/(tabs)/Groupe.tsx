@@ -1,16 +1,16 @@
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
-import { collection, getDocs, query, where } from "firebase/firestore";
+import { collection, doc, getDoc, getDocs, query, where } from "firebase/firestore";
 import React, { useEffect, useState } from "react";
 import {
-    ActivityIndicator,
-    RefreshControl,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import Icon from "react-native-vector-icons/Ionicons";
 import { COLORS } from "../../components/Colors";
@@ -23,31 +23,27 @@ interface Group {
   memberCount: number;
   lastActivity: string;
   members: string[];
+  createdBy: string;
 }
 
 export default function GroupsScreen() {
   const router = useRouter();
   const [groups, setGroups] = useState<Group[]>([]);
   const [filteredGroups, setFilteredGroups] = useState<Group[]>([]);
+  const [favoriteGroups, setFavoriteGroups] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [showFavorites, setShowFavorites] = useState(false);
 
   useEffect(() => {
     loadGroups();
+    loadFavoriteGroups();
   }, []);
 
   useEffect(() => {
-    // Filtrer les groupes en fonction de la recherche
-    if (searchQuery.trim() === "") {
-      setFilteredGroups(groups);
-    } else {
-      const filtered = groups.filter(group =>
-        group.name.toLowerCase().includes(searchQuery.toLowerCase())
-      );
-      setFilteredGroups(filtered);
-    }
-  }, [searchQuery, groups]);
+    applyFilters();
+  }, [searchQuery, groups, showFavorites, favoriteGroups]);
 
   const loadGroups = async () => {
     const currentUser = auth.currentUser;
@@ -65,10 +61,10 @@ export default function GroupsScreen() {
         memberCount: doc.data().memberCount || doc.data().members?.length || 0,
         lastActivity: doc.data().lastActivity || "Aucune activité",
         members: doc.data().members || [],
+        createdBy: doc.data().createdBy || "",
       }));
 
       setGroups(groupsList);
-      setFilteredGroups(groupsList);
     } catch (error) {
       console.error("Error loading groups:", error);
     } finally {
@@ -77,9 +73,42 @@ export default function GroupsScreen() {
     }
   };
 
+  const loadFavoriteGroups = async () => {
+    const currentUser = auth.currentUser;
+    if (!currentUser) return;
+
+    try {
+      const userDoc = await getDoc(doc(db, "userFavoriteGroups", currentUser.uid));
+      if (userDoc.exists()) {
+        setFavoriteGroups(userDoc.data().favoriteGroups || []);
+      }
+    } catch (error) {
+      console.error("Error loading favorite groups:", error);
+    }
+  };
+
+  const applyFilters = () => {
+    let filtered = [...groups];
+
+    // Filtre : Favoris uniquement
+    if (showFavorites) {
+      filtered = filtered.filter(group => favoriteGroups.includes(group.id));
+    }
+
+    // Filtre : Recherche
+    if (searchQuery.trim()) {
+      filtered = filtered.filter(group =>
+        group.name.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+    }
+
+    setFilteredGroups(filtered);
+  };
+
   const onRefresh = () => {
     setRefreshing(true);
     loadGroups();
+    loadFavoriteGroups();
   };
 
   const openGroup = (groupId: string) => {
@@ -119,24 +148,52 @@ export default function GroupsScreen() {
         }
       >
         {/* HEADER */}
-        <View style={styles.header}>
-          <Text style={styles.appTitle}>Groupe</Text>
-          <View style={styles.headerRight}>
-            <TouchableOpacity style={styles.iconCircle}>
-              <Icon name="heart" size={20} color={COLORS.secondary} />
+        {showFavorites ? (
+          <View style={styles.header}>
+            <TouchableOpacity
+              style={styles.backButton}
+              onPress={() => setShowFavorites(false)}
+            >
+              <Icon name="arrow-back" size={24} color={COLORS.textPrimary} />
             </TouchableOpacity>
-            <TouchableOpacity style={styles.iconCircle} onPress={createGroup}>
-              <Icon name="add" size={24} color={COLORS.secondary} />
-            </TouchableOpacity>
+            <View style={styles.favoritesHeader}>
+              <Icon name="heart" size={24} color={COLORS.error} />
+              <Text style={styles.favoritesTitle}>Groupes favoris</Text>
+            </View>
+            <View style={styles.backButton} />
           </View>
-        </View>
+        ) : (
+          <View style={styles.header}>
+            <Text style={styles.appTitle}>Groupes</Text>
+            <View style={styles.headerRight}>
+              <TouchableOpacity 
+                style={styles.iconCircle}
+                onPress={() => setShowFavorites(true)}
+              >
+                <Icon name="heart-outline" size={20} color={COLORS.secondary} />
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.iconCircle} onPress={createGroup}>
+                <Icon name="add" size={24} color={COLORS.secondary} />
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
+        {/* Compteur de favoris en mode favoris */}
+        {showFavorites && (
+          <View style={styles.favoritesCount}>
+            <Text style={styles.favoritesCountText}>
+              {favoriteGroups.length} {favoriteGroups.length > 1 ? "groupes" : "groupe"}
+            </Text>
+          </View>
+        )}
 
         {/* SEARCH BAR */}
         <View style={styles.searchContainer}>
           <Icon name="search" size={20} color={COLORS.textSecondary} style={styles.searchIcon} />
           <TextInput
             style={styles.searchInput}
-            placeholder="Chercher un groupe"
+            placeholder={showFavorites ? "Rechercher dans mes favoris" : "Chercher un groupe"}
             placeholderTextColor={COLORS.textSecondary}
             value={searchQuery}
             onChangeText={setSearchQuery}
@@ -151,16 +208,26 @@ export default function GroupsScreen() {
         {/* GROUPS LIST */}
         {filteredGroups.length === 0 ? (
           <View style={styles.emptyContainer}>
-            <Icon name="people-outline" size={64} color={COLORS.textSecondary} />
+            <Icon 
+              name={showFavorites ? "heart-dislike-outline" : "people-outline"} 
+              size={64} 
+              color={COLORS.textSecondary} 
+            />
             <Text style={styles.emptyTitle}>
-              {searchQuery ? "Aucun groupe trouvé" : "Aucun groupe"}
+              {showFavorites 
+                ? "Aucun groupe favori"
+                : searchQuery 
+                  ? "Aucun groupe trouvé" 
+                  : "Aucun groupe"}
             </Text>
             <Text style={styles.emptyText}>
-              {searchQuery
-                ? "Essayez une autre recherche"
-                : "Créez votre premier groupe pour commencer !"}
+              {showFavorites
+                ? "Vous n'avez pas encore de groupe favori"
+                : searchQuery
+                  ? "Essayez une autre recherche"
+                  : "Créez votre premier groupe pour commencer !"}
             </Text>
-            {!searchQuery && (
+            {!searchQuery && !showFavorites && (
               <TouchableOpacity style={styles.createButtonWrapper} onPress={createGroup}>
                 <LinearGradient
                   colors={[COLORS.titleGradientStart, COLORS.titleGradientEnd]}
@@ -176,31 +243,42 @@ export default function GroupsScreen() {
           </View>
         ) : (
           <View style={styles.groupsList}>
-            {filteredGroups.map((group) => (
-              <TouchableOpacity
-                key={group.id}
-                style={styles.groupCard}
-                onPress={() => openGroup(group.id)}
-              >
-                <View style={styles.groupAvatar}>
-                  <Text style={styles.groupEmoji}>{group.emoji}</Text>
-                </View>
+            {filteredGroups.map((group) => {
+              const currentUser = auth.currentUser;
+              const isCreator = group.createdBy === currentUser?.uid;
+              const isFavorite = favoriteGroups.includes(group.id);
 
-                <View style={styles.groupInfo}>
-                  <View style={styles.groupHeader}>
-                    <Text style={styles.groupName}>{group.name}</Text>
+              return (
+                <TouchableOpacity
+                  key={group.id}
+                  style={styles.groupCard}
+                  onPress={() => openGroup(group.id)}
+                >
+                  <View style={styles.groupAvatar}>
+                    <Text style={styles.groupEmoji}>{group.emoji}</Text>
                   </View>
-                  <Text style={styles.groupMembers}>
-                    {group.memberCount} membre{group.memberCount > 1 ? "s" : ""}
-                  </Text>
-                  <Text style={styles.groupActivity}>
-                    Dernier sondage : "{group.lastActivity}"
-                  </Text>
-                </View>
 
-                <Icon name="chevron-forward" size={20} color={COLORS.textSecondary} />
-              </TouchableOpacity>
-            ))}
+                  <View style={styles.groupInfo}>
+                    <View style={styles.groupHeader}>
+                      <Text style={styles.groupName}>{group.name}</Text>
+                      {isCreator && (
+                        <View style={styles.creatorBadge}>
+                          <Icon name="star" size={10} color="#FFD700" />
+                        </View>
+                      )}
+                    </View>
+                    <Text style={styles.groupMembers}>
+                      {group.memberCount} membre{group.memberCount > 1 ? "s" : ""}
+                    </Text>
+                    <Text style={styles.groupActivity} numberOfLines={1}>
+                      Dernier sondage : "{group.lastActivity}"
+                    </Text>
+                  </View>
+
+                  <Icon name="chevron-forward" size={20} color={COLORS.textSecondary} />
+                </TouchableOpacity>
+              );
+            })}
           </View>
         )}
       </ScrollView>
@@ -245,6 +323,39 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.primary,
     alignItems: "center",
     justifyContent: "center",
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: COLORS.primary,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  favoritesHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    flex: 1,
+    justifyContent: "center",
+  },
+  favoritesTitle: {
+    fontSize: 24,
+    fontWeight: "700",
+    color: COLORS.textPrimary,
+  },
+  favoritesCount: {
+    backgroundColor: COLORS.primary,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 12,
+    alignSelf: "center",
+    marginBottom: 24,
+  },
+  favoritesCountText: {
+    color: COLORS.textSecondary,
+    fontSize: 14,
+    fontWeight: "600",
   },
   searchContainer: {
     flexDirection: "row",
@@ -331,12 +442,21 @@ const styles = StyleSheet.create({
   groupHeader: {
     flexDirection: "row",
     alignItems: "center",
+    gap: 8,
     marginBottom: 4,
   },
   groupName: {
     fontSize: 18,
     fontWeight: "700",
     color: COLORS.textPrimary,
+  },
+  creatorBadge: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: "rgba(255, 215, 0, 0.2)",
+    justifyContent: "center",
+    alignItems: "center",
   },
   groupMembers: {
     fontSize: 13,

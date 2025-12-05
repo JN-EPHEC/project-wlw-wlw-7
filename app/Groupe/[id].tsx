@@ -1,15 +1,15 @@
 import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { arrayRemove, deleteDoc, doc, getDoc, updateDoc } from "firebase/firestore";
+import { arrayRemove, collection, deleteDoc, doc, getDoc, getDocs, query, updateDoc, where } from "firebase/firestore";
 import React, { useEffect, useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import Icon from "react-native-vector-icons/Ionicons";
 import { COLORS } from "../../components/Colors";
@@ -52,7 +52,6 @@ export default function GroupDetailScreen() {
     if (!currentUser || !groupId) return;
 
     try {
-      // Charger les infos du groupe
       const groupDoc = await getDoc(doc(db, "groups", groupId));
       
       if (!groupDoc.exists()) {
@@ -65,7 +64,6 @@ export default function GroupDetailScreen() {
       setGroup(groupData);
       setIsCreator(groupData.createdBy === currentUser.uid);
 
-      // Charger les infos des membres
       const membersData: Member[] = [];
       for (const memberId of groupData.members) {
         const memberDoc = await getDoc(doc(db, "users", memberId));
@@ -87,7 +85,19 @@ export default function GroupDetailScreen() {
   };
 
   const openDiscussion = () => {
-    (router as any).push(`/Groupe/Discu_groupe?id=${groupId}`);
+    console.log("🚀 Opening discussion for group:", groupId);
+    router.push({
+      pathname: "/Groupe/Discu_groupe",
+      params: { id: groupId }
+    });
+  };
+
+  const openEditGroup = () => {
+    console.log("✏️ Opening edit for group:", groupId);
+    router.push({
+      pathname: "/Groupe/Modif_groupe",
+      params: { id: groupId }
+    });
   };
 
   const leaveGroup = async () => {
@@ -105,15 +115,23 @@ export default function GroupDetailScreen() {
           onPress: async () => {
             try {
               const groupRef = doc(db, "groups", groupId);
+              const newMemberCount = (group?.memberCount || 1) - 1;
               
-              // Retirer le user de la liste des membres
+              if (newMemberCount === 0) {
+                await deleteGroupCompletely();
+                Alert.alert("Info", "Vous étiez le dernier membre, le groupe a été supprimé", [
+                  { text: "OK", onPress: () => router.replace("/Groupe") }
+                ]);
+                return;
+              }
+
               await updateDoc(groupRef, {
                 members: arrayRemove(currentUser.uid),
-                memberCount: (group?.memberCount || 1) - 1,
+                memberCount: newMemberCount,
               });
 
               Alert.alert("Succès", "Vous avez quitté le groupe", [
-                { text: "OK", onPress: () => router.back() }
+                { text: "OK", onPress: () => router.replace("/Groupe") }
               ]);
             } catch (error) {
               console.error("Error leaving group:", error);
@@ -125,12 +143,51 @@ export default function GroupDetailScreen() {
     );
   };
 
+  const deleteGroupCompletely = async () => {
+    if (!groupId) return;
+
+    try {
+      const pollsQuery = query(
+        collection(db, "polls"),
+        where("groupId", "==", groupId)
+      );
+      const pollsSnapshot = await getDocs(pollsQuery);
+      
+      const deletePromises = pollsSnapshot.docs.map(pollDoc => 
+        deleteDoc(doc(db, "polls", pollDoc.id))
+      );
+      await Promise.all(deletePromises);
+
+      try {
+        const messagesQuery = query(
+          collection(db, "messages"),
+          where("groupId", "==", groupId)
+        );
+        const messagesSnapshot = await getDocs(messagesQuery);
+        
+        const deleteMessagesPromises = messagesSnapshot.docs.map(msgDoc => 
+          deleteDoc(doc(db, "messages", msgDoc.id))
+        );
+        await Promise.all(deleteMessagesPromises);
+      } catch (error) {
+        console.log("No messages to delete");
+      }
+
+      await deleteDoc(doc(db, "groups", groupId));
+      
+      console.log("✅ Group and all related data deleted");
+    } catch (error) {
+      console.error("Error deleting group completely:", error);
+      throw error;
+    }
+  };
+
   const deleteGroup = async () => {
     if (!groupId) return;
 
     Alert.alert(
       "Supprimer le groupe",
-      `Voulez-vous vraiment supprimer "${group?.name}" ? Cette action est irréversible.`,
+      `Voulez-vous vraiment supprimer "${group?.name}" ? Cette action est irréversible et supprimera tous les sondages et messages associés.`,
       [
         { text: "Annuler", style: "cancel" },
         {
@@ -138,13 +195,13 @@ export default function GroupDetailScreen() {
           style: "destructive",
           onPress: async () => {
             try {
-              await deleteDoc(doc(db, "groups", groupId));
-              Alert.alert("Succès", "Groupe supprimé", [
-                { text: "OK", onPress: () => router.back() }
+              await deleteGroupCompletely();
+              Alert.alert("Succès", "Groupe et toutes les données associées supprimés", [
+                { text: "OK", onPress: () => router.replace("/Groupe") }
               ]);
             } catch (error) {
               console.error("Error deleting group:", error);
-              Alert.alert("Erreur", "Impossible de supprimer le groupe");
+              Alert.alert("Erreur", "Impossible de supprimer le groupe complètement");
             }
           },
         },
@@ -243,6 +300,7 @@ export default function GroupDetailScreen() {
           <TouchableOpacity
             style={styles.actionButton}
             onPress={openDiscussion}
+            activeOpacity={0.7}
           >
             <Icon name="chatbubbles" size={20} color={COLORS.secondary} />
             <Text style={styles.actionButtonText}>Discussion du groupe</Text>
@@ -253,7 +311,8 @@ export default function GroupDetailScreen() {
           {isCreator && (
             <TouchableOpacity
               style={styles.actionButton}
-              onPress={() => Alert.alert("Bientôt", "La modification arrive bientôt !")}
+              onPress={openEditGroup}
+              activeOpacity={0.7}
             >
               <Icon name="settings" size={20} color={COLORS.secondary} />
               <Text style={styles.actionButtonText}>Modifier le groupe</Text>
@@ -265,6 +324,7 @@ export default function GroupDetailScreen() {
           <TouchableOpacity
             style={[styles.actionButton, styles.dangerButton]}
             onPress={leaveGroup}
+            activeOpacity={0.7}
           >
             <Icon name="exit" size={20} color={COLORS.error} />
             <Text style={[styles.actionButtonText, styles.dangerText]}>
@@ -278,6 +338,7 @@ export default function GroupDetailScreen() {
             <TouchableOpacity
               style={[styles.actionButton, styles.dangerButton]}
               onPress={deleteGroup}
+              activeOpacity={0.7}
             >
               <Icon name="trash" size={20} color={COLORS.error} />
               <Text style={[styles.actionButtonText, styles.dangerText]}>
