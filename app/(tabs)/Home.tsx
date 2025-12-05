@@ -1,6 +1,10 @@
 import { LinearGradient } from "expo-linear-gradient";
-import React from "react";
+import { useRouter } from "expo-router";
+import { arrayRemove, arrayUnion, collection, doc, getDoc, getDocs, setDoc, updateDoc } from "firebase/firestore";
+import React, { useEffect, useState } from "react";
 import {
+  ActivityIndicator,
+  Alert,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -11,21 +15,172 @@ import {
 } from "react-native";
 import Icon from "react-native-vector-icons/Ionicons";
 import { COLORS } from "../../components/Colors";
+import { auth, db } from "../../firebase_Config";
+import { generateActivities } from "../../service/generateActivities";
 
-const activities = [
-  {
-    id: "1",
-    title: "Concert",
-    date: "Today",
-  },
-  {
-    id: "2",
-    title: "Escape Game",
-    date: "Tomorrow",
-  },
-];
+interface Activity {
+  id: string;
+  title: string;
+  description: string;
+  category: string;
+  price: "Gratuit" | "Payant";
+  location: string;
+  interests: string[];
+  image?: string;
+  isNew: boolean;
+  date: string;
+}
 
 export default function HomeScreen() {
+  const router = useRouter();
+  const [activities, setActivities] = useState<Activity[]>([]);
+  const [filteredActivities, setFilteredActivities] = useState<Activity[]>([]);
+  const [favorites, setFavorites] = useState<string[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [activeFilter, setActiveFilter] = useState<string>("all");
+  const [loading, setLoading] = useState(true);
+  const [showFavorites, setShowFavorites] = useState(false);
+  const [generating, setGenerating] = useState(false);
+
+  const handleGenerateActivities = async () => {
+    setGenerating(true);
+    try {
+      const result = await generateActivities();
+      if (result.success) {
+        Alert.alert("Succès", `${result.count} activités générées ! 🎉`);
+        await loadActivities();
+      } else {
+        Alert.alert("Erreur", "Impossible de générer les activités");
+      }
+    } catch (error) {
+      console.error("Error generating:", error);
+      Alert.alert("Erreur", "Une erreur est survenue");
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  useEffect(() => {
+    loadActivities();
+    loadFavorites();
+  }, []);
+
+  useEffect(() => {
+    applyFilters();
+  }, [activities, searchQuery, activeFilter, showFavorites, favorites]);
+
+  const loadActivities = async () => {
+    try {
+      const activitiesSnapshot = await getDocs(collection(db, "activities"));
+      const activitiesList: Activity[] = activitiesSnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      } as Activity));
+
+      setActivities(activitiesList);
+    } catch (error) {
+      console.error("Error loading activities:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadFavorites = async () => {
+    const currentUser = auth.currentUser;
+    if (!currentUser) return;
+
+    try {
+      const userDoc = await getDoc(doc(db, "userFavorites", currentUser.uid));
+      if (userDoc.exists()) {
+        setFavorites(userDoc.data().favorites || []);
+      }
+    } catch (error) {
+      console.error("Error loading favorites:", error);
+    }
+  };
+
+  const applyFilters = () => {
+    let filtered = [...activities];
+
+    // Filtre : Favoris uniquement
+    if (showFavorites) {
+      filtered = filtered.filter(activity => favorites.includes(activity.id));
+    }
+
+    // Filtre : Recherche
+    if (searchQuery.trim()) {
+      filtered = filtered.filter(activity =>
+        activity.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        activity.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        activity.category.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+    }
+
+    // Filtre : Prix/Nouveau (désactivé en mode favoris)
+    if (!showFavorites) {
+      if (activeFilter === "near") {
+        filtered = filtered.filter(activity =>
+          activity.location.toLowerCase().includes("bruxelles")
+        );
+      } else if (activeFilter === "free") {
+        filtered = filtered.filter(activity => activity.price === "Gratuit");
+      } else if (activeFilter === "new") {
+        filtered = filtered.filter(activity => activity.isNew);
+      }
+    }
+
+    setFilteredActivities(filtered);
+  };
+
+  const toggleFavorite = async (activityId: string) => {
+    const currentUser = auth.currentUser;
+    if (!currentUser) return;
+
+    try {
+      const userFavRef = doc(db, "userFavorites", currentUser.uid);
+      const isFavorite = favorites.includes(activityId);
+
+      if (isFavorite) {
+        await updateDoc(userFavRef, {
+          favorites: arrayRemove(activityId)
+        });
+        setFavorites(prev => prev.filter(id => id !== activityId));
+      } else {
+        const userFavDoc = await getDoc(userFavRef);
+        
+        if (userFavDoc.exists()) {
+          await updateDoc(userFavRef, {
+            favorites: arrayUnion(activityId)
+          });
+        } else {
+          await setDoc(userFavRef, {
+            favorites: [activityId]
+          });
+        }
+        
+        setFavorites(prev => [...prev, activityId]);
+      }
+    } catch (error) {
+      console.error("Error toggling favorite:", error);
+      Alert.alert("Erreur", "Impossible de gérer les favoris");
+    }
+  };
+
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <LinearGradient
+          colors={[COLORS.backgroundTop, COLORS.backgroundBottom]}
+          style={styles.background}
+        >
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={COLORS.secondary} />
+          </View>
+        </LinearGradient>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <LinearGradient
@@ -37,66 +192,207 @@ export default function HomeScreen() {
           contentContainerStyle={styles.contentContainer}
           showsVerticalScrollIndicator={false}
         >
-          <View style={styles.header}>
-            <View style={styles.titleContainer}>
-              <Text style={[styles.title, styles.titleGradientStart]}>What</Text>
-              <Text style={[styles.title, styles.titleGradientEnd]}>2do</Text>
+          {/* HEADER - Différent selon le mode */}
+          {showFavorites ? (
+            <View style={styles.header}>
+              <TouchableOpacity 
+                style={styles.backButton}
+                onPress={() => setShowFavorites(false)}
+              >
+                <Icon name="arrow-back" size={24} color={COLORS.textPrimary} />
+              </TouchableOpacity>
+              <View style={styles.favoritesHeader}>
+                <Icon name="heart" size={28} color={COLORS.error} />
+                <Text style={styles.favoritesTitle}>Mes Favoris</Text>
+              </View>
+              <View style={styles.backButton} />
             </View>
-            <TouchableOpacity style={styles.iconButton}>
-              <Icon name="heart" size={18} color={COLORS.secondary} />
-            </TouchableOpacity>
-          </View>
+          ) : (
+            <View style={styles.header}>
+              <View style={styles.titleContainer}>
+                <Text style={[styles.title, styles.titleGradientStart]}>What</Text>
+                <Text style={[styles.title, styles.titleGradientEnd]}>2do</Text>
+              </View>
+              <TouchableOpacity 
+                style={styles.iconButton}
+                onPress={() => setShowFavorites(true)}
+              >
+                <Icon name="heart-outline" size={18} color={COLORS.secondary} />
+              </TouchableOpacity>
+            </View>
+          )}
 
+          {/* Afficher le compteur de favoris en mode favoris */}
+          {showFavorites && (
+            <View style={styles.favoritesCount}>
+              <Text style={styles.favoritesCountText}>
+                {favorites.length} {favorites.length > 1 ? "activités" : "activité"}
+              </Text>
+            </View>
+          )}
+
+          {/* BARRE DE RECHERCHE */}
           <View style={styles.searchBar}>
             <Icon name="search" size={18} color={COLORS.textSecondary} />
             <TextInput
-              placeholder="Search an activity"
+              placeholder={showFavorites ? "Rechercher dans mes favoris" : "Rechercher une activité"}
               placeholderTextColor={COLORS.textSecondary}
               style={styles.searchInput}
+              value={searchQuery}
+              onChangeText={setSearchQuery}
             />
-            <TouchableOpacity>
-              <Icon name="close" size={18} color={COLORS.textSecondary} />
-            </TouchableOpacity>
+            {searchQuery.length > 0 && (
+              <TouchableOpacity onPress={() => setSearchQuery("")}>
+                <Icon name="close" size={18} color={COLORS.textSecondary} />
+              </TouchableOpacity>
+            )}
           </View>
 
-          <View style={styles.filters}>
-            <TouchableOpacity style={[styles.chip, styles.chipActive]}>
-              <Text style={[styles.chipText, styles.chipTextActive]}>Près de moi</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.chip}>
-              <Text style={styles.chipText}>Gratuit</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.chip}>
-              <Text style={styles.chipText}>Nouveau</Text>
-            </TouchableOpacity>
-          </View>
+          {/* FILTRES - Masqués en mode favoris */}
+          {!showFavorites && (
+            <View style={styles.filters}>
+              <TouchableOpacity 
+                style={[styles.chip, activeFilter === "near" && styles.chipActive]}
+                onPress={() => setActiveFilter(activeFilter === "near" ? "all" : "near")}
+              >
+                <Text style={[styles.chipText, activeFilter === "near" && styles.chipTextActive]}>
+                  Près de moi
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={[styles.chip, activeFilter === "free" && styles.chipActive]}
+                onPress={() => setActiveFilter(activeFilter === "free" ? "all" : "free")}
+              >
+                <Text style={[styles.chipText, activeFilter === "free" && styles.chipTextActive]}>
+                  Gratuit
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={[styles.chip, activeFilter === "new" && styles.chipActive]}
+                onPress={() => setActiveFilter(activeFilter === "new" ? "all" : "new")}
+              >
+                <Text style={[styles.chipText, activeFilter === "new" && styles.chipTextActive]}>
+                  Nouveau
+                </Text>
+              </TouchableOpacity>
+            </View>
+          )}
 
-          <View style={styles.cards}>
-            {activities.map((activity, index) => (
-              <View key={activity.id} style={styles.card}>
-                <LinearGradient
-                  colors={index % 2 === 0 ? ["#7C3AED", "#5B21B6"] : ["#9F7AEA", "#6B46C1"]}
-                  style={styles.cardImage}
-                >
-                  <Text style={styles.cardTag}>Découvrir</Text>
-                </LinearGradient>
+          {/* BOUTON GÉNÉRER ACTIVITÉS */}
+          {activities.length === 0 && !loading && !showFavorites && (
+            <TouchableOpacity 
+              style={styles.generateButton}
+              onPress={handleGenerateActivities}
+              disabled={generating}
+            >
+              <LinearGradient
+                colors={["#F59E0B", "#D97706"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.generateButtonGradient}
+              >
+                <Icon name="rocket" size={20} color={COLORS.textPrimary} />
+                <Text style={styles.generateButtonText}>
+                  {generating ? "Génération..." : "🎯 Générer 50 activités"}
+                </Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          )}
 
-                <TouchableOpacity style={styles.cardHeart}>
-                  <Icon name="heart-outline" size={20} color={COLORS.textPrimary} />
-                </TouchableOpacity>
+          {/* LISTE DES ACTIVITÉS */}
+          {filteredActivities.length === 0 ? (
+            <View style={styles.emptyContainer}>
+              <Icon 
+                name={showFavorites ? "heart-dislike-outline" : "sad-outline"} 
+                size={64} 
+                color={COLORS.textSecondary} 
+              />
+              <Text style={styles.emptyText}>
+                {showFavorites 
+                  ? "Aucun favori pour le moment"
+                  : "Aucune activité trouvée"}
+              </Text>
+              <Text style={styles.emptySubtext}>
+                {showFavorites
+                  ? "Ajoutez des activités à vos favoris en cliquant sur ❤️"
+                  : "Essayez de modifier vos filtres"}
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.cards}>
+              {filteredActivities.map((activity, index) => {
+                const isFavorite = favorites.includes(activity.id);
+                
+                return (
+                  <View key={activity.id} style={styles.card}>
+                    <LinearGradient
+                      colors={index % 2 === 0 ? ["#7C3AED", "#5B21B6"] : ["#9F7AEA", "#6B46C1"]}
+                      style={styles.cardImage}
+                    >
+                      <View style={styles.cardHeader}>
+                        <View style={styles.cardTag}>
+                          <Text style={styles.cardTagText}>{activity.category}</Text>
+                        </View>
+                        {activity.isNew && (
+                          <View style={styles.newBadge}>
+                            <Text style={styles.newBadgeText}>Nouveau</Text>
+                          </View>
+                        )}
+                      </View>
+                    </LinearGradient>
 
-                <View style={styles.cardContent}>
-                  <Text style={styles.cardTitle}>{activity.title}</Text>
-                  <View style={styles.cardFooter}>
-                    <TouchableOpacity style={styles.cardButton}>
-                      <Text style={styles.cardButtonText}>Découvrir</Text>
+                    <TouchableOpacity 
+                      style={styles.cardHeart}
+                      onPress={() => toggleFavorite(activity.id)}
+                    >
+                      <Icon 
+                        name={isFavorite ? "heart" : "heart-outline"} 
+                        size={20} 
+                        color={isFavorite ? COLORS.error : COLORS.textPrimary} 
+                      />
                     </TouchableOpacity>
-                    <Text style={styles.cardDate}>{activity.date}</Text>
+
+                    <View style={styles.cardContent}>
+                      <Text style={styles.cardTitle}>{activity.title}</Text>
+                      <Text style={styles.cardDescription} numberOfLines={2}>
+                        {activity.description}
+                      </Text>
+                      <View style={styles.cardMeta}>
+                        <View style={styles.cardMetaItem}>
+                          <Icon name="location" size={14} color={COLORS.textSecondary} />
+                          <Text style={styles.cardMetaText}>{activity.location}</Text>
+                        </View>
+                        <View style={styles.cardMetaItem}>
+                          <Icon 
+                            name={activity.price === "Gratuit" ? "pricetag" : "cash"} 
+                            size={14} 
+                            color={activity.price === "Gratuit" ? COLORS.success : COLORS.warning} 
+                          />
+                          <Text style={[
+                            styles.cardMetaText,
+                            { color: activity.price === "Gratuit" ? COLORS.success : COLORS.warning }
+                          ]}>
+                            {activity.price}
+                          </Text>
+                        </View>
+                      </View>
+                      <View style={styles.cardFooter}>
+                        <TouchableOpacity style={styles.cardButton}>
+                          <Text style={styles.cardButtonText}>Découvrir</Text>
+                        </TouchableOpacity>
+                        <Text style={styles.cardDate}>
+                          {new Date(activity.date).toLocaleDateString('fr-FR', { 
+                            day: 'numeric', 
+                            month: 'short' 
+                          })}
+                        </Text>
+                      </View>
+                    </View>
                   </View>
-                </View>
-              </View>
-            ))}
-          </View>
+                );
+              })}
+            </View>
+          )}
         </ScrollView>
       </LinearGradient>
     </SafeAreaView>
@@ -110,6 +406,11 @@ const styles = StyleSheet.create({
   },
   background: {
     flex: 1,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
   },
   contentContainer: {
     paddingHorizontal: 20,
@@ -125,12 +426,14 @@ const styles = StyleSheet.create({
     position: "relative",
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
+    justifyContent: "space-between",
   },
   titleContainer: {
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
+    flex: 1,
+    justifyContent: "center",
   },
   title: {
     fontSize: 32,
@@ -149,8 +452,38 @@ const styles = StyleSheet.create({
     backgroundColor: "#1C122D",
     alignItems: "center",
     justifyContent: "center",
-    position: "absolute",
-    right: 0,
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#1C122D",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  favoritesHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    flex: 1,
+    justifyContent: "center",
+  },
+  favoritesTitle: {
+    fontSize: 28,
+    fontWeight: "800",
+    color: COLORS.textPrimary,
+  },
+  favoritesCount: {
+    backgroundColor: "#1C122D",
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 12,
+    alignSelf: "center",
+  },
+  favoritesCountText: {
+    color: COLORS.textSecondary,
+    fontSize: 14,
+    fontWeight: "600",
   },
   searchBar: {
     flexDirection: "row",
@@ -189,6 +522,25 @@ const styles = StyleSheet.create({
     color: COLORS.textPrimary,
     fontWeight: "600",
   },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingTop: 80,
+  },
+  emptyText: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: COLORS.textPrimary,
+    marginTop: 16,
+  },
+  emptySubtext: {
+    fontSize: 14,
+    color: COLORS.textSecondary,
+    marginTop: 8,
+    textAlign: "center",
+    paddingHorizontal: 40,
+  },
   cards: {
     gap: 16,
   },
@@ -206,15 +558,34 @@ const styles = StyleSheet.create({
     padding: 14,
     justifyContent: "flex-start",
   },
+  cardHeader: {
+    flexDirection: "row",
+    gap: 8,
+    flexWrap: "wrap",
+  },
   cardTag: {
     alignSelf: "flex-start",
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 999,
     backgroundColor: "rgba(0,0,0,0.25)",
+  },
+  cardTagText: {
     color: COLORS.textPrimary,
     fontWeight: "600",
     fontSize: 12,
+  },
+  newBadge: {
+    alignSelf: "flex-start",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: COLORS.success,
+  },
+  newBadgeText: {
+    color: COLORS.textPrimary,
+    fontWeight: "700",
+    fontSize: 11,
   },
   cardHeart: {
     position: "absolute",
@@ -230,17 +601,37 @@ const styles = StyleSheet.create({
   cardContent: {
     paddingHorizontal: 20,
     paddingBottom: 16,
-    gap: 12,
+    gap: 8,
   },
   cardTitle: {
     fontSize: 18,
     fontWeight: "700",
     color: COLORS.textPrimary,
   },
+  cardDescription: {
+    fontSize: 13,
+    color: COLORS.textSecondary,
+    lineHeight: 18,
+  },
+  cardMeta: {
+    flexDirection: "row",
+    gap: 16,
+    marginTop: 4,
+  },
+  cardMetaItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  cardMetaText: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+  },
   cardFooter: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+    marginTop: 8,
   },
   cardButton: {
     backgroundColor: COLORS.secondary,
@@ -256,5 +647,23 @@ const styles = StyleSheet.create({
   cardDate: {
     color: COLORS.textSecondary,
     fontSize: 12,
+  },
+  generateButton: {
+    borderRadius: 16,
+    overflow: "hidden",
+    marginBottom: 16,
+  },
+  generateButtonGradient: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+  },
+  generateButtonText: {
+    color: COLORS.textPrimary,
+    fontSize: 16,
+    fontWeight: "700",
   },
 });

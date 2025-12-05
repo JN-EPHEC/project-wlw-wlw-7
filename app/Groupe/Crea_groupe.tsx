@@ -3,16 +3,16 @@ import { useRouter } from "expo-router";
 import { addDoc, collection, doc, getDoc } from "firebase/firestore";
 import React, { useEffect, useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    KeyboardAvoidingView,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import Icon from "react-native-vector-icons/Ionicons";
 import { COLORS } from "../../components/Colors";
@@ -45,7 +45,6 @@ export default function CreateGroupScreen() {
     if (!currentUser) return;
 
     try {
-      // Récupérer la liste d'amis du user
       const userDoc = await getDoc(doc(db, "users", currentUser.uid));
       const userData = userDoc.data();
       const friendIds = userData?.friends || [];
@@ -56,7 +55,6 @@ export default function CreateGroupScreen() {
         return;
       }
 
-      // Récupérer les infos de chaque ami
       const friendsData: Friend[] = [];
       for (const friendId of friendIds) {
         const friendDoc = await getDoc(doc(db, "users", friendId));
@@ -102,7 +100,6 @@ export default function CreateGroupScreen() {
 
     setCreating(true);
     try {
-      // Créer le groupe dans Firestore
       const groupsRef = collection(db, "groups");
       const allMembers = [currentUser.uid, ...selectedFriends];
       
@@ -119,23 +116,26 @@ export default function CreateGroupScreen() {
       const groupDoc = await addDoc(groupsRef, groupData);
       console.log("✅ Group created:", groupDoc.id);
 
-      // Envoyer des notifications à tous les membres ajoutés
+      // Envoyer les notifications en arrière-plan (sans bloquer l'interface)
       const creatorName = currentUser.displayName || "Un utilisateur";
       
-      for (const friendId of selectedFriends) {
-        await notifyUser(
-          friendId,
-          "group_invite",
-          "Nouveau groupe",
-          `${creatorName} vous a ajouté au groupe "${groupName}"`,
-          { 
-            fromUserId: currentUser.uid,
-            groupId: groupDoc.id,
-            groupName: groupName,
-          }
-        );
-      }
+      Promise.all(
+        selectedFriends.map(friendId =>
+          notifyUser(
+            friendId,
+            "group_invite",
+            "Nouveau groupe",
+            `${creatorName} vous a ajouté au groupe "${groupName}"`,
+            { 
+              fromUserId: currentUser.uid,
+              groupId: groupDoc.id,
+              groupName: groupName,
+            }
+          ).catch(err => console.error("Notification error:", err))
+        )
+      ).catch(err => console.error("Notifications error:", err));
 
+      // Rediriger immédiatement
       Alert.alert("Succès", `Groupe "${groupName}" créé !`, [
         { 
           text: "OK", 
@@ -174,7 +174,6 @@ export default function CreateGroupScreen() {
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
         <ScrollView contentContainerStyle={styles.scrollContent}>
-          {/* HEADER */}
           <View style={styles.header}>
             <TouchableOpacity
               style={styles.backButton}
@@ -186,7 +185,6 @@ export default function CreateGroupScreen() {
             <View style={{ width: 40 }} />
           </View>
 
-          {/* NOM DU GROUPE */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Nom du groupe</Text>
             <TextInput
@@ -199,7 +197,6 @@ export default function CreateGroupScreen() {
             />
           </View>
 
-          {/* EMOJI SELECTION */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Choisir un emoji</Text>
             <View style={styles.emojiGrid}>
@@ -218,7 +215,6 @@ export default function CreateGroupScreen() {
             </View>
           </View>
 
-          {/* SÉLECTION DES AMIS */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>
               Ajouter des amis ({selectedFriends.length} sélectionné{selectedFriends.length > 1 ? "s" : ""})
@@ -276,7 +272,6 @@ export default function CreateGroupScreen() {
             )}
           </View>
 
-          {/* BOUTON CRÉER */}
           <TouchableOpacity
             style={styles.createButtonWrapper}
             onPress={createGroup}
