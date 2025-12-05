@@ -1,9 +1,9 @@
+import { auth } from "@/firebase_Config.js";
 import { useRouter } from "expo-router";
 import { onAuthStateChanged } from "firebase/auth";
 import { useEffect, useState } from "react";
 import { ActivityIndicator, View } from "react-native";
 import { COLORS } from "./../components/Colors";
-import { auth } from "./../firebase_Config";
 
 // Cette page vérifie si l'utilisateur est connecté et redirige en conséquence
 export default function Index() {
