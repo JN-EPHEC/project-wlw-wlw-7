@@ -1,6 +1,7 @@
 # Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
 
-firebase_Config.js
+
+firebase_config.js
 
 # dependencies
 node_modules/
@@ -43,3 +44,5 @@ app-example
 # generated native folders
 /ios
 /android
+.gitignore
+package-lock.json

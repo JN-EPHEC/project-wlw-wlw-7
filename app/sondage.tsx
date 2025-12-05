@@ -3,19 +3,20 @@ import { useRouter } from "expo-router";
 import { doc, updateDoc } from "firebase/firestore";
 import React, { useEffect, useRef, useState } from "react";
 import {
-  Alert,
-  Animated,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    Alert,
+    Animated,
+    KeyboardAvoidingView,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from "react-native";
+
 import { COLORS } from "../components/Colors";
-import { auth, db } from "../firebase_Config";
+import { auth, db } from "../firebase_config"; // assure-toi que le fichier s'appelle bien comme ça
 
 type AccountType = "private" | "pro";
 
@@ -43,6 +44,8 @@ export default function SurveyScreen() {
   };
 
   const handleContinue = async () => {
+    console.log("▶ handleContinue step =", step);
+
     // STEP 1 → STEP 2
     if (step === 1) {
       if (!accountType) {
@@ -82,6 +85,7 @@ export default function SurveyScreen() {
       const user = auth.currentUser;
       if (!user) {
         Alert.alert("Erreur", "Utilisateur non connecté.");
+        console.log("❌ Pas de user auth.currentUser dans survey");
         return;
       }
 
@@ -108,10 +112,10 @@ export default function SurveyScreen() {
     }
   };
 
-  // ---------- RENDU STEP 1 AVEC GRADIENT + ANIMATION ----------
+  // ---------- RENDU STEP 1 ----------
 
   const renderStep1 = () => (
-    <>
+    <View>
       <Text style={styles.title}>Bienvenue 👋</Text>
       <Text style={styles.subtitle}>
         Dis-nous comment tu veux utiliser What2do. On personnalise tout pour toi
@@ -134,13 +138,13 @@ export default function SurveyScreen() {
         title="Professionnel"
         desc="Pour l’équipe, les afterworks, les activités de cohésion, etc."
       />
-    </>
+    </View>
   );
 
   // ---------- RENDU STEP 2 ----------
 
   const renderStep2 = () => (
-    <>
+    <View>
       <Text style={styles.title}>Qu’est-ce qui t’intéresse ?</Text>
       <Text style={styles.subtitle}>
         Dis-nous ce que tu veux faire. On te proposera les meilleures idées autour de toi.
@@ -162,13 +166,13 @@ export default function SurveyScreen() {
           );
         })}
       </View>
-    </>
+    </View>
   );
 
   // ---------- RENDU STEP 3 ----------
 
   const renderStep3 = () => (
-    <>
+    <View>
       <Text style={styles.title}>Tu es où ? 🌍</Text>
       <Text style={styles.subtitle}>
         On a besoin de ta ville pour te proposer des idées vraiment proches de toi.
@@ -203,7 +207,7 @@ export default function SurveyScreen() {
           />
         </View>
       )}
-    </>
+    </View>
   );
 
   return (

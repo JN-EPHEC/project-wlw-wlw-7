@@ -1,7 +1,7 @@
 import { useAuth } from "@/Auth_context";
 import { doc, onSnapshot, setDoc, updateDoc } from "firebase/firestore";
 import { useCallback, useEffect, useState } from "react";
-import { db } from "../firebase_Config";
+import { db } from "../firebase_config";
 
 export type UserProfile = {
     displayName: string | null;
