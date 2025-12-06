@@ -17,6 +17,7 @@ import {
 } from "react-native";
 import { COLORS } from "../components/Colors";
 import { auth } from "../firebase_Config";
+import { signInWithGooglePopup } from "./SimpleGoogleAuth";
 
 export default function LoginScreen() {
   const { signInWithEmail, user, loading, isRegistering } = useAuth();
@@ -27,9 +28,9 @@ export default function LoginScreen() {
   const [passwordVisible, setPasswordVisible] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [googleLoading, setGoogleLoading] = useState(false);
 
   useEffect(() => {
-    // Ne pas rediriger si on est en train de s'inscrire
     if (!loading && user && !isRegistering) {
       router.replace("/(tabs)/Home");
     }
@@ -52,7 +53,6 @@ export default function LoginScreen() {
       
       let errorMessage = "Connexion impossible.";
       
-      // Messages d'erreur Firebase personnalisés
       switch (e.code) {
         case "auth/invalid-credential":
         case "auth/wrong-password":
@@ -78,6 +78,33 @@ export default function LoginScreen() {
       }
       
       setError(errorMessage);
+    }
+  };
+
+  const handleGoogleSignIn = async () => {
+    setError("");
+    setSuccess("");
+    setGoogleLoading(true);
+
+    try {
+      const result = await signInWithGooglePopup();
+      
+      if (result.needsSurvey) {
+        router.replace("/sondage");
+      } else {
+        router.replace("/(tabs)/Home");
+      }
+    } catch (e: any) {
+      console.error("❌ Google Sign-In error:", e);
+      
+      if (e.message === "Connexion annulée") {
+        // L'utilisateur a fermé la popup, pas d'erreur à afficher
+        return;
+      }
+      
+      setError("❌ Impossible de se connecter avec Google.");
+    } finally {
+      setGoogleLoading(false);
     }
   };
 
@@ -219,19 +246,30 @@ export default function LoginScreen() {
           <View style={styles.socialSection}>
             <Text style={styles.socialSeparatorText}>Ou continuer avec</Text>
 
-            <TouchableOpacity style={styles.socialButtonLight}>
-              <Ionicons
-                name="logo-google"
-                size={18}
-                color="#000000"
-                style={styles.socialIcon}
-              />
+            <TouchableOpacity 
+              style={styles.socialButtonLight}
+              onPress={handleGoogleSignIn}
+              disabled={googleLoading}
+            >
+              {googleLoading ? (
+                <ActivityIndicator color="#000000" style={{ position: "absolute", left: 18 }} />
+              ) : (
+                <Ionicons
+                  name="logo-google"
+                  size={18}
+                  color="#000000"
+                  style={styles.socialIcon}
+                />
+              )}
               <Text style={styles.socialButtonLightText}>
-                Continuer avec Google
+                {googleLoading ? "Connexion..." : "Continuer avec Google"}
               </Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.socialButtonDark}>
+            <TouchableOpacity 
+              style={styles.socialButtonDark}
+              onPress={() => setError("Apple Sign-In non implémenté pour ce MVP")}
+            >
               <Ionicons
                 name="logo-apple"
                 size={18}
