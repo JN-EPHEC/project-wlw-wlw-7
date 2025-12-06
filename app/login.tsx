@@ -2,6 +2,7 @@ import { useAuth } from "@/Auth_context";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
+import { sendPasswordResetEmail } from "firebase/auth";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -15,6 +16,7 @@ import {
   View,
 } from "react-native";
 import { COLORS } from "../components/Colors";
+import { auth } from "../firebase_Config";
 
 export default function LoginScreen() {
   const { signInWithEmail, user, loading, isRegistering } = useAuth();
@@ -24,6 +26,7 @@ export default function LoginScreen() {
   const [password, setPassword] = useState("");
   const [passwordVisible, setPasswordVisible] = useState(false);
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
 
   useEffect(() => {
     // Ne pas rediriger si on est en train de s'inscrire
@@ -34,6 +37,7 @@ export default function LoginScreen() {
 
   const handleLogin = async () => {
     setError("");
+    setSuccess("");
 
     if (!email || !password) {
       setError("Email et mot de passe obligatoires.");
@@ -66,6 +70,40 @@ export default function LoginScreen() {
           break;
         case "auth/network-request-failed":
           errorMessage = "❌ Erreur réseau. Vérifiez votre connexion.";
+          break;
+        default:
+          if (e.message) {
+            errorMessage = `❌ ${e.message}`;
+          }
+      }
+      
+      setError(errorMessage);
+    }
+  };
+
+  const handleForgotPassword = async () => {
+    setError("");
+    setSuccess("");
+
+    if (!email) {
+      setError("Entrez votre email pour réinitialiser le mot de passe.");
+      return;
+    }
+
+    try {
+      await sendPasswordResetEmail(auth, email);
+      setSuccess("✅ Email de réinitialisation envoyé ! Vérifiez votre boîte mail.");
+    } catch (e: any) {
+      console.error("❌ Password reset error:", e);
+      
+      let errorMessage = "Impossible d'envoyer l'email.";
+      
+      switch (e.code) {
+        case "auth/invalid-email":
+          errorMessage = "❌ Email invalide.";
+          break;
+        case "auth/user-not-found":
+          errorMessage = "❌ Aucun compte associé à cet email.";
           break;
         default:
           if (e.message) {
@@ -114,6 +152,13 @@ export default function LoginScreen() {
             </View>
           ) : null}
 
+          {/* MESSAGE DE SUCCÈS */}
+          {success ? (
+            <View style={styles.successContainer}>
+              <Text style={styles.successText}>{success}</Text>
+            </View>
+          ) : null}
+
           {/* FORM */}
           <View style={styles.form}>
             {/* EMAIL */}
@@ -152,6 +197,16 @@ export default function LoginScreen() {
                   />
                 </TouchableOpacity>
               </View>
+
+              {/* LIEN MOT DE PASSE OUBLIÉ */}
+              <TouchableOpacity 
+                style={styles.forgotPasswordButton}
+                onPress={handleForgotPassword}
+              >
+                <Text style={styles.forgotPasswordText}>
+                  Mot de passe oublié ?
+                </Text>
+              </TouchableOpacity>
             </View>
 
             {/* LOGIN BUTTON */}
@@ -262,6 +317,24 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
 
+  /* SUCCESS MESSAGE */
+
+  successContainer: {
+    backgroundColor: "rgba(52, 199, 89, 0.1)",
+    borderWidth: 1,
+    borderColor: "#34C759",
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 24,
+  },
+
+  successText: {
+    color: "#34C759",
+    fontSize: 14,
+    fontFamily: "Poppins-Medium",
+    textAlign: "center",
+  },
+
   /* FORM */
 
   form: {
@@ -312,6 +385,17 @@ const styles = StyleSheet.create({
     fontFamily: "Poppins-Regular",
     fontSize: 14,
     textAlign: "center",
+  },
+
+  forgotPasswordButton: {
+    alignSelf: "center",
+    marginTop: 8,
+  },
+
+  forgotPasswordText: {
+    fontSize: 13,
+    fontFamily: "Poppins-Medium",
+    color: COLORS.secondary,
   },
 
   primaryButton: {

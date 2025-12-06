@@ -8,6 +8,7 @@ import { useEffect } from 'react';
 import "react-native-reanimated";
 import { useColorScheme } from "../hooks/use-color-scheme";
 import { useNotifications } from "../hooks/useNotifications";
+import { useAuthRedirect } from "./useAuthRedirect";
 
 // Empêche l'écran de démarrage de se cacher automatiquement
 SplashScreen.preventAutoHideAsync();
@@ -26,6 +27,9 @@ function RootLayoutContent() {
   // Initialiser les notifications
   useNotifications();
 
+  // Gérer les redirections auth automatiques
+  const { checking } = useAuthRedirect();
+
   useEffect(() => {
     if (fontsLoaded || fontError) {
       // Cacher l'écran de démarrage une fois les polices chargées
@@ -33,9 +37,13 @@ function RootLayoutContent() {
     }
   }, [fontsLoaded, fontError]);
 
-  // Afficher rien pendant le chargement des polices
+  // Afficher rien pendant le chargement des polices ou la vérification auth
   if (!fontsLoaded && !fontError) {
     return null;
+  }
+
+  if (checking) {
+    return null; // Ou un écran de chargement personnalisé
   }
 
   return (
@@ -51,6 +59,7 @@ function RootLayoutContent() {
         
         {/* Edit profile (hors tabs) */}
         <Stack.Screen name="Profile/Modif-prof" options={{ headerShown: false }} />
+        <Stack.Screen name="Profile/Friends_management" options={{ headerShown: false }} />
         
         {/* Tabs (Home, Jeux, Groupes, Profile) */}
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />

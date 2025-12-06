@@ -107,6 +107,7 @@ export default function RegisterScreen() {
         interests: [],
         city: null,
         friends: [],
+        blockedUsers: [], // AJOUT pour la gestion des utilisateurs bloqués
         expoPushToken: null,
       };
       
@@ -331,6 +332,7 @@ const styles = StyleSheet.create({
     fontFamily: "Poppins-Regular",
     color: COLORS.textPrimary,
     marginBottom: 8,
+    textAlign: "center",
   },
   input: {
     width: "100%",
