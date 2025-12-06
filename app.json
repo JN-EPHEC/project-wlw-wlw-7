@@ -11,7 +11,7 @@
     "ios": {
       "supportsTablet": true
     },
-     "assetBundlePatterns": [
+    "assetBundlePatterns": [
       "/*"
     ],
     "extra": {},
@@ -43,7 +43,8 @@
             "backgroundColor": "#000000"
           }
         }
-      ]
+      ],
+      "expo-font"
     ],
     "experiments": {
       "typedRoutes": true,
@@ -51,4 +52,3 @@
     }
   }
 }
-
