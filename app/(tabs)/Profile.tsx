@@ -1,32 +1,52 @@
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { signOut } from "firebase/auth";
+import { doc, getDoc } from "firebase/firestore";
 import React, { useEffect, useState } from "react";
 import {
-    Alert,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import Icon from "react-native-vector-icons/Ionicons";
 import { COLORS } from "../../components/Colors";
-import { auth } from "../../firebase_Config";
+import { auth, db } from "../../firebase_Config";
 
 export default function ProfileScreen() {
   const router = useRouter();
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
+  const [friendsCount, setFriendsCount] = useState(0);
+  const [loadingStats, setLoadingStats] = useState(true);
 
   useEffect(() => {
-    // Récupérer les infos du user connecté
-    const user = auth.currentUser;
-    if (user) {
-      setUsername(user.displayName || "Utilisateur");
-      setEmail(user.email || "");
-    }
+    loadUserData();
   }, []);
+
+  const loadUserData = async () => {
+    try {
+      const user = auth.currentUser;
+      if (user) {
+        setUsername(user.displayName || "Utilisateur");
+        setEmail(user.email || "");
+
+        // Charger le nombre d'amis
+        const userDoc = await getDoc(doc(db, "users", user.uid));
+        if (userDoc.exists()) {
+          const data = userDoc.data();
+          setFriendsCount(data.friends?.length || 0);
+        }
+      }
+    } catch (e) {
+      console.error("Error loading user data:", e);
+    } finally {
+      setLoadingStats(false);
+    }
+  };
 
   const handleLogout = async () => {
     try {
@@ -42,6 +62,10 @@ export default function ProfileScreen() {
 
   const handleEditProfile = () => {
     (router as any).push("/Profile/Modif_prof");
+  };
+
+  const handleManageFriends = () => {
+    (router as any).push("/Profile/Friends_management");
   };
 
   const handleFriendRequests = () => {
@@ -102,6 +126,36 @@ export default function ProfileScreen() {
             <Text style={styles.badgeText}>Free</Text>
           </View>
 
+          {/* SECTION MES AMIS */}
+          <View style={styles.friendsSection}>
+            <View style={styles.friendsContent}>
+              <View style={styles.friendsLeft}>
+                <LinearGradient
+                  colors={[COLORS.titleGradientStart, COLORS.titleGradientEnd]}
+                  style={styles.friendsIconGradient}
+                >
+                  <Icon name="people" size={22} color={COLORS.textPrimary} />
+                </LinearGradient>
+                <View style={styles.friendsInfo}>
+                  <Text style={styles.friendsSectionTitle}>Mes amis</Text>
+                  {loadingStats ? (
+                    <ActivityIndicator size="small" color={COLORS.textSecondary} />
+                  ) : (
+                    <Text style={styles.friendsCount}>{friendsCount} ami{friendsCount > 1 ? 's' : ''}</Text>
+                  )}
+                </View>
+              </View>
+              
+              <TouchableOpacity
+                style={styles.manageFriendsButton}
+                onPress={handleManageFriends}
+              >
+                <Text style={styles.manageFriendsText}>Gérer</Text>
+                <Icon name="chevron-forward" size={20} color={COLORS.textPrimary} />
+              </TouchableOpacity>
+            </View>
+          </View>
+
           {/* BUTTONS */}
           <TouchableOpacity 
             style={styles.buttonWrapper}
@@ -160,7 +214,7 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: 28,
-    fontWeight: "700",
+    fontFamily: "Poppins-Bold",
     color: COLORS.textPrimary,
   },
   headerButtons: {
@@ -197,17 +251,18 @@ const styles = StyleSheet.create({
   },
   avatarText: {
     fontSize: 40,
-    fontWeight: "700",
+    fontFamily: "Poppins-Bold",
     color: COLORS.textPrimary,
   },
   username: {
     fontSize: 22,
-    fontWeight: "700",
+    fontFamily: "Poppins-Bold",
     color: COLORS.textPrimary,
     marginBottom: 8,
   },
   email: {
     fontSize: 14,
+    fontFamily: "Poppins-Regular",
     color: COLORS.textSecondary,
     marginBottom: 16,
   },
@@ -222,8 +277,65 @@ const styles = StyleSheet.create({
   },
   badgeText: {
     fontSize: 13,
-    fontWeight: "600",
+    fontFamily: "Poppins-SemiBold",
     color: COLORS.textSecondary,
+  },
+  friendsSection: {
+    width: "100%",
+    backgroundColor: COLORS.neutralGray800,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    padding: 18,
+    marginBottom: 24,
+  },
+  friendsContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  friendsLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    flex: 1,
+  },
+  friendsIconGradient: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  friendsInfo: {
+    flex: 1,
+  },
+  friendsSectionTitle: {
+    fontSize: 15,
+    fontFamily: "Poppins-SemiBold",
+    color: COLORS.textPrimary,
+    marginBottom: 2,
+  },
+  friendsCount: {
+    fontSize: 13,
+    fontFamily: "Poppins-Regular",
+    color: COLORS.textSecondary,
+  },
+  manageFriendsButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 999,
+    backgroundColor: COLORS.backgroundTop,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  manageFriendsText: {
+    fontSize: 13,
+    fontFamily: "Poppins-SemiBold",
+    color: COLORS.textPrimary,
   },
   buttonWrapper: {
     width: "100%",
@@ -238,7 +350,7 @@ const styles = StyleSheet.create({
   },
   buttonText: {
     fontSize: 15,
+    fontFamily: "Poppins-SemiBold",
     color: COLORS.textPrimary,
-    fontWeight: "600",
   },
 });

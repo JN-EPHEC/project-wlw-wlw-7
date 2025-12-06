@@ -241,7 +241,7 @@ export default function ManageFriendsScreen() {
       <View style={styles.header}>
         <TouchableOpacity
           style={styles.backButton}
-          onPress={() => (router as any).push("/Profile/Modif_prof")}
+          onPress={() => (router as any).push("/Profile")}
         >
           <Icon name="chevron-back" size={24} color={COLORS.textPrimary} />
         </TouchableOpacity>

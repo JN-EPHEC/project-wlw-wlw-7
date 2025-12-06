@@ -452,17 +452,6 @@ export default function EditProfileScreen() {
               )}
             </LinearGradient>
           </TouchableOpacity>
-
-          {/* BOUTON GÉRER LES AMIS */}
-          <TouchableOpacity
-            style={styles.friendsButtonWrapper}
-            onPress={() => (router as any).push("/Profile/Friends_management")}
-          >
-            <View style={styles.friendsButton}>
-              <Icon name="people" size={20} color={COLORS.textPrimary} />
-              <Text style={styles.friendsButtonText}>Gérer mes amis</Text>
-            </View>
-          </TouchableOpacity>
         </ScrollView>
       </KeyboardAvoidingView>
     </LinearGradient>
@@ -666,7 +655,6 @@ const styles = StyleSheet.create({
   },
   saveButtonWrapper: {
     marginTop: 8,
-    marginBottom: 16,
     width: "100%",
     borderRadius: 999,
     overflow: "hidden",
@@ -678,27 +666,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   saveButtonText: {
-    fontSize: 15,
-    fontFamily: "Poppins-SemiBold",
-    color: COLORS.textPrimary,
-  },
-  friendsButtonWrapper: {
-    width: "100%",
-    borderRadius: 999,
-    overflow: "hidden",
-  },
-  friendsButton: {
-    height: 52,
-    borderRadius: 999,
-    backgroundColor: COLORS.neutralGray800,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    flexDirection: "row",
-    justifyContent: "center",
-    alignItems: "center",
-    gap: 8,
-  },
-  friendsButtonText: {
     fontSize: 15,
     fontFamily: "Poppins-SemiBold",
     color: COLORS.textPrimary,
