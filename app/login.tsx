@@ -5,7 +5,6 @@ import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -18,22 +17,26 @@ import {
 import { COLORS } from "../components/Colors";
 
 export default function LoginScreen() {
-  const { signInWithEmail, user, loading } = useAuth();
+  const { signInWithEmail, user, loading, isRegistering } = useAuth();
   const router = useRouter();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [passwordVisible, setPasswordVisible] = useState(false);
+  const [error, setError] = useState("");
 
   useEffect(() => {
-    if (!loading && user) {
+    // Ne pas rediriger si on est en train de s'inscrire
+    if (!loading && user && !isRegistering) {
       router.replace("/(tabs)/Home");
     }
-  }, [loading, user]);
+  }, [loading, user, isRegistering]);
 
   const handleLogin = async () => {
+    setError("");
+
     if (!email || !password) {
-      Alert.alert("Erreur", "Email et mot de passe obligatoires.");
+      setError("Email et mot de passe obligatoires.");
       return;
     }
 
@@ -41,7 +44,36 @@ export default function LoginScreen() {
       await signInWithEmail(email, password);
       router.replace("/(tabs)/Home");
     } catch (e: any) {
-      Alert.alert("Erreur", e.message || "Connexion impossible.");
+      console.error("❌ Login error:", e);
+      
+      let errorMessage = "Connexion impossible.";
+      
+      // Messages d'erreur Firebase personnalisés
+      switch (e.code) {
+        case "auth/invalid-credential":
+        case "auth/wrong-password":
+        case "auth/user-not-found":
+          errorMessage = "❌ Email ou mot de passe incorrect.";
+          break;
+        case "auth/invalid-email":
+          errorMessage = "❌ Email invalide.";
+          break;
+        case "auth/user-disabled":
+          errorMessage = "❌ Ce compte a été désactivé.";
+          break;
+        case "auth/too-many-requests":
+          errorMessage = "❌ Trop de tentatives. Réessayez plus tard.";
+          break;
+        case "auth/network-request-failed":
+          errorMessage = "❌ Erreur réseau. Vérifiez votre connexion.";
+          break;
+        default:
+          if (e.message) {
+            errorMessage = `❌ ${e.message}`;
+          }
+      }
+      
+      setError(errorMessage);
     }
   };
 
@@ -49,7 +81,7 @@ export default function LoginScreen() {
     return (
       <View style={styles.center}>
         <ActivityIndicator />
-        <Text style={{ color: COLORS.textPrimary }}>Chargement...</Text>
+        <Text style={{ color: COLORS.textPrimary, fontFamily: "Poppins-Regular" }}>Chargement...</Text>
       </View>
     );
   }
@@ -74,6 +106,13 @@ export default function LoginScreen() {
               <Text style={styles.logo2Do}>2Do</Text>
             </Text>
           </View>
+
+          {/* MESSAGE D'ERREUR */}
+          {error ? (
+            <View style={styles.errorContainer}>
+              <Text style={styles.errorText}>{error}</Text>
+            </View>
+          ) : null}
 
           {/* FORM */}
           <View style={styles.form}>
@@ -153,7 +192,7 @@ export default function LoginScreen() {
           {/* BOTTOM SIGNUP */}
           <View style={styles.bottom}>
             <Text style={styles.bottomText}>
-              Vous n’avez pas de compte?
+              Vous n'avez pas de compte?
             </Text>
             <TouchableOpacity onPress={() => router.push("/register")}>
               <Text style={styles.bottomLink}>Inscrivez-vous</Text>
@@ -203,6 +242,24 @@ const styles = StyleSheet.create({
 
   logo2Do: {
     color: COLORS.titleGradientEnd,
+  },
+
+  /* ERROR MESSAGE */
+
+  errorContainer: {
+    backgroundColor: "rgba(255, 59, 48, 0.1)",
+    borderWidth: 1,
+    borderColor: "#FF3B30",
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 24,
+  },
+
+  errorText: {
+    color: "#FF3B30",
+    fontSize: 14,
+    fontFamily: "Poppins-Medium",
+    textAlign: "center",
   },
 
   /* FORM */
@@ -268,7 +325,7 @@ const styles = StyleSheet.create({
   },
 
   primaryButtonText: {
-    fontFamily: "Poppins-Medium",
+    fontFamily: "Poppins-SemiBold",
     fontSize: 15,
     color: COLORS.textPrimary,
   },
