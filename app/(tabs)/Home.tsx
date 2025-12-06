@@ -17,6 +17,12 @@ import Icon from "react-native-vector-icons/Ionicons";
 import { COLORS } from "../../components/Colors";
 import { auth, db } from "../../firebase_Config";
 import { generateActivities } from "../../service/generateActivities";
+import {
+  checkLocationPermission,
+  LocationData,
+  requestLocationPermission,
+  saveUserLocation
+} from "../../service/Location_service";
 
 interface Activity {
   id: string;
@@ -42,6 +48,10 @@ export default function HomeScreen() {
   const [showFavorites, setShowFavorites] = useState(false);
   const [generating, setGenerating] = useState(false);
 
+  // États pour la géolocalisation
+  const [locationGranted, setLocationGranted] = useState(false);
+  const [userLocation, setUserLocation] = useState<LocationData | null>(null);
+
   const handleGenerateActivities = async () => {
     setGenerating(true);
     try {
@@ -63,11 +73,64 @@ export default function HomeScreen() {
   useEffect(() => {
     loadActivities();
     loadFavorites();
+    checkExistingLocationPermission();
   }, []);
 
   useEffect(() => {
     applyFilters();
   }, [activities, searchQuery, activeFilter, showFavorites, favorites]);
+
+  // Vérifier si la permission de localisation existe déjà
+  const checkExistingLocationPermission = async () => {
+    const granted = await checkLocationPermission();
+    if (granted) {
+      setLocationGranted(true);
+      // Récupérer la localisation si déjà autorisée (sans popup)
+      const { location } = await requestLocationPermission();
+      if (location) {
+        setUserLocation(location);
+      }
+    }
+  };
+
+  // Gérer le filtre "Près de moi"
+  const handleNearbyFilter = async () => {
+    if (!locationGranted) {
+      // Demander la permission avec popup natif
+      Alert.alert(
+        "📍 Localisation requise",
+        "Pour voir les activités près de vous, nous avons besoin d'accéder à votre localisation.",
+        [
+          { text: "Annuler", style: "cancel" },
+          {
+            text: "Autoriser",
+            onPress: async () => {
+              const { granted, location } = await requestLocationPermission();
+              if (granted && location) {
+                setLocationGranted(true);
+                setUserLocation(location);
+                await saveUserLocation(location);
+                setActiveFilter("near");
+                
+                Alert.alert(
+                  "📍 Localisation activée",
+                  `Nous avons détecté que vous êtes à ${location.city || "votre ville"} !`
+                );
+              } else {
+                Alert.alert(
+                  "⚠️ Permission refusée",
+                  "Pour utiliser le filtre 'Près de moi', autorisez l'accès à votre localisation dans les paramètres."
+                );
+              }
+            },
+          },
+        ]
+      );
+    } else {
+      // Toggle le filtre si déjà autorisé
+      setActiveFilter(activeFilter === "near" ? "all" : "near");
+    }
+  };
 
   const loadActivities = async () => {
     try {
@@ -118,9 +181,11 @@ export default function HomeScreen() {
 
     // Filtre : Prix/Nouveau (désactivé en mode favoris)
     if (!showFavorites) {
-      if (activeFilter === "near") {
+      if (activeFilter === "near" && userLocation) {
+        // Filtre par localisation - temporairement utilise la ville
+        // TODO: Ajouter latitude/longitude dans tes activités pour calculer la vraie distance
         filtered = filtered.filter(activity =>
-          activity.location.toLowerCase().includes("bruxelles")
+          activity.location.toLowerCase().includes(userLocation.city?.toLowerCase() || "")
         );
       } else if (activeFilter === "free") {
         filtered = filtered.filter(activity => activity.price === "Gratuit");
@@ -213,12 +278,23 @@ export default function HomeScreen() {
                 <Text style={[styles.title, styles.titleGradientStart]}>What</Text>
                 <Text style={[styles.title, styles.titleGradientEnd]}>2do</Text>
               </View>
-              <TouchableOpacity 
-                style={styles.iconButton}
-                onPress={() => setShowFavorites(true)}
-              >
-                <Icon name="heart-outline" size={18} color={COLORS.secondary} />
-              </TouchableOpacity>
+              
+              <View style={styles.headerRight}>
+                {/* BADGE DE LOCALISATION */}
+                {userLocation && locationGranted && (
+                  <View style={styles.locationBadge}>
+                    <Icon name="location" size={14} color="#6366F1" />
+                    <Text style={styles.locationText}>{userLocation.city}</Text>
+                  </View>
+                )}
+                
+                <TouchableOpacity 
+                  style={styles.iconButton}
+                  onPress={() => setShowFavorites(true)}
+                >
+                  <Icon name="heart-outline" size={18} color={COLORS.secondary} />
+                </TouchableOpacity>
+              </View>
             </View>
           )}
 
@@ -251,14 +327,27 @@ export default function HomeScreen() {
           {/* FILTRES - Masqués en mode favoris */}
           {!showFavorites && (
             <View style={styles.filters}>
+              {/* FILTRE PRÈS DE MOI avec géolocalisation */}
               <TouchableOpacity 
-                style={[styles.chip, activeFilter === "near" && styles.chipActive]}
-                onPress={() => setActiveFilter(activeFilter === "near" ? "all" : "near")}
+                style={[
+                  styles.chip, 
+                  activeFilter === "near" && styles.chipActive,
+                  !locationGranted && styles.chipPending
+                ]}
+                onPress={handleNearbyFilter}
               >
+                <Icon 
+                  name={locationGranted ? "location" : "location-outline"} 
+                  size={14} 
+                  color={activeFilter === "near" ? COLORS.textPrimary : COLORS.textSecondary}
+                  style={{ marginRight: 4 }}
+                />
                 <Text style={[styles.chipText, activeFilter === "near" && styles.chipTextActive]}>
                   Près de moi
                 </Text>
+                {!locationGranted && <View style={styles.permissionDot} />}
               </TouchableOpacity>
+
               <TouchableOpacity 
                 style={[styles.chip, activeFilter === "free" && styles.chipActive]}
                 onPress={() => setActiveFilter(activeFilter === "free" ? "all" : "free")}
@@ -293,7 +382,7 @@ export default function HomeScreen() {
               >
                 <Icon name="rocket" size={20} color={COLORS.textPrimary} />
                 <Text style={styles.generateButtonText}>
-                  {generating ? "Génération..." : "🎯 Générer 50 activités"}
+                  {generating ? "Génération..." : "🎯 Générer 100 activités"}
                 </Text>
               </LinearGradient>
             </TouchableOpacity>
@@ -310,6 +399,8 @@ export default function HomeScreen() {
               <Text style={styles.emptyText}>
                 {showFavorites 
                   ? "Aucun favori pour le moment"
+                  : activeFilter === "near" && userLocation
+                  ? `Aucune activité près de ${userLocation.city}`
                   : "Aucune activité trouvée"}
               </Text>
               <Text style={styles.emptySubtext}>
@@ -432,8 +523,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-    flex: 1,
-    justifyContent: "center",
   },
   title: {
     fontSize: 32,
@@ -444,6 +533,27 @@ const styles = StyleSheet.create({
   },
   titleGradientEnd: {
     color: COLORS.titleGradientEnd,
+  },
+  headerRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  locationBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "rgba(99, 102, 241, 0.15)",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "rgba(99, 102, 241, 0.3)",
+  },
+  locationText: {
+    fontSize: 11,
+    fontFamily: "Poppins-SemiBold",
+    color: "#6366F1",
   },
   iconButton: {
     width: 40,
@@ -504,12 +614,18 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   chip: {
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 999,
     borderWidth: 1,
     borderColor: "#2A1B3D",
     backgroundColor: "transparent",
+    position: "relative",
+  },
+  chipPending: {
+    // Style pour indiquer que la permission n'est pas encore accordée
   },
   chipActive: {
     backgroundColor: "#2A1B3D",
@@ -521,6 +637,15 @@ const styles = StyleSheet.create({
   chipTextActive: {
     color: COLORS.textPrimary,
     fontWeight: "600",
+  },
+  permissionDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: "#FF3B30",
+    position: "absolute",
+    top: 4,
+    right: 4,
   },
   emptyContainer: {
     flex: 1,
