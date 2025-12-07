@@ -14,6 +14,7 @@ import {
 } from "react-native";
 import { COLORS } from "../components/Colors";
 
+import MaskedView from "@react-native-masked-view/masked-view";
 import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
 import { collection, doc, getDocs, query, setDoc, where } from "firebase/firestore";
 import { useAuth } from "../Auth_context";
@@ -181,12 +182,30 @@ export default function RegisterScreen() {
           keyboardShouldPersistTaps="handled"
         >
           {/* LOGO */}
-          <View style={styles.logoContainer}>
-            <Text style={styles.logoText}>
-              <Text style={styles.logoWhat}>What</Text>
-              <Text style={styles.logo2Do}>2Do</Text>
-            </Text>
-          </View>
+<View style={styles.logoContainer}>
+  {Platform.OS === 'web' ? (
+    // VERSION WEB : Deux couleurs séparées
+    <Text style={styles.logoText}>
+      <Text style={styles.logoWhat}>What</Text>
+      <Text style={styles.logo2Do}>2Do</Text>
+    </Text>
+  ) : (
+    // VERSION MOBILE : Vrai gradient
+    <MaskedView
+      maskElement={
+        <Text style={styles.logoTextMask}>What2do</Text>
+      }
+    >
+      <LinearGradient
+        colors={[COLORS.titleGradientStart, COLORS.titleGradientEnd]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 0 }}
+      >
+        <Text style={styles.logoTextMask}>What2do</Text>
+      </LinearGradient>
+    </MaskedView>
+  )}
+</View>
 
           {/* MESSAGE D'ERREUR */}
           {error ? (
@@ -307,6 +326,10 @@ const styles = StyleSheet.create({
   logo2Do: {
     color: COLORS.titleGradientEnd,
   },
+  logoTextMask: {  // ← AJOUTE CE STYLE ICI
+    fontSize: 34,
+    fontFamily: "Poppins-Bold",
+    color: "#000000",},
   errorContainer: {
     backgroundColor: "rgba(255, 59, 48, 0.1)",
     borderWidth: 1,

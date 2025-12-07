@@ -8,7 +8,7 @@ import { useEffect } from 'react';
 import "react-native-reanimated";
 import { useColorScheme } from "../hooks/use-color-scheme";
 import { useNotifications } from "../hooks/useNotifications";
-import { useAuthRedirect } from "./useAuthRedirect";
+import { useAuthRedirect } from "../service/useAuthRedirect";
 
 // Empêche l'écran de démarrage de se cacher automatiquement
 SplashScreen.preventAutoHideAsync();

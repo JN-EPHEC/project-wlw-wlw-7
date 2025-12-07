@@ -73,7 +73,7 @@ export default function FakePaymentScreen() {
   const handleSuccessClose = () => {
     setShowSuccess(false);
     // Retourner au profil
-    router.replace("/(tabs)/profile");
+    router.replace("/(tabs)/Profile");
   };
 
   return (

@@ -117,7 +117,7 @@ export default function ProfileScreen() {
       <ScrollView contentContainerStyle={styles.scrollContent}>
         {/* HEADER avec boutons */}
         <View style={styles.topBar}>
-          <Text style={styles.headerTitle}>Profile</Text>
+          <Text style={styles.headerTitle}>Profil</Text>
           <View style={styles.headerButtons}>
             <TouchableOpacity
               style={styles.iconButton}
