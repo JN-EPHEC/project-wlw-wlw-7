@@ -1,3 +1,5 @@
+import MaskedView from "@react-native-masked-view/masked-view";
+import { LinearGradient } from "expo-linear-gradient";
 import { Tabs } from "expo-router";
 import React from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
@@ -8,7 +10,7 @@ const TAB_CONFIG: Record<string, { label: string; icon: string }> = {
   Home: { label: "Accueil", icon: "home" },
   Jeux: { label: "Jeux", icon: "game-controller" },
   Groupe: { label: "Groupes", icon: "people" },
-  Profile: { label: "Profile", icon: "person" },
+  Profile: { label: "Profil", icon: "person" },
 };
 
 export default function TabLayout() {
@@ -31,14 +33,35 @@ export default function TabLayout() {
                 style={styles.tabItem}
                 onPress={() => navigation.navigate(route.name)}
               >
-                <Icon
-                  name={tab.icon}
-                  size={22}
-                  color={isFocused ? COLORS.secondary : COLORS.textSecondary}
-                />
-                <Text style={isFocused ? styles.tabLabelActive : styles.tabLabel}>
-                  {tab.label}
-                </Text>
+                {isFocused ? (
+                  // VERSION ACTIVE : Icône + Texte avec gradient
+                  <MaskedView
+                    style={{ alignItems: "center" }}
+                    maskElement={
+                      <View style={{ alignItems: "center" }}>
+                        <Icon name={tab.icon} size={22} color="#FFFFFF" />
+                        <Text style={styles.tabLabelMask}>{tab.label}</Text>
+                      </View>
+                    }
+                  >
+                    <LinearGradient
+                      colors={[COLORS.titleGradientStart, COLORS.titleGradientEnd]}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 0 }}
+                    >
+                      <View style={{ alignItems: "center" }}>
+                        <Icon name={tab.icon} size={22} color="#FFFFFF" />
+                        <Text style={styles.tabLabelMask}>{tab.label}</Text>
+                      </View>
+                    </LinearGradient>
+                  </MaskedView>
+                ) : (
+                  // VERSION INACTIVE : Icône + Texte normaux
+                  <>
+                    <Icon name={tab.icon} size={22} color={COLORS.textSecondary} />
+                    <Text style={styles.tabLabel}>{tab.label}</Text>
+                  </>
+                )}
               </TouchableOpacity>
             );
           })}
@@ -78,10 +101,10 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: COLORS.textSecondary,
   },
-  tabLabelActive: {
+  tabLabelMask: {
     marginTop: 4,
     fontSize: 11,
-    color: COLORS.textPrimary,
     fontWeight: "600",
+    color: "#000000",
   },
 });

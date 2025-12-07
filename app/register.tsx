@@ -2,97 +2,169 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
-    KeyboardAvoidingView,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
 } from "react-native";
 import { COLORS } from "../components/Colors";
 
+import MaskedView from "@react-native-masked-view/masked-view";
 import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
-import { doc, setDoc } from "firebase/firestore";
+import { collection, doc, getDocs, query, setDoc, where } from "firebase/firestore";
+import { useAuth } from "../Auth_context";
 import { auth, db } from "../firebase_Config";
 
 export default function RegisterScreen() {
   const router = useRouter();
+  const { setIsRegistering } = useAuth();
 
   const [email, setEmail] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
   const handleRegister = async () => {
     console.log("▶ handleRegister called");
     setError("");
+    setLoading(true);
+    setIsRegistering(true); // Empêcher les redirections automatiques
 
+    // Validation des champs
     if (!email || !username || !password || !confirmPassword) {
       setError("Tous les champs sont obligatoires.");
+      setLoading(false);
       return;
     }
 
     if (password.length < 6) {
       setError("Le mot de passe doit contenir au moins 6 caractères.");
+      setLoading(false);
       return;
     }
 
     if (password !== confirmPassword) {
       setError("Les mots de passe ne correspondent pas.");
+      setLoading(false);
       return;
     }
 
-    try {
-      console.log("▶ Creating user in Firebase Auth...");
-      const cred = await createUserWithEmailAndPassword(auth, email, password);
-      const user = cred.user;
-      console.log("✅ User created:", user.uid);
+    // Variable pour stocker l'ID du user créé (pour rollback si besoin)
+    let createdUserId: string | null = null;
 
-      console.log("▶ Updating profile displayName...");
-      await updateProfile(user, { displayName: username });
+    try {
+      // 1. Créer un compte temporaire pour pouvoir lire Firestore
+      console.log("▶ Creating temporary auth account...");
+      const tempCred = await createUserWithEmailAndPassword(auth, email, password);
+      createdUserId = tempCred.user.uid;
+      console.log("✅ Temporary account created:", createdUserId);
+
+      // 2. MAINTENANT qu'on est authentifié, vérifier si le username existe
+      console.log("▶ Checking if username exists...");
+      const usersRef = collection(db, "users");
+      const usernameQuery = query(usersRef, where("username", "==", username.trim().toLowerCase()));
+      const querySnapshot = await getDocs(usernameQuery);
+      
+      if (!querySnapshot.empty) {
+        // Username déjà pris ! Supprimer le compte et arrêter
+        console.log("❌ Username already exists, deleting account...");
+        
+        // Supprimer le compte et se déconnecter immédiatement
+        const userToDelete = tempCred.user;
+        await auth.signOut(); // Déconnexion AVANT suppression
+        await userToDelete.delete();
+        
+        setError("❌ Ce nom d'utilisateur est déjà utilisé.");
+        setLoading(false);
+        setIsRegistering(false); // Réactiver les redirections
+        return;
+      }
+      console.log("✅ Username available");
+
+      // 3. Username dispo, continuer l'inscription normale
+      console.log("▶ Updating profile...");
+      await updateProfile(tempCred.user, { displayName: username });
       console.log("✅ Profile updated");
 
+      // 4. Créer le document Firestore
       console.log("▶ Creating user document in Firestore...");
-      const userRef = doc(db, "users", user.uid);
+      const userRef = doc(db, "users", tempCred.user.uid);
       
       const userData = {
-        uid: user.uid,
+        uid: tempCred.user.uid,
         email: email.toLowerCase(),
-        username: username.trim(),
+        username: username.trim().toLowerCase(),
+        displayName: username.trim(),
         createdAt: new Date().toISOString(),
         surveyCompleted: false,
         accountType: null,
         interests: [],
         city: null,
-        friends: [], // ← IMPORTANT pour le système d'amis
-        expoPushToken: null, // ← IMPORTANT pour les notifications
+        friends: [],
+        blockedUsers: [], // AJOUT pour la gestion des utilisateurs bloqués
+        expoPushToken: null,
       };
       
       await setDoc(userRef, userData);
-      console.log("✅ Firestore doc created successfully!");
+      console.log("✅ User document created successfully!");
 
-      // REDIRECTION IMMÉDIATE
+      // 5. Redirection
       console.log("▶ Redirecting to /sondage");
+      setLoading(false);
+      setIsRegistering(false); // Réactiver les redirections
       router.replace("/sondage");
 
     } catch (e: any) {
       console.error("❌ Error in handleRegister:", e);
       
+      // Si on a créé un compte, le supprimer en cas d'erreur
+      if (createdUserId) {
+        try {
+          const currentUser = auth.currentUser;
+          if (currentUser) {
+            await currentUser.delete();
+            await auth.signOut();
+          }
+        } catch (deleteError) {
+          console.error("Error deleting user during rollback:", deleteError);
+        }
+      }
+      
       let errorMessage = "Inscription impossible.";
-      if (e.code === "auth/email-already-in-use") {
-        errorMessage = "❌ Cet email est déjà utilisé.";
-      } else if (e.code === "auth/invalid-email") {
-        errorMessage = "❌ Email invalide.";
-      } else if (e.code === "auth/weak-password") {
-        errorMessage = "❌ Mot de passe trop faible.";
-      } else if (e.message) {
-        errorMessage = `❌ ${e.message}`;
+      
+      // Messages d'erreur Firebase personnalisés
+      switch (e.code) {
+        case "auth/email-already-in-use":
+          errorMessage = "❌ Cet email est déjà utilisé.";
+          break;
+        case "auth/invalid-email":
+          errorMessage = "❌ Email invalide.";
+          break;
+        case "auth/weak-password":
+          errorMessage = "❌ Mot de passe trop faible.";
+          break;
+        case "auth/network-request-failed":
+          errorMessage = "❌ Erreur réseau. Vérifiez votre connexion.";
+          break;
+        case "auth/too-many-requests":
+          errorMessage = "❌ Trop de tentatives. Réessayez plus tard.";
+          break;
+        default:
+          if (e.message) {
+            errorMessage = `❌ ${e.message}`;
+          }
       }
       
       setError(errorMessage);
+      setLoading(false);
+      setIsRegistering(false); // Réactiver les redirections
     }
   };
 
@@ -110,12 +182,30 @@ export default function RegisterScreen() {
           keyboardShouldPersistTaps="handled"
         >
           {/* LOGO */}
-          <View style={styles.logoContainer}>
-            <Text style={styles.logoText}>
-              <Text style={styles.logoWhat}>What</Text>
-              <Text style={styles.logo2Do}>2Do</Text>
-            </Text>
-          </View>
+<View style={styles.logoContainer}>
+  {Platform.OS === 'web' ? (
+    // VERSION WEB : Deux couleurs séparées
+    <Text style={styles.logoText}>
+      <Text style={styles.logoWhat}>What</Text>
+      <Text style={styles.logo2Do}>2Do</Text>
+    </Text>
+  ) : (
+    // VERSION MOBILE : Vrai gradient
+    <MaskedView
+      maskElement={
+        <Text style={styles.logoTextMask}>What2do</Text>
+      }
+    >
+      <LinearGradient
+        colors={[COLORS.titleGradientStart, COLORS.titleGradientEnd]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 0 }}
+      >
+        <Text style={styles.logoTextMask}>What2do</Text>
+      </LinearGradient>
+    </MaskedView>
+  )}
+</View>
 
           {/* MESSAGE D'ERREUR */}
           {error ? (
@@ -136,6 +226,7 @@ export default function RegisterScreen() {
                 autoCapitalize="none"
                 keyboardType="email-address"
                 onChangeText={setEmail}
+                editable={!loading}
               />
             </View>
 
@@ -148,6 +239,7 @@ export default function RegisterScreen() {
                 value={username}
                 autoCapitalize="none"
                 onChangeText={setUsername}
+                editable={!loading}
               />
             </View>
 
@@ -160,6 +252,7 @@ export default function RegisterScreen() {
                 secureTextEntry
                 value={password}
                 onChangeText={setPassword}
+                editable={!loading}
               />
             </View>
 
@@ -172,18 +265,27 @@ export default function RegisterScreen() {
                 secureTextEntry
                 value={confirmPassword}
                 onChangeText={setConfirmPassword}
+                editable={!loading}
               />
             </View>
 
             {/* BOUTON CRÉER UN COMPTE */}
-            <TouchableOpacity style={styles.primaryButtonWrapper} onPress={handleRegister}>
+            <TouchableOpacity 
+              style={styles.primaryButtonWrapper} 
+              onPress={handleRegister}
+              disabled={loading}
+            >
               <LinearGradient
                 colors={[COLORS.titleGradientStart, COLORS.titleGradientEnd]}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 0 }}
                 style={styles.primaryButton}
               >
-                <Text style={styles.primaryButtonText}>Créer un compte</Text>
+                {loading ? (
+                  <ActivityIndicator color={COLORS.textPrimary} />
+                ) : (
+                  <Text style={styles.primaryButtonText}>Créer un compte</Text>
+                )}
               </LinearGradient>
             </TouchableOpacity>
           </View>
@@ -216,7 +318,7 @@ const styles = StyleSheet.create({
   },
   logoText: {
     fontSize: 34,
-    fontWeight: "700",
+    fontFamily: "Poppins-Bold",
   },
   logoWhat: {
     color: COLORS.titleGradientStart,
@@ -224,6 +326,10 @@ const styles = StyleSheet.create({
   logo2Do: {
     color: COLORS.titleGradientEnd,
   },
+  logoTextMask: {  // ← AJOUTE CE STYLE ICI
+    fontSize: 34,
+    fontFamily: "Poppins-Bold",
+    color: "#000000",},
   errorContainer: {
     backgroundColor: "rgba(255, 59, 48, 0.1)",
     borderWidth: 1,
@@ -235,8 +341,8 @@ const styles = StyleSheet.create({
   errorText: {
     color: "#FF3B30",
     fontSize: 14,
+    fontFamily: "Poppins-Medium",
     textAlign: "center",
-    fontWeight: "500",
   },
   form: {
     marginBottom: 32,
@@ -246,8 +352,10 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: 13,
+    fontFamily: "Poppins-Regular",
     color: COLORS.textPrimary,
     marginBottom: 8,
+    textAlign: "center",
   },
   input: {
     width: "100%",
@@ -259,6 +367,7 @@ const styles = StyleSheet.create({
     borderColor: COLORS.border,
     color: COLORS.textPrimary,
     fontSize: 14,
+    fontFamily: "Poppins-Regular",
     textAlign: "center",
   },
   primaryButtonWrapper: {
@@ -276,7 +385,7 @@ const styles = StyleSheet.create({
   primaryButtonText: {
     fontSize: 15,
     color: COLORS.textPrimary,
-    fontWeight: "600",
+    fontFamily: "Poppins-SemiBold",
   },
   bottom: {
     marginTop: 28,
@@ -284,12 +393,13 @@ const styles = StyleSheet.create({
   },
   bottomText: {
     fontSize: 13,
+    fontFamily: "Poppins-Regular",
     color: COLORS.textSecondary,
     marginBottom: 4,
   },
   bottomLink: {
     fontSize: 13,
+    fontFamily: "Poppins-SemiBold",
     color: COLORS.secondary,
-    fontWeight: "600",
   },
 });
