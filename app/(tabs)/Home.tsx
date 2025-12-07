@@ -5,6 +5,7 @@ import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  ImageBackground,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -182,11 +183,36 @@ export default function HomeScreen() {
     // Filtre : Prix/Nouveau (désactivé en mode favoris)
     if (!showFavorites) {
       if (activeFilter === "near" && userLocation) {
-        // Filtre par localisation - temporairement utilise la ville
-        // TODO: Ajouter latitude/longitude dans tes activités pour calculer la vraie distance
-        filtered = filtered.filter(activity =>
-          activity.location.toLowerCase().includes(userLocation.city?.toLowerCase() || "")
+        // Liste des communes bruxelloises
+        const brusselsCommunes = [
+          "auderghem", "berchem-sainte-agathe", "bruxelles", "etterbeek",
+          "evere", "forest", "ganshoren", "ixelles", "jette", "koekelberg",
+          "molenbeek", "molenbeek-saint-jean", "saint-gilles", "saint-josse",
+          "saint-josse-ten-noode", "schaerbeek", "uccle", "watermael-boitsfort",
+          "woluwe-saint-lambert", "woluwe-saint-pierre", "anderlecht"
+        ];
+
+        const userCity = userLocation.city?.toLowerCase() || "";
+        
+        // Vérifier si le user est dans une commune bruxelloise
+        const isInBrussels = brusselsCommunes.some(commune => 
+          userCity.includes(commune) || commune.includes(userCity)
         );
+
+        if (isInBrussels) {
+          // Si le user est à Bruxelles, affiche toutes les activités de Bruxelles et ses communes
+          filtered = filtered.filter(activity => {
+            const activityLocation = activity.location.toLowerCase();
+            return activityLocation.includes("bruxelles") || 
+                   activityLocation.includes("brussels") ||
+                   brusselsCommunes.some(commune => activityLocation.includes(commune));
+          });
+        } else {
+          // Sinon, filtre par la ville exacte
+          filtered = filtered.filter(activity =>
+            activity.location.toLowerCase().includes(userCity)
+          );
+        }
       } else if (activeFilter === "free") {
         filtered = filtered.filter(activity => activity.price === "Gratuit");
       } else if (activeFilter === "new") {
@@ -416,21 +442,41 @@ export default function HomeScreen() {
                 
                 return (
                   <View key={activity.id} style={styles.card}>
-                    <LinearGradient
-                      colors={index % 2 === 0 ? ["#7C3AED", "#5B21B6"] : ["#9F7AEA", "#6B46C1"]}
-                      style={styles.cardImage}
-                    >
-                      <View style={styles.cardHeader}>
-                        <View style={styles.cardTag}>
-                          <Text style={styles.cardTagText}>{activity.category}</Text>
-                        </View>
-                        {activity.isNew && (
-                          <View style={styles.newBadge}>
-                            <Text style={styles.newBadgeText}>Nouveau</Text>
+                    {/* IMAGE DE L'ACTIVITÉ */}
+                    {activity.image ? (
+                      <ImageBackground
+                        source={{ uri: activity.image }}
+                        style={styles.cardImage}
+                        imageStyle={{ borderRadius: 24 }}
+                      >
+                        <View style={styles.cardHeader}>
+                          <View style={styles.cardTag}>
+                            <Text style={styles.cardTagText}>{activity.category}</Text>
                           </View>
-                        )}
-                      </View>
-                    </LinearGradient>
+                          {activity.isNew && (
+                            <View style={styles.newBadge}>
+                              <Text style={styles.newBadgeText}>Nouveau</Text>
+                            </View>
+                          )}
+                        </View>
+                      </ImageBackground>
+                    ) : (
+                      <LinearGradient
+                        colors={index % 2 === 0 ? ["#7C3AED", "#5B21B6"] : ["#9F7AEA", "#6B46C1"]}
+                        style={styles.cardImage}
+                      >
+                        <View style={styles.cardHeader}>
+                          <View style={styles.cardTag}>
+                            <Text style={styles.cardTagText}>{activity.category}</Text>
+                          </View>
+                          {activity.isNew && (
+                            <View style={styles.newBadge}>
+                              <Text style={styles.newBadgeText}>Nouveau</Text>
+                            </View>
+                          )}
+                        </View>
+                      </LinearGradient>
+                    )}
 
                     <TouchableOpacity 
                       style={styles.cardHeart}
@@ -468,7 +514,10 @@ export default function HomeScreen() {
                         </View>
                       </View>
                       <View style={styles.cardFooter}>
-                        <TouchableOpacity style={styles.cardButton}>
+                        <TouchableOpacity 
+                          style={styles.cardButton}
+                          onPress={() => router.push(`/activity/${activity.id}`)}
+                        >
                           <Text style={styles.cardButtonText}>Découvrir</Text>
                         </TouchableOpacity>
                         <Text style={styles.cardDate}>
@@ -682,6 +731,7 @@ const styles = StyleSheet.create({
     margin: 12,
     padding: 14,
     justifyContent: "flex-start",
+    overflow: "hidden",
   },
   cardHeader: {
     flexDirection: "row",
