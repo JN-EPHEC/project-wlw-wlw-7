@@ -56,7 +56,7 @@ export default function GroupDetailScreen() {
       
       if (!groupDoc.exists()) {
         Alert.alert("Erreur", "Groupe introuvable");
-        router.back();
+        router.replace("/(tabs)/Groupe");
         return;
       }
 
@@ -104,43 +104,32 @@ export default function GroupDetailScreen() {
     const currentUser = auth.currentUser;
     if (!currentUser || !groupId) return;
 
-    Alert.alert(
-      "Quitter le groupe",
-      `Voulez-vous vraiment quitter "${group?.name}" ?`,
-      [
-        { text: "Annuler", style: "cancel" },
-        {
-          text: "Quitter",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              const groupRef = doc(db, "groups", groupId);
-              const newMemberCount = (group?.memberCount || 1) - 1;
-              
-              if (newMemberCount === 0) {
-                await deleteGroupCompletely();
-                Alert.alert("Info", "Vous étiez le dernier membre, le groupe a été supprimé", [
-                  { text: "OK", onPress: () => router.replace("/Groupe") }
-                ]);
-                return;
-              }
+    // Confirmation simple
+    const confirmed = window.confirm(`Voulez-vous vraiment quitter "${group?.name}" ?`);
+    if (!confirmed) return;
 
-              await updateDoc(groupRef, {
-                members: arrayRemove(currentUser.uid),
-                memberCount: newMemberCount,
-              });
+    try {
+      const groupRef = doc(db, "groups", groupId);
+      const newMemberCount = (group?.memberCount || 1) - 1;
+      
+      if (newMemberCount === 0) {
+        await deleteGroupCompletely();
+        window.alert("Vous étiez le dernier membre, le groupe a été supprimé");
+        router.replace("/(tabs)/Groupe");
+        return;
+      }
 
-              Alert.alert("Succès", "Vous avez quitté le groupe", [
-                { text: "OK", onPress: () => router.replace("/Groupe") }
-              ]);
-            } catch (error) {
-              console.error("Error leaving group:", error);
-              Alert.alert("Erreur", "Impossible de quitter le groupe");
-            }
-          },
-        },
-      ]
-    );
+      await updateDoc(groupRef, {
+        members: arrayRemove(currentUser.uid),
+        memberCount: newMemberCount,
+      });
+
+      window.alert("Vous avez quitté le groupe");
+      router.replace("/(tabs)/Groupe");
+    } catch (error) {
+      console.error("Error leaving group:", error);
+      window.alert("Impossible de quitter le groupe");
+    }
   };
 
   const deleteGroupCompletely = async () => {
@@ -173,6 +162,22 @@ export default function GroupDetailScreen() {
         console.log("No messages to delete");
       }
 
+      // Supprimer les activités du groupe
+      try {
+        const activitiesQuery = query(
+          collection(db, "groupActivities"),
+          where("groupId", "==", groupId)
+        );
+        const activitiesSnapshot = await getDocs(activitiesQuery);
+        
+        const deleteActivitiesPromises = activitiesSnapshot.docs.map(activityDoc => 
+          deleteDoc(doc(db, "groupActivities", activityDoc.id))
+        );
+        await Promise.all(deleteActivitiesPromises);
+      } catch (error) {
+        console.log("No group activities to delete");
+      }
+
       await deleteDoc(doc(db, "groups", groupId));
       
       console.log("✅ Group and all related data deleted");
@@ -185,28 +190,19 @@ export default function GroupDetailScreen() {
   const deleteGroup = async () => {
     if (!groupId) return;
 
-    Alert.alert(
-      "Supprimer le groupe",
-      `Voulez-vous vraiment supprimer "${group?.name}" ? Cette action est irréversible et supprimera tous les sondages et messages associés.`,
-      [
-        { text: "Annuler", style: "cancel" },
-        {
-          text: "Supprimer",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              await deleteGroupCompletely();
-              Alert.alert("Succès", "Groupe et toutes les données associées supprimés", [
-                { text: "OK", onPress: () => router.replace("/Groupe") }
-              ]);
-            } catch (error) {
-              console.error("Error deleting group:", error);
-              Alert.alert("Erreur", "Impossible de supprimer le groupe complètement");
-            }
-          },
-        },
-      ]
+    const confirmed = window.confirm(
+      `Voulez-vous vraiment supprimer "${group?.name}" ? Cette action est irréversible et supprimera tous les sondages et messages associés.`
     );
+    if (!confirmed) return;
+
+    try {
+      await deleteGroupCompletely();
+      window.alert("Groupe et toutes les données associées supprimés");
+      router.replace("/(tabs)/Groupe");
+    } catch (error) {
+      console.error("Error deleting group:", error);
+      window.alert("Impossible de supprimer le groupe complètement");
+    }
   };
 
   if (loading) {
@@ -323,8 +319,10 @@ export default function GroupDetailScreen() {
           {/* Bouton Quitter le groupe */}
           <TouchableOpacity
             style={[styles.actionButton, styles.dangerButton]}
-            onPress={leaveGroup}
-            activeOpacity={0.7}
+            onPress={() => {
+              console.log("🔴 BOUTON QUITTER CLIQUÉ");
+              leaveGroup();
+            }}
           >
             <Icon name="exit" size={20} color={COLORS.error} />
             <Text style={[styles.actionButtonText, styles.dangerText]}>
@@ -337,8 +335,10 @@ export default function GroupDetailScreen() {
           {isCreator && (
             <TouchableOpacity
               style={[styles.actionButton, styles.dangerButton]}
-              onPress={deleteGroup}
-              activeOpacity={0.7}
+              onPress={() => {
+                console.log("🔴 BOUTON SUPPRIMER CLIQUÉ");
+                deleteGroup();
+              }}
             >
               <Icon name="trash" size={20} color={COLORS.error} />
               <Text style={[styles.actionButtonText, styles.dangerText]}>

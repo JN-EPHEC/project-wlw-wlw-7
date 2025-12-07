@@ -3,18 +3,19 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { doc, getDoc } from "firebase/firestore";
 import React, { useEffect, useState } from "react";
 import {
-    ActivityIndicator,
-    ImageBackground,
-    Linking,
-    SafeAreaView,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  ImageBackground,
+  Linking,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import Icon from "react-native-vector-icons/Ionicons";
 import { COLORS } from "../components/Colors";
+import ProposeActivityModal from "../components/Proposition_activity";
 import { db } from "../firebase_Config";
 
 interface Activity {
@@ -40,6 +41,7 @@ export default function ActivityDetailScreen() {
 
   const [activity, setActivity] = useState<Activity | null>(null);
   const [loading, setLoading] = useState(true);
+  const [showProposeModal, setShowProposeModal] = useState(false);
 
   useEffect(() => {
     loadActivity();
@@ -68,8 +70,7 @@ export default function ActivityDetailScreen() {
   };
 
   const handleShare = () => {
-    // TODO: Implémenter le partage avec des amis
-    alert("Fonctionnalité de partage à venir !");
+    setShowProposeModal(true);
   };
 
   if (loading) {
@@ -228,6 +229,23 @@ export default function ActivityDetailScreen() {
             </View>
           </View>
         </ScrollView>
+
+        {/* MODAL PROPOSER ACTIVITÉ */}
+        {activity && (
+          <ProposeActivityModal
+            visible={showProposeModal}
+            onClose={() => setShowProposeModal(false)}
+            activity={{
+              id: activityId,
+              title: activity.title,
+              description: activity.description,
+              image: activity.image,
+              location: activity.location,
+              date: activity.date,
+              category: activity.category,
+            }}
+          />
+        )}
       </LinearGradient>
     </SafeAreaView>
   );

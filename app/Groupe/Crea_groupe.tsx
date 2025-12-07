@@ -1,6 +1,6 @@
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
-import { addDoc, collection, doc, getDoc } from "firebase/firestore";
+import { addDoc, collection, doc, getDoc, getDocs, query, where } from "firebase/firestore";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -101,7 +101,40 @@ export default function CreateGroupScreen() {
     setCreating(true);
     try {
       const groupsRef = collection(db, "groups");
-      const allMembers = [currentUser.uid, ...selectedFriends];
+      const allMembers = [currentUser.uid, ...selectedFriends].sort(); // Sort pour comparaison
+      
+      // ✨ NOUVEAU : Vérifier si un groupe existe déjà avec exactement les mêmes membres
+      const existingGroupsQuery = query(
+        collection(db, "groups"),
+        where("members", "array-contains", currentUser.uid)
+      );
+      const existingGroupsSnapshot = await getDocs(existingGroupsQuery);
+      
+      // Chercher un groupe avec exactement les mêmes membres
+      const duplicateGroup = existingGroupsSnapshot.docs.find(doc => {
+        const groupMembers = [...doc.data().members].sort();
+        return JSON.stringify(groupMembers) === JSON.stringify(allMembers);
+      });
+
+      if (duplicateGroup) {
+        const duplicateName = duplicateGroup.data().name;
+        setCreating(false);
+        Alert.alert(
+          "Groupe existant",
+          `Un groupe "${duplicateName}" existe déjà avec ces mêmes membres. Voulez-vous le consulter ?`,
+          [
+            { text: "Non", style: "cancel" },
+            {
+              text: "Voir le groupe",
+              onPress: () => {
+                router.back();
+                router.push(`/Groupe/${duplicateGroup.id}`);
+              }
+            }
+          ]
+        );
+        return;
+      }
       
       const groupData = {
         name: groupName.trim(),
@@ -135,11 +168,13 @@ export default function CreateGroupScreen() {
         )
       ).catch(err => console.error("Notifications error:", err));
 
-      // Rediriger immédiatement
+      // Rediriger vers la page de détail du groupe créé
       Alert.alert("Succès", `Groupe "${groupName}" créé !`, [
         { 
           text: "OK", 
-          onPress: () => router.back()
+          onPress: () => {
+            router.push(`/Groupe/${groupDoc.id}`);
+          }
         }
       ]);
     } catch (error: any) {
