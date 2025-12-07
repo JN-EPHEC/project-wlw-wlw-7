@@ -1,6 +1,6 @@
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
-import { addDoc, collection, doc, getDoc } from "firebase/firestore";
+import { addDoc, collection, doc, getDoc, getDocs, query, where } from "firebase/firestore";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -45,7 +45,6 @@ export default function CreateGroupScreen() {
     if (!currentUser) return;
 
     try {
-      // Récupérer la liste d'amis du user
       const userDoc = await getDoc(doc(db, "users", currentUser.uid));
       const userData = userDoc.data();
       const friendIds = userData?.friends || [];
@@ -56,7 +55,6 @@ export default function CreateGroupScreen() {
         return;
       }
 
-      // Récupérer les infos de chaque ami
       const friendsData: Friend[] = [];
       for (const friendId of friendIds) {
         const friendDoc = await getDoc(doc(db, "users", friendId));
@@ -102,9 +100,41 @@ export default function CreateGroupScreen() {
 
     setCreating(true);
     try {
-      // Créer le groupe dans Firestore
       const groupsRef = collection(db, "groups");
-      const allMembers = [currentUser.uid, ...selectedFriends];
+      const allMembers = [currentUser.uid, ...selectedFriends].sort(); // Sort pour comparaison
+      
+      // ✨ NOUVEAU : Vérifier si un groupe existe déjà avec exactement les mêmes membres
+      const existingGroupsQuery = query(
+        collection(db, "groups"),
+        where("members", "array-contains", currentUser.uid)
+      );
+      const existingGroupsSnapshot = await getDocs(existingGroupsQuery);
+      
+      // Chercher un groupe avec exactement les mêmes membres
+      const duplicateGroup = existingGroupsSnapshot.docs.find(doc => {
+        const groupMembers = [...doc.data().members].sort();
+        return JSON.stringify(groupMembers) === JSON.stringify(allMembers);
+      });
+
+      if (duplicateGroup) {
+        const duplicateName = duplicateGroup.data().name;
+        setCreating(false);
+        Alert.alert(
+          "Groupe existant",
+          `Un groupe "${duplicateName}" existe déjà avec ces mêmes membres. Voulez-vous le consulter ?`,
+          [
+            { text: "Non", style: "cancel" },
+            {
+              text: "Voir le groupe",
+              onPress: () => {
+                router.back();
+                router.push(`/Groupe/${duplicateGroup.id}`);
+              }
+            }
+          ]
+        );
+        return;
+      }
       
       const groupData = {
         name: groupName.trim(),
@@ -119,27 +149,32 @@ export default function CreateGroupScreen() {
       const groupDoc = await addDoc(groupsRef, groupData);
       console.log("✅ Group created:", groupDoc.id);
 
-      // Envoyer des notifications à tous les membres ajoutés
+      // Envoyer les notifications en arrière-plan (sans bloquer l'interface)
       const creatorName = currentUser.displayName || "Un utilisateur";
       
-      for (const friendId of selectedFriends) {
-        await notifyUser(
-          friendId,
-          "group_invite",
-          "Nouveau groupe",
-          `${creatorName} vous a ajouté au groupe "${groupName}"`,
-          { 
-            fromUserId: currentUser.uid,
-            groupId: groupDoc.id,
-            groupName: groupName,
-          }
-        );
-      }
+      Promise.all(
+        selectedFriends.map(friendId =>
+          notifyUser(
+            friendId,
+            "group_invite",
+            "Nouveau groupe",
+            `${creatorName} vous a ajouté au groupe "${groupName}"`,
+            { 
+              fromUserId: currentUser.uid,
+              groupId: groupDoc.id,
+              groupName: groupName,
+            }
+          ).catch(err => console.error("Notification error:", err))
+        )
+      ).catch(err => console.error("Notifications error:", err));
 
+      // Rediriger vers la page de détail du groupe créé
       Alert.alert("Succès", `Groupe "${groupName}" créé !`, [
         { 
           text: "OK", 
-          onPress: () => router.back()
+          onPress: () => {
+            router.push(`/Groupe/${groupDoc.id}`);
+          }
         }
       ]);
     } catch (error: any) {
@@ -174,7 +209,6 @@ export default function CreateGroupScreen() {
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
         <ScrollView contentContainerStyle={styles.scrollContent}>
-          {/* HEADER */}
           <View style={styles.header}>
             <TouchableOpacity
               style={styles.backButton}
@@ -186,7 +220,6 @@ export default function CreateGroupScreen() {
             <View style={{ width: 40 }} />
           </View>
 
-          {/* NOM DU GROUPE */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Nom du groupe</Text>
             <TextInput
@@ -199,7 +232,6 @@ export default function CreateGroupScreen() {
             />
           </View>
 
-          {/* EMOJI SELECTION */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Choisir un emoji</Text>
             <View style={styles.emojiGrid}>
@@ -218,7 +250,6 @@ export default function CreateGroupScreen() {
             </View>
           </View>
 
-          {/* SÉLECTION DES AMIS */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>
               Ajouter des amis ({selectedFriends.length} sélectionné{selectedFriends.length > 1 ? "s" : ""})
@@ -276,7 +307,6 @@ export default function CreateGroupScreen() {
             )}
           </View>
 
-          {/* BOUTON CRÉER */}
           <TouchableOpacity
             style={styles.createButtonWrapper}
             onPress={createGroup}
