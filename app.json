@@ -9,8 +9,16 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "What2Do utilise votre localisation pour vous montrer les activités près de chez vous.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "What2Do utilise votre localisation pour vous montrer les activités près de chez vous."
+      }
     },
+    "assetBundlePatterns": [
+      "/**/*"
+    ],
+    "extra": {},
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
@@ -19,9 +27,14 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION"
+      ]
     },
     "web": {
+      "bundler": "metro",
       "output": "static",
       "favicon": "./assets/images/favicon.png"
     },
@@ -37,6 +50,13 @@
           "dark": {
             "backgroundColor": "#000000"
           }
+        }
+      ],
+      "expo-font",
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "What2Do utilise votre localisation pour vous montrer les activités près de chez vous."
         }
       ]
     ],

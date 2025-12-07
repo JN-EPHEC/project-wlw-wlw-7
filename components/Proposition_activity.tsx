@@ -1,7 +1,11 @@
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { addDoc, collection, doc, getDoc, getDocs, query, where } from "firebase/firestore";
+<<<<<<< HEAD
 import { useEffect, useState } from "react";
+=======
+import React, { useEffect, useState } from "react";
+>>>>>>> eaf83161e3736f37e740212311bc2c7635600474
 import {
     ActivityIndicator,
     Alert,
