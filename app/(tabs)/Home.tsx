@@ -516,7 +516,7 @@ export default function HomeScreen() {
                       <View style={styles.cardFooter}>
                         <TouchableOpacity 
                           style={styles.cardButton}
-                          onPress={() => router.push(`/activity/${activity.id}`)}
+                          onPress={() => router.push("../Activity/[id]")}
                         >
                           <Text style={styles.cardButtonText}>Découvrir</Text>
                         </TouchableOpacity>
