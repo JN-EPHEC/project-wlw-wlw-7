@@ -13,101 +13,205 @@ export default function JeuxScreen() {
       colors={[COLORS.backgroundTop, COLORS.backgroundBottom]}
       style={styles.container}
     >
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      <ScrollView 
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
         {/* HEADER */}
         <View style={styles.header}>
-          <Text style={styles.appTitle}>What2do</Text>
+          <Text style={styles.appTitle}>Jeux</Text>
           <View style={styles.headerRight}>
-            <TouchableOpacity style={styles.iconCircle}>
-              <Icon name="heart" size={20} color={COLORS.secondary} />
+            <TouchableOpacity style={styles.iconButton}>
+              <Icon name="heart-outline" size={20} color={COLORS.secondary} />
             </TouchableOpacity>
-            <TouchableOpacity style={styles.iconCircle}>
-              <Icon name="notifications" size={20} color={COLORS.secondary} />
+            <TouchableOpacity style={styles.iconButton}>
+              <Icon name="notifications-outline" size={20} color={COLORS.secondary} />
             </TouchableOpacity>
           </View>
         </View>
 
         {/* TITRE */}
-        <Text style={styles.pageTitle}>Jeux entre amis</Text>
-        <Text style={styles.pageSubtitle}>
-          Amuse-toi avec ton groupe grâce à nos mini-jeux exclusifs !
-        </Text>
+        <View style={styles.titleSection}>
+          <Text style={styles.pageTitle}>Jeux entre amis</Text>
+          <Text style={styles.pageSubtitle}>
+            Amuse-toi avec ton groupe grâce à nos mini-jeux exclusifs ! 🎲
+          </Text>
+        </View>
 
         {/* CARDS */}
         <View style={styles.cardList}>
           {/* ACTION OU VÉRITÉ */}
-          <View style={styles.card}>
-            <LinearGradient
-              colors={["#9D4EDD", "#7B2CBF"]}
-              style={styles.cardImage}
-            >
-              <Text style={styles.cardImageTitle}>Action ou vérité</Text>
-            </LinearGradient>
-            
-            <View style={styles.cardContent}>
-              <Text style={styles.cardDescription}>
-                Défis et vérités à partager en groupe !
-              </Text>
+          <TouchableOpacity 
+            style={styles.cardWrapper}
+            activeOpacity={0.9}
+          >
+            <View style={styles.card}>
+              <LinearGradient
+                colors={["#9D4EDD", "#7B2CBF"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.cardImage}
+              >
+                <View style={styles.cardImageContent}>
+                  <Icon name="chatbubbles" size={40} color="rgba(255,255,255,0.9)" />
+                  <Text style={styles.cardImageTitle}>Action ou Vérité</Text>
+                </View>
+              </LinearGradient>
               
-              <View style={styles.cardFooter}>
-                <TouchableOpacity style={styles.cardButton}>
-                  <Text style={styles.cardButtonText}>Jouer</Text>
-                </TouchableOpacity>
-                <View style={styles.badge}>
-                  <Text style={styles.badgeText}>Free</Text>
+              <View style={styles.cardContent}>
+                <Text style={styles.cardDescription}>
+                  Défis et vérités à partager en groupe ! Idéal pour animer vos soirées.
+                </Text>
+                
+                <View style={styles.cardFooter}>
+                  <TouchableOpacity style={styles.cardButton}>
+                    <LinearGradient
+                      colors={["#9D4EDD", "#7B2CBF"]}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 0 }}
+                      style={styles.cardButtonGradient}
+                    >
+                      <Icon name="play" size={16} color={COLORS.textPrimary} />
+                      <Text style={styles.cardButtonText}>Jouer</Text>
+                    </LinearGradient>
+                  </TouchableOpacity>
+                  
+                  <View style={styles.badge}>
+                    <Icon name="gift" size={12} color="#10B981" />
+                    <Text style={styles.badgeText}>Gratuit</Text>
+                  </View>
                 </View>
               </View>
             </View>
-          </View>
+          </TouchableOpacity>
 
           {/* UNDERCOVER */}
-          <View style={styles.card}>
-            <View style={styles.cardImageDark}>
-              <Icon name="eye-off" size={48} color={COLORS.secondary} />
-              <Text style={styles.cardImageTitle}>Undercover</Text>
-            </View>
-            
-            <View style={styles.cardContent}>
-              <Text style={styles.cardDescription}>
-                Devine qui ment dans ton groupe !
-              </Text>
+          <TouchableOpacity 
+            style={styles.cardWrapper}
+            activeOpacity={0.9}
+          >
+            <View style={styles.card}>
+              <View style={styles.cardImageDark}>
+                <View style={styles.lockedOverlay}>
+                  <Icon name="lock-closed" size={32} color="rgba(255,255,255,0.6)" />
+                </View>
+                <View style={styles.cardImageContent}>
+                  <Icon name="eye-off" size={40} color="rgba(255,255,255,0.4)" />
+                  <Text style={[styles.cardImageTitle, { opacity: 0.6 }]}>Undercover</Text>
+                </View>
+              </View>
               
-              <View style={styles.cardFooter}>
-                <TouchableOpacity style={[styles.cardButton, styles.cardButtonSecondary]}>
-                  <Text style={styles.cardButtonText}>Débloquer</Text>
-                </TouchableOpacity>
-                <View style={[styles.badge, styles.badgePremium]}>
-                  <Icon name="diamond" size={12} color="#FFD700" />
-                  <Text style={styles.badgeTextPremium}>Premium</Text>
+              <View style={styles.cardContent}>
+                <Text style={styles.cardDescription}>
+                  Devine qui ment dans ton groupe ! Jeu de déduction et de bluff.
+                </Text>
+                
+                <View style={styles.cardFooter}>
+                  <TouchableOpacity style={styles.cardButton}>
+                    <View style={styles.cardButtonLocked}>
+                      <Icon name="lock-closed" size={16} color={COLORS.textSecondary} />
+                      <Text style={styles.cardButtonTextLocked}>Débloquer</Text>
+                    </View>
+                  </TouchableOpacity>
+                  
+                  <View style={styles.badgePremium}>
+                    <Icon name="diamond" size={12} color="#FFD700" />
+                    <Text style={styles.badgeTextPremium}>Premium</Text>
+                  </View>
                 </View>
               </View>
             </View>
-          </View>
+          </TouchableOpacity>
 
           {/* LOUP-GAROU */}
-          <View style={styles.card}>
-            <LinearGradient
-              colors={["#6366F1", "#8B5CF6"]}
-              style={styles.cardImage}
-            >
-              <Text style={styles.cardImageTitle}>Loup-Garou</Text>
-            </LinearGradient>
-            
-            <View style={styles.cardContent}>
-              <Text style={styles.cardDescription}>
-                Le classique jeu de rôle entre amis !
-              </Text>
+          <TouchableOpacity 
+            style={styles.cardWrapper}
+            activeOpacity={0.9}
+          >
+            <View style={styles.card}>
+              <LinearGradient
+                colors={["#6366F1", "#8B5CF6"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.cardImage}
+              >
+                <View style={styles.cardImageContent}>
+                  <Icon name="moon" size={40} color="rgba(255,255,255,0.9)" />
+                  <Text style={styles.cardImageTitle}>Loup-Garou</Text>
+                </View>
+              </LinearGradient>
               
-              <View style={styles.cardFooter}>
-                <TouchableOpacity style={styles.cardButton}>
-                  <Text style={styles.cardButtonText}>Jouer</Text>
-                </TouchableOpacity>
-                <View style={styles.badge}>
-                  <Text style={styles.badgeText}>Free</Text>
+              <View style={styles.cardContent}>
+                <Text style={styles.cardDescription}>
+                  Le classique jeu de rôle entre amis ! Incarnez villageois ou loup-garou.
+                </Text>
+                
+                <View style={styles.cardFooter}>
+                  <TouchableOpacity style={styles.cardButton}>
+                    <LinearGradient
+                      colors={["#6366F1", "#8B5CF6"]}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 0 }}
+                      style={styles.cardButtonGradient}
+                    >
+                      <Icon name="play" size={16} color={COLORS.textPrimary} />
+                      <Text style={styles.cardButtonText}>Jouer</Text>
+                    </LinearGradient>
+                  </TouchableOpacity>
+                  
+                  <View style={styles.badge}>
+                    <Icon name="gift" size={12} color="#10B981" />
+                    <Text style={styles.badgeText}>Gratuit</Text>
+                  </View>
                 </View>
               </View>
             </View>
-          </View>
+          </TouchableOpacity>
+
+          {/* DEVINE QUI */}
+          <TouchableOpacity 
+            style={styles.cardWrapper}
+            activeOpacity={0.9}
+          >
+            <View style={styles.card}>
+              <LinearGradient
+                colors={["#F59E0B", "#EF4444"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.cardImage}
+              >
+                <View style={styles.cardImageContent}>
+                  <Icon name="help-circle" size={40} color="rgba(255,255,255,0.9)" />
+                  <Text style={styles.cardImageTitle}>Devine Qui ?</Text>
+                </View>
+              </LinearGradient>
+              
+              <View style={styles.cardContent}>
+                <Text style={styles.cardDescription}>
+                  Pose des questions pour deviner le personnage mystère choisi par tes amis !
+                </Text>
+                
+                <View style={styles.cardFooter}>
+                  <TouchableOpacity style={styles.cardButton}>
+                    <LinearGradient
+                      colors={["#F59E0B", "#EF4444"]}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 0 }}
+                      style={styles.cardButtonGradient}
+                    >
+                      <Icon name="play" size={16} color={COLORS.textPrimary} />
+                      <Text style={styles.cardButtonText}>Jouer</Text>
+                    </LinearGradient>
+                  </TouchableOpacity>
+                  
+                  <View style={styles.badge}>
+                    <Icon name="gift" size={12} color="#10B981" />
+                    <Text style={styles.badgeText}>Gratuit</Text>
+                  </View>
+                </View>
+              </View>
+            </View>
+          </TouchableOpacity>
         </View>
       </ScrollView>
     </LinearGradient>
@@ -120,7 +224,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flexGrow: 1,
-    paddingHorizontal: 20,
+    paddingHorizontal: 24,
     paddingTop: 60,
     paddingBottom: 100,
   },
@@ -128,77 +232,102 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: 32,
+    marginBottom: 28,
   },
   appTitle: {
-    fontSize: 24,
-    fontWeight: "700",
-    color: COLORS.titleGradientStart,
+    fontSize: 32,
+    fontWeight: "800",
+    color: COLORS.textPrimary,
+    fontFamily: "Poppins-Bold",
   },
   headerRight: {
     flexDirection: "row",
     gap: 12,
   },
-  iconCircle: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: COLORS.primary,
+  iconButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: COLORS.neutralGray800,
+    borderWidth: 1,
+    borderColor: COLORS.border,
     alignItems: "center",
     justifyContent: "center",
   },
+  titleSection: {
+    marginBottom: 32,
+  },
   pageTitle: {
-    fontSize: 28,
+    fontSize: 26,
     fontWeight: "700",
     color: COLORS.textPrimary,
     textAlign: "center",
-    marginBottom: 12,
+    marginBottom: 10,
+    fontFamily: "Poppins-Bold",
   },
   pageSubtitle: {
-    fontSize: 14,
+    fontSize: 15,
     color: COLORS.textSecondary,
     textAlign: "center",
-    marginBottom: 32,
+    lineHeight: 22,
+    fontFamily: "Poppins-Regular",
   },
   cardList: {
-    gap: 16,
+    gap: 20,
+  },
+  cardWrapper: {
+    borderRadius: 24,
   },
   card: {
     backgroundColor: COLORS.neutralGray800,
     borderRadius: 24,
-    padding: 12,
+    overflow: "hidden",
     borderWidth: 1,
     borderColor: COLORS.border,
   },
   cardImage: {
-    height: 120,
-    borderRadius: 18,
-    alignItems: "center",
+    height: 140,
     justifyContent: "center",
-    marginBottom: 12,
+    alignItems: "center",
+    position: "relative",
   },
   cardImageDark: {
-    height: 120,
-    borderRadius: 18,
-    backgroundColor: COLORS.primary,
-    alignItems: "center",
+    height: 140,
+    backgroundColor: COLORS.neutralGray800,
     justifyContent: "center",
-    marginBottom: 12,
-    gap: 8,
+    alignItems: "center",
+    position: "relative",
+  },
+  lockedOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0, 0, 0, 0.6)",
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 1,
+  },
+  cardImageContent: {
+    alignItems: "center",
+    gap: 12,
   },
   cardImageTitle: {
-    fontSize: 22,
-    fontWeight: "700",
+    fontSize: 24,
+    fontWeight: "800",
     color: COLORS.textPrimary,
+    fontFamily: "Poppins-Bold",
+    textShadowColor: "rgba(0, 0, 0, 0.3)",
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
   },
   cardContent: {
-    paddingHorizontal: 8,
+    padding: 20,
   },
   cardDescription: {
     fontSize: 14,
     color: COLORS.textSecondary,
-    marginBottom: 16,
+    marginBottom: 20,
     textAlign: "center",
+    lineHeight: 20,
+    fontFamily: "Poppins-Regular",
   },
   cardFooter: {
     flexDirection: "row",
@@ -206,41 +335,71 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   cardButton: {
-    backgroundColor: COLORS.titleGradientStart,
-    paddingHorizontal: 24,
-    paddingVertical: 10,
     borderRadius: 999,
+    overflow: "hidden",
   },
-  cardButtonSecondary: {
-    backgroundColor: COLORS.primary,
+  cardButtonGradient: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+  },
+  cardButtonLocked: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    backgroundColor: COLORS.neutralGray800,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: COLORS.border,
   },
   cardButtonText: {
     color: COLORS.textPrimary,
-    fontSize: 14,
+    fontSize: 15,
+    fontWeight: "700",
+    fontFamily: "Poppins-Bold",
+  },
+  cardButtonTextLocked: {
+    color: COLORS.textSecondary,
+    fontSize: 15,
     fontWeight: "600",
+    fontFamily: "Poppins-SemiBold",
   },
   badge: {
-    backgroundColor: "transparent",
+    backgroundColor: "rgba(16, 185, 129, 0.1)",
     borderWidth: 1,
-    borderColor: COLORS.border,
-    paddingHorizontal: 12,
-    paddingVertical: 4,
+    borderColor: "rgba(16, 185, 129, 0.3)",
+    paddingHorizontal: 14,
+    paddingVertical: 6,
     borderRadius: 999,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
   },
   badgeText: {
     fontSize: 12,
     fontWeight: "600",
-    color: COLORS.textSecondary,
+    color: "#10B981",
+    fontFamily: "Poppins-SemiBold",
   },
   badgePremium: {
-    borderColor: "#FFD700",
+    backgroundColor: "rgba(255, 215, 0, 0.1)",
+    borderWidth: 1,
+    borderColor: "rgba(255, 215, 0, 0.3)",
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 999,
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
+    gap: 6,
   },
   badgeTextPremium: {
     fontSize: 12,
     fontWeight: "600",
     color: "#FFD700",
+    fontFamily: "Poppins-SemiBold",
   },
 });

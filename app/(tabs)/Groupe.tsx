@@ -127,6 +127,7 @@ export default function GroupsScreen() {
       >
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={COLORS.secondary} />
+          <Text style={styles.loadingText}>Chargement...</Text>
         </View>
       </LinearGradient>
     );
@@ -139,6 +140,7 @@ export default function GroupsScreen() {
     >
       <ScrollView
         contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -157,34 +159,30 @@ export default function GroupsScreen() {
               <Icon name="arrow-back" size={24} color={COLORS.textPrimary} />
             </TouchableOpacity>
             <View style={styles.favoritesHeader}>
-              <Icon name="heart" size={24} color={COLORS.error} />
-              <Text style={styles.favoritesTitle}>Groupes favoris</Text>
+              <Icon name="heart" size={28} color={COLORS.error} />
+              <Text style={styles.favoritesTitle}>Mes Favoris</Text>
             </View>
-            <View style={styles.backButton} />
+            <View style={{ width: 40 }} />
           </View>
         ) : (
           <View style={styles.header}>
             <Text style={styles.appTitle}>Groupes</Text>
             <View style={styles.headerRight}>
               <TouchableOpacity 
-                style={styles.iconCircle}
+                style={styles.iconButton}
                 onPress={() => setShowFavorites(true)}
               >
                 <Icon name="heart-outline" size={20} color={COLORS.secondary} />
               </TouchableOpacity>
-              <TouchableOpacity style={styles.iconCircle} onPress={createGroup}>
-                <Icon name="add" size={24} color={COLORS.secondary} />
+              <TouchableOpacity style={styles.createIconButton} onPress={createGroup}>
+                <LinearGradient
+                  colors={[COLORS.titleGradientStart, COLORS.titleGradientEnd]}
+                  style={styles.createIconGradient}
+                >
+                  <Icon name="add" size={24} color={COLORS.textPrimary} />
+                </LinearGradient>
               </TouchableOpacity>
             </View>
-          </View>
-        )}
-
-        {/* Compteur de favoris en mode favoris */}
-        {showFavorites && (
-          <View style={styles.favoritesCount}>
-            <Text style={styles.favoritesCountText}>
-              {favoriteGroups.length} {favoriteGroups.length > 1 ? "groupes" : "groupe"}
-            </Text>
           </View>
         )}
 
@@ -208,11 +206,13 @@ export default function GroupsScreen() {
         {/* GROUPS LIST */}
         {filteredGroups.length === 0 ? (
           <View style={styles.emptyContainer}>
-            <Icon 
-              name={showFavorites ? "heart-dislike-outline" : "people-outline"} 
-              size={64} 
-              color={COLORS.textSecondary} 
-            />
+            <View style={styles.emptyIconContainer}>
+              <Icon 
+                name={showFavorites ? "heart-dislike-outline" : "people-outline"} 
+                size={64} 
+                color={COLORS.textSecondary} 
+              />
+            </View>
             <Text style={styles.emptyTitle}>
               {showFavorites 
                 ? "Aucun groupe favori"
@@ -222,7 +222,7 @@ export default function GroupsScreen() {
             </Text>
             <Text style={styles.emptyText}>
               {showFavorites
-                ? "Vous n'avez pas encore de groupe favori"
+                ? "Ajoutez des groupes à vos favoris"
                 : searchQuery
                   ? "Essayez une autre recherche"
                   : "Créez votre premier groupe pour commencer !"}
@@ -235,7 +235,7 @@ export default function GroupsScreen() {
                   end={{ x: 1, y: 0 }}
                   style={styles.createButton}
                 >
-                  <Icon name="add" size={20} color={COLORS.textPrimary} />
+                  <Icon name="add-circle-outline" size={22} color={COLORS.textPrimary} />
                   <Text style={styles.createButtonText}>Créer un groupe</Text>
                 </LinearGradient>
               </TouchableOpacity>
@@ -253,29 +253,51 @@ export default function GroupsScreen() {
                   key={group.id}
                   style={styles.groupCard}
                   onPress={() => openGroup(group.id)}
+                  activeOpacity={0.7}
                 >
-                  <View style={styles.groupAvatar}>
-                    <Text style={styles.groupEmoji}>{group.emoji}</Text>
-                  </View>
-
-                  <View style={styles.groupInfo}>
-                    <View style={styles.groupHeader}>
-                      <Text style={styles.groupName}>{group.name}</Text>
-                      {isCreator && (
-                        <View style={styles.creatorBadge}>
-                          <Icon name="star" size={10} color="#FFD700" />
-                        </View>
-                      )}
+                  <LinearGradient
+                    colors={["rgba(99, 102, 241, 0.1)", "rgba(139, 92, 246, 0.1)"]}
+                    style={styles.groupCardGradient}
+                  >
+                    <View style={styles.groupAvatar}>
+                      <LinearGradient
+                        colors={[COLORS.titleGradientStart, COLORS.titleGradientEnd]}
+                        style={styles.groupAvatarGradient}
+                      >
+                        <Text style={styles.groupEmoji}>{group.emoji}</Text>
+                      </LinearGradient>
                     </View>
-                    <Text style={styles.groupMembers}>
-                      {group.memberCount} membre{group.memberCount > 1 ? "s" : ""}
-                    </Text>
-                    <Text style={styles.groupActivity} numberOfLines={1}>
-                      Dernier sondage : "{group.lastActivity}"
-                    </Text>
-                  </View>
 
-                  <Icon name="chevron-forward" size={20} color={COLORS.textSecondary} />
+                    <View style={styles.groupInfo}>
+                      <View style={styles.groupHeader}>
+                        <Text style={styles.groupName} numberOfLines={1}>
+                          {group.name}
+                        </Text>
+                        {isCreator && (
+                          <View style={styles.creatorBadge}>
+                            <Icon name="crown" size={12} color="#FFD700" />
+                          </View>
+                        )}
+                      </View>
+                      
+                      <View style={styles.groupMetaContainer}>
+                        <View style={styles.groupMeta}>
+                          <Icon name="people" size={14} color={COLORS.textSecondary} />
+                          <Text style={styles.groupMembers}>
+                            {group.memberCount} membre{group.memberCount > 1 ? "s" : ""}
+                          </Text>
+                        </View>
+                      </View>
+
+                      <Text style={styles.groupActivity} numberOfLines={1}>
+                        {group.lastActivity}
+                      </Text>
+                    </View>
+
+                    <View style={styles.groupArrow}>
+                      <Icon name="chevron-forward" size={24} color={COLORS.textSecondary} />
+                    </View>
+                  </LinearGradient>
                 </TouchableOpacity>
               );
             })}
@@ -292,7 +314,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flexGrow: 1,
-    paddingHorizontal: 20,
+    paddingHorizontal: 24,
     paddingTop: 60,
     paddingBottom: 100,
   },
@@ -301,34 +323,57 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: COLORS.textSecondary,
+    fontFamily: "Poppins-Medium",
+  },
   header: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: 24,
+    marginBottom: 20,
   },
   appTitle: {
-    fontSize: 24,
-    fontWeight: "700",
-    color: COLORS.titleGradientStart,
+    fontSize: 32,
+    fontWeight: "800",
+    color: COLORS.textPrimary,
+    fontFamily: "Poppins-Bold",
   },
   headerRight: {
     flexDirection: "row",
     gap: 12,
   },
-  iconCircle: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: COLORS.primary,
+  iconButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: COLORS.neutralGray800,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  createIconButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    overflow: "hidden",
+  },
+  createIconGradient: {
+    width: "100%",
+    height: "100%",
     alignItems: "center",
     justifyContent: "center",
   },
   backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: COLORS.primary,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: COLORS.neutralGray800,
+    borderWidth: 1,
+    borderColor: COLORS.border,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -343,19 +388,28 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: "700",
     color: COLORS.textPrimary,
+    fontFamily: "Poppins-Bold",
   },
-  favoritesCount: {
-    backgroundColor: COLORS.primary,
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 12,
-    alignSelf: "center",
-    marginBottom: 24,
+  statsContainer: {
+    marginBottom: 20,
   },
-  favoritesCountText: {
-    color: COLORS.textSecondary,
+  statBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: COLORS.neutralGray800,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 999,
+    alignSelf: "flex-start",
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  statText: {
+    color: COLORS.textPrimary,
     fontSize: 14,
     fontWeight: "600",
+    fontFamily: "Poppins-SemiBold",
   },
   searchContainer: {
     flexDirection: "row",
@@ -363,7 +417,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.neutralGray800,
     borderRadius: 16,
     paddingHorizontal: 16,
-    height: 48,
+    height: 52,
     borderWidth: 1,
     borderColor: COLORS.border,
     marginBottom: 24,
@@ -374,67 +428,88 @@ const styles = StyleSheet.create({
   searchInput: {
     flex: 1,
     color: COLORS.textPrimary,
-    fontSize: 14,
+    fontSize: 15,
+    fontFamily: "Poppins-Regular",
   },
   emptyContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    paddingTop: 60,
+    paddingTop: 80,
+  },
+  emptyIconContainer: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: COLORS.neutralGray800,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: COLORS.border,
   },
   emptyTitle: {
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: "700",
     color: COLORS.textPrimary,
-    marginTop: 16,
+    marginBottom: 12,
+    fontFamily: "Poppins-Bold",
   },
   emptyText: {
-    fontSize: 14,
+    fontSize: 15,
     color: COLORS.textSecondary,
-    marginTop: 8,
     textAlign: "center",
     paddingHorizontal: 40,
+    lineHeight: 22,
+    fontFamily: "Poppins-Regular",
   },
   createButtonWrapper: {
-    marginTop: 24,
+    marginTop: 32,
     borderRadius: 999,
     overflow: "hidden",
   },
   createButton: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
-    paddingHorizontal: 24,
-    paddingVertical: 12,
+    gap: 10,
+    paddingHorizontal: 28,
+    paddingVertical: 14,
   },
   createButtonText: {
     fontSize: 16,
-    fontWeight: "600",
+    fontWeight: "700",
     color: COLORS.textPrimary,
+    fontFamily: "Poppins-Bold",
   },
   groupsList: {
-    gap: 12,
+    gap: 16,
   },
   groupCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: COLORS.neutralGray800,
-    borderRadius: 16,
-    padding: 16,
+    borderRadius: 20,
+    overflow: "hidden",
     borderWidth: 1,
     borderColor: COLORS.border,
-    gap: 12,
+  },
+  groupCardGradient: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 16,
+    gap: 14,
   },
   groupAvatar: {
-    width: 56,
-    height: 56,
-    borderRadius: 12,
-    backgroundColor: COLORS.primary,
+    width: 64,
+    height: 64,
+    borderRadius: 16,
+    overflow: "hidden",
+  },
+  groupAvatarGradient: {
+    width: "100%",
+    height: "100%",
     justifyContent: "center",
     alignItems: "center",
   },
   groupEmoji: {
-    fontSize: 28,
+    fontSize: 32,
   },
   groupInfo: {
     flex: 1,
@@ -443,29 +518,50 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    marginBottom: 4,
+    marginBottom: 6,
   },
   groupName: {
     fontSize: 18,
     fontWeight: "700",
     color: COLORS.textPrimary,
+    fontFamily: "Poppins-Bold",
+    flex: 1,
   },
   creatorBadge: {
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    backgroundColor: "rgba(255, 215, 0, 0.2)",
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: "rgba(255, 215, 0, 0.15)",
     justifyContent: "center",
     alignItems: "center",
+    borderWidth: 1,
+    borderColor: "rgba(255, 215, 0, 0.3)",
+  },
+  groupMetaContainer: {
+    marginBottom: 6,
+  },
+  groupMeta: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
   },
   groupMembers: {
     fontSize: 13,
     color: COLORS.textSecondary,
-    marginBottom: 4,
+    fontFamily: "Poppins-Medium",
   },
   groupActivity: {
-    fontSize: 12,
+    fontSize: 13,
     color: COLORS.textSecondary,
     fontStyle: "italic",
+    fontFamily: "Poppins-Regular",
+  },
+  groupArrow: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: COLORS.neutralGray800,
+    justifyContent: "center",
+    alignItems: "center",
   },
 });

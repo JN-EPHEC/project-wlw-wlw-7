@@ -13,6 +13,7 @@ import {
 } from "react-native";
 import Icon from "react-native-vector-icons/Ionicons";
 import { COLORS } from "../../components/Colors";
+import RecommendationsModal from "../../components/RecommandationModal";
 import { auth, db } from "../../firebase_Config";
 
 interface GroupData {
@@ -40,6 +41,7 @@ export default function GroupDetailScreen() {
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
   const [isCreator, setIsCreator] = useState(false);
+  const [showRecommendations, setShowRecommendations] = useState(false);
 
   useEffect(() => {
     if (groupId) {
@@ -292,6 +294,24 @@ export default function GroupDetailScreen() {
         <View style={styles.actionsSection}>
           <Text style={styles.sectionTitle}>Actions</Text>
 
+          {/* Bouton Recommandations IA */}
+          <TouchableOpacity
+            style={styles.recommendationsButton}
+            onPress={() => setShowRecommendations(true)}
+          >
+            <LinearGradient
+              colors={["#FFD700", "#FFA500"]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.recommendationsButtonGradient}
+            >
+              <Icon name="sparkles" size={20} color="#000000" />
+              <Text style={styles.recommendationsButtonText}>
+                Recommandations IA 🤖
+              </Text>
+            </LinearGradient>
+          </TouchableOpacity>
+
           {/* Bouton Discussion */}
           <TouchableOpacity
             style={styles.actionButton}
@@ -349,6 +369,14 @@ export default function GroupDetailScreen() {
           )}
         </View>
       </ScrollView>
+
+      {/* Modal Recommandations */}
+      <RecommendationsModal
+        visible={showRecommendations}
+        onClose={() => setShowRecommendations(false)}
+        groupId={groupId as string}
+        groupMembers={group?.members || []}
+      />
     </LinearGradient>
   );
 }
@@ -483,6 +511,23 @@ const styles = StyleSheet.create({
   },
   actionsSection: {
     marginBottom: 32,
+  },
+  recommendationsButton: {
+    borderRadius: 16,
+    overflow: "hidden",
+    marginBottom: 12,
+  },
+  recommendationsButtonGradient: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+    paddingVertical: 16,
+  },
+  recommendationsButtonText: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#000000",
   },
   actionButton: {
     flexDirection: "row",
