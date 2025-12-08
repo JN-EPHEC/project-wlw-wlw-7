@@ -1,13 +1,16 @@
 import { addDoc, collection, doc, getDoc } from 'firebase/firestore';
 import { db } from '../firebase_Config';
 
+// TYPES
+type NotificationType = "friend_request" | "friend_accept" | "group_invite" | "activity_proposed";
+
 /**
  * Créer une notification dans Firestore
  * (Une Cloud Function l'enverra automatiquement via Expo Push)
  */
 export async function createNotification(
   toUserId: string,
-  type: 'friend_request' | 'friend_accept' | 'group_invite' | 'group_message',
+  type: NotificationType,
   data: {
     fromUserId?: string;
     fromUsername?: string;
@@ -139,7 +142,7 @@ export async function sendPushNotification(
  */
 export async function notifyUser(
   toUserId: string,
-  type: 'friend_request' | 'friend_accept' | 'group_invite',
+  type: NotificationType,
   title: string,
   body: string,
   data?: any

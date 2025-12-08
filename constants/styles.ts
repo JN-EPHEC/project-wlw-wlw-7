@@ -13,4 +13,9 @@ export const globalStyles = StyleSheet.create({
   textBold: {
     fontFamily: 'Poppins-Bold',
   },
+  logoTextMask: {
+  fontSize: 34,
+  fontFamily: "Poppins-Bold",
+  color: "#000000",
+},
 });

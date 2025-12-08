@@ -1,12 +1,8 @@
 # Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
-<<<<<<< HEAD
-firebase_Config.js
-=======
 
 
 firebase_Config.js
 
->>>>>>> eaf83161e3736f37e740212311bc2c7635600474
 # dependencies
 node_modules/
 

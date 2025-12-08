@@ -1,3 +1,4 @@
+import MaskedView from "@react-native-masked-view/masked-view";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { arrayRemove, arrayUnion, collection, doc, getDoc, getDocs, setDoc, updateDoc } from "firebase/firestore";
@@ -6,6 +7,7 @@ import {
   ActivityIndicator,
   Alert,
   ImageBackground,
+  Platform,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -296,22 +298,35 @@ export default function HomeScreen() {
                 <Icon name="heart" size={28} color={COLORS.error} />
                 <Text style={styles.favoritesTitle}>Mes Favoris</Text>
               </View>
-              <View style={styles.backButton} />
+              <View style={{ width: 40 }} />
             </View>
           ) : (
-            <View style={styles.header}>
-              <View style={styles.titleContainer}>
-                <Text style={[styles.title, styles.titleGradientStart]}>What</Text>
-                <Text style={[styles.title, styles.titleGradientEnd]}>2do</Text>
-              </View>
-              
-              <View style={styles.headerRight}>
-                {/* BADGE DE LOCALISATION */}
-                {userLocation && locationGranted && (
-                  <View style={styles.locationBadge}>
-                    <Icon name="location" size={14} color="#6366F1" />
-                    <Text style={styles.locationText}>{userLocation.city}</Text>
+            <View>
+              <View style={styles.header}>
+                {Platform.OS === 'web' ? (
+                  // VERSION WEB : Deux couleurs séparées (fallback)
+                  <View style={styles.titleContainer}>
+                    <Text style={[styles.title, styles.titleGradientStart]}>What</Text>
+                    <Text style={[styles.title, styles.titleGradientEnd]}>2do</Text>
                   </View>
+                ) : (
+                  // VERSION MOBILE : Vrai gradient avec MaskedView
+                  <MaskedView
+                    maskElement={
+                      <View style={styles.titleContainer}>
+                        <Text style={styles.titleMask}>What2do</Text>
+                      </View>
+                    }
+                  >
+                    <LinearGradient
+                      colors={[COLORS.titleGradientStart, COLORS.titleGradientEnd]}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 0 }}
+                      style={styles.titleGradient}
+                    >
+                      <Text style={styles.titleMask}>What2do</Text>
+                    </LinearGradient>
+                  </MaskedView>
                 )}
                 
                 <TouchableOpacity 
@@ -321,6 +336,16 @@ export default function HomeScreen() {
                   <Icon name="heart-outline" size={18} color={COLORS.secondary} />
                 </TouchableOpacity>
               </View>
+              
+              {/* BADGE DE LOCALISATION EN DESSOUS */}
+              {userLocation && locationGranted && (
+                <View style={styles.locationBadgeContainer}>
+                  <View style={styles.locationBadge}>
+                    <Icon name="location" size={16} color="#6366F1" />
+                    <Text style={styles.locationText}>{userLocation.city}</Text>
+                  </View>
+                </View>
+              )}
             </View>
           )}
 
@@ -573,6 +598,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 4,
   },
+  titleMask: {
+    fontSize: 32,
+    fontWeight: "800",
+    color: "#000000",
+  },
+  titleGradient: {
+    flexDirection: "row",
+  },
   title: {
     fontSize: 32,
     fontWeight: "800",
@@ -583,24 +616,23 @@ const styles = StyleSheet.create({
   titleGradientEnd: {
     color: COLORS.titleGradientEnd,
   },
-  headerRight: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
+  locationBadgeContainer: {
+    marginTop: 12,
+    alignItems: 'flex-start',
   },
   locationBadge: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
     backgroundColor: "rgba(99, 102, 241, 0.15)",
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     borderRadius: 999,
     borderWidth: 1,
     borderColor: "rgba(99, 102, 241, 0.3)",
   },
   locationText: {
-    fontSize: 11,
+    fontSize: 13,
     fontFamily: "Poppins-SemiBold",
     color: "#6366F1",
   },

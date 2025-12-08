@@ -1,10 +1,14 @@
+import * as ImagePicker from "expo-image-picker";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { EmailAuthProvider, reauthenticateWithCredential, updatePassword, updateProfile } from "firebase/auth";
 import { collection, doc, getDoc, getDocs, query, updateDoc, where } from "firebase/firestore";
+import { getDownloadURL, getStorage, ref, uploadBytes } from "firebase/storage";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
+  Image,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -29,6 +33,7 @@ export default function EditProfileScreen() {
   const [city, setCity] = useState("");
   const [accountType, setAccountType] = useState<AccountType | null>(null);
   const [interests, setInterests] = useState<string[]>([]);
+  const [photoURL, setPhotoURL] = useState<string | null>(null);
   
   // États pour le changement de mot de passe
   const [currentPassword, setCurrentPassword] = useState("");
@@ -38,6 +43,7 @@ export default function EditProfileScreen() {
   // États UI
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [showPasswordSection, setShowPasswordSection] = useState(false);
   const [showSurveySection, setShowSurveySection] = useState(false);
   const [error, setError] = useState("");
@@ -56,6 +62,7 @@ export default function EditProfileScreen() {
 
       setEmail(user.email || "");
       setUsername(user.displayName || "");
+      setPhotoURL(user.photoURL || null);
 
       // Charger les données Firestore
       const userDoc = await getDoc(doc(db, "users", user.uid));
@@ -64,12 +71,134 @@ export default function EditProfileScreen() {
         setCity(data.city || "");
         setAccountType(data.accountType || null);
         setInterests(data.interests || []);
+        if (data.photoURL) {
+          setPhotoURL(data.photoURL);
+        }
       }
     } catch (e) {
       console.error("Error loading user data:", e);
     } finally {
       setLoading(false);
     }
+  };
+
+  const pickImage = async () => {
+    try {
+      // Demander la permission
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      
+      if (status !== "granted") {
+        Alert.alert(
+          "Permission refusée",
+          "Nous avons besoin de votre permission pour accéder à vos photos."
+        );
+        return;
+      }
+
+      // Ouvrir le sélecteur d'image
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.5, // Compression pour réduire la taille
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        await uploadImage(result.assets[0].uri);
+      }
+    } catch (error) {
+      console.error("Error picking image:", error);
+      Alert.alert("Erreur", "Impossible de sélectionner l'image");
+    }
+  };
+
+  const takePhoto = async () => {
+    try {
+      // Demander la permission
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      
+      if (status !== "granted") {
+        Alert.alert(
+          "Permission refusée",
+          "Nous avons besoin de votre permission pour accéder à la caméra."
+        );
+        return;
+      }
+
+      // Ouvrir la caméra
+      const result = await ImagePicker.launchCameraAsync({
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.5,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        await uploadImage(result.assets[0].uri);
+      }
+    } catch (error) {
+      console.error("Error taking photo:", error);
+      Alert.alert("Erreur", "Impossible de prendre une photo");
+    }
+  };
+
+  const uploadImage = async (uri: string) => {
+    const user = auth.currentUser;
+    if (!user) return;
+
+    setUploadingPhoto(true);
+    try {
+      // Convertir l'URI en blob
+      const response = await fetch(uri);
+      const blob = await response.blob();
+
+      // Référence Firebase Storage
+      const storage = getStorage();
+      const storageRef = ref(storage, `profilePictures/${user.uid}.jpg`);
+
+      // Upload
+      await uploadBytes(storageRef, blob);
+
+      // Récupérer l'URL
+      const downloadURL = await getDownloadURL(storageRef);
+
+      // Mettre à jour Firebase Auth
+      await updateProfile(user, { photoURL: downloadURL });
+
+      // Mettre à jour Firestore
+      const userRef = doc(db, "users", user.uid);
+      await updateDoc(userRef, { photoURL: downloadURL });
+
+      setPhotoURL(downloadURL);
+      setSuccess("✅ Photo de profil mise à jour !");
+      setTimeout(() => setSuccess(""), 3000);
+    } catch (error) {
+      console.error("Error uploading image:", error);
+      Alert.alert("Erreur", "Impossible d'uploader la photo");
+    } finally {
+      setUploadingPhoto(false);
+    }
+  };
+
+  const showPhotoOptions = () => {
+    Alert.alert(
+      "Photo de profil",
+      "Choisissez une option",
+      [
+        {
+          text: "Prendre une photo",
+          onPress: takePhoto,
+        },
+        {
+          text: "Choisir depuis la galerie",
+          onPress: pickImage,
+        },
+        {
+          text: "Annuler",
+          style: "cancel",
+        },
+      ],
+      { cancelable: true }
+    );
   };
 
   const toggleInterest = (interest: string) => {
@@ -229,14 +358,37 @@ export default function EditProfileScreen() {
 
           {/* AVATAR SECTION */}
           <View style={styles.avatarSection}>
-            <LinearGradient
-              colors={[COLORS.titleGradientStart, COLORS.titleGradientEnd]}
-              style={styles.avatar}
+            <TouchableOpacity 
+              style={styles.avatarContainer}
+              onPress={showPhotoOptions}
+              disabled={uploadingPhoto}
             >
-              <Text style={styles.avatarText}>
-                {username.charAt(0).toUpperCase() || "U"}
-              </Text>
-            </LinearGradient>
+              {photoURL ? (
+                <Image source={{ uri: photoURL }} style={styles.avatarImage} />
+              ) : (
+                <LinearGradient
+                  colors={[COLORS.titleGradientStart, COLORS.titleGradientEnd]}
+                  style={styles.avatar}
+                >
+                  <Text style={styles.avatarText}>
+                    {username.charAt(0).toUpperCase() || "U"}
+                  </Text>
+                </LinearGradient>
+              )}
+              
+              {/* BOUTON CAMÉRA */}
+              <View style={styles.cameraButton}>
+                {uploadingPhoto ? (
+                  <ActivityIndicator size="small" color={COLORS.textPrimary} />
+                ) : (
+                  <Icon name="camera" size={18} color={COLORS.textPrimary} />
+                )}
+              </View>
+            </TouchableOpacity>
+            
+            <Text style={styles.avatarHint}>
+              Appuyez pour changer la photo
+            </Text>
           </View>
 
           {/* INFORMATIONS DE BASE */}
@@ -524,17 +676,44 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 32,
   },
+  avatarContainer: {
+    position: "relative",
+  },
   avatar: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
+    width: 120,
+    height: 120,
+    borderRadius: 60,
     justifyContent: "center",
     alignItems: "center",
   },
+  avatarImage: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+  },
   avatarText: {
-    fontSize: 40,
+    fontSize: 48,
     fontFamily: "Poppins-Bold",
     color: COLORS.textPrimary,
+  },
+  cameraButton: {
+    position: "absolute",
+    bottom: 0,
+    right: 0,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: COLORS.secondary,
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 3,
+    borderColor: COLORS.backgroundTop,
+  },
+  avatarHint: {
+    marginTop: 12,
+    fontSize: 12,
+    color: COLORS.textSecondary,
+    fontFamily: "Poppins-Regular",
   },
   section: {
     marginBottom: 24,

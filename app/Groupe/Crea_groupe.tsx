@@ -1,10 +1,11 @@
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
-import { addDoc, collection, doc, getDoc } from "firebase/firestore";
-import { useEffect, useState } from "react";
+import { addDoc, collection, doc, getDoc, getDocs, query, where } from "firebase/firestore";
+import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  ImageBackground,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -27,17 +28,39 @@ interface Friend {
   email: string;
 }
 
+interface Activity {
+  id: string;
+  title: string;
+  description: string;
+  category: string;
+  location: string;
+  image?: string;
+  date: string;
+}
+
 export default function CreateGroupScreen() {
   const router = useRouter();
+  const [step, setStep] = useState(1); // 1: Info, 2: Amis, 3: Activité
+  
+  // Step 1: Info du groupe
   const [groupName, setGroupName] = useState("");
   const [selectedEmoji, setSelectedEmoji] = useState("🎳");
+  
+  // Step 2: Amis
   const [friends, setFriends] = useState<Friend[]>([]);
   const [selectedFriends, setSelectedFriends] = useState<string[]>([]);
+  
+  // Step 3: Activité
+  const [activities, setActivities] = useState<Activity[]>([]);
+  const [selectedActivity, setSelectedActivity] = useState<Activity | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
 
   useEffect(() => {
     loadFriends();
+    loadActivities();
   }, []);
 
   const loadFriends = async () => {
@@ -45,7 +68,6 @@ export default function CreateGroupScreen() {
     if (!currentUser) return;
 
     try {
-      // Récupérer la liste d'amis du user
       const userDoc = await getDoc(doc(db, "users", currentUser.uid));
       const userData = userDoc.data();
       const friendIds = userData?.friends || [];
@@ -56,7 +78,6 @@ export default function CreateGroupScreen() {
         return;
       }
 
-      // Récupérer les infos de chaque ami
       const friendsData: Friend[] = [];
       for (const friendId of friendIds) {
         const friendDoc = await getDoc(doc(db, "users", friendId));
@@ -78,6 +99,20 @@ export default function CreateGroupScreen() {
     }
   };
 
+  const loadActivities = async () => {
+    try {
+      const activitiesSnapshot = await getDocs(collection(db, "activities"));
+      const activitiesList: Activity[] = activitiesSnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      } as Activity));
+
+      setActivities(activitiesList);
+    } catch (error) {
+      console.error("Error loading activities:", error);
+    }
+  };
+
   const toggleFriend = (friendId: string) => {
     setSelectedFriends(prev => 
       prev.includes(friendId) 
@@ -86,25 +121,75 @@ export default function CreateGroupScreen() {
     );
   };
 
+  const goToNextStep = () => {
+    if (step === 1) {
+      if (!groupName.trim()) {
+        Alert.alert("Erreur", "Donnez un nom à votre groupe");
+        return;
+      }
+      setStep(2);
+    } else if (step === 2) {
+      if (selectedFriends.length === 0) {
+        Alert.alert("Erreur", "Sélectionnez au moins un ami");
+        return;
+      }
+      setStep(3);
+    }
+  };
+
+  const goToPreviousStep = () => {
+    if (step > 1) {
+      setStep(step - 1);
+    } else {
+      router.back();
+    }
+  };
+
   const createGroup = async () => {
     const currentUser = auth.currentUser;
     if (!currentUser) return;
 
-    if (!groupName.trim()) {
-      Alert.alert("Erreur", "Donnez un nom à votre groupe");
-      return;
-    }
-
-    if (selectedFriends.length === 0) {
-      Alert.alert("Erreur", "Sélectionnez au moins un ami");
+    if (!selectedActivity) {
+      Alert.alert("Erreur", "Sélectionnez une activité pour votre groupe");
       return;
     }
 
     setCreating(true);
     try {
-      // Créer le groupe dans Firestore
       const groupsRef = collection(db, "groups");
-      const allMembers = [currentUser.uid, ...selectedFriends];
+      const allMembers = [currentUser.uid, ...selectedFriends].sort();
+      
+      // Vérifier si un groupe existe déjà avec exactement les mêmes membres
+      const existingGroupsQuery = query(
+        collection(db, "groups"),
+        where("members", "array-contains", currentUser.uid)
+      );
+      const existingGroupsSnapshot = await getDocs(existingGroupsQuery);
+      
+      const duplicateGroup = existingGroupsSnapshot.docs.find(doc => {
+        const groupMembers = [...doc.data().members].sort();
+        return JSON.stringify(groupMembers) === JSON.stringify(allMembers);
+      });
+
+      if (duplicateGroup) {
+        const duplicateName = duplicateGroup.data().name;
+        setCreating(false);
+        Alert.alert(
+          "Groupe existant",
+          `Un groupe "${duplicateName}" existe déjà avec ces mêmes membres. Voulez-vous le consulter ?`,
+          [
+            { text: "Non", style: "cancel" },
+            {
+              text: "Voir le groupe",
+              onPress: () => {
+                router.back();
+                router.push(`/Groupe/${duplicateGroup.id}`);
+              }
+            }
+          ]
+        );
+        return;
+      }
       
       const groupData = {
         name: groupName.trim(),
@@ -119,27 +204,57 @@ export default function CreateGroupScreen() {
       const groupDoc = await addDoc(groupsRef, groupData);
       console.log("✅ Group created:", groupDoc.id);
 
-      // Envoyer des notifications à tous les membres ajoutés
+      // Créer l'activité de groupe avec deadline automatique
+      const activityDate = new Date(selectedActivity.date);
+      const deadline = new Date(activityDate.getTime() - 60 * 60 * 1000); // 1h avant
+
+      const participants: any = {};
+      allMembers.forEach((memberId: string) => {
+        participants[memberId] = {
+          vote: memberId === currentUser.uid ? "coming" : "pending",
+          reaction: null,
+          updatedAt: new Date().toISOString(),
+        };
+      });
+
+      await addDoc(collection(db, "groupActivities"), {
+        groupId: groupDoc.id,
+        activityId: selectedActivity.id,
+        activityTitle: selectedActivity.title,
+        activityDescription: selectedActivity.description,
+        activityImage: selectedActivity.image || "",
+        activityLocation: selectedActivity.location,
+        activityDate: selectedActivity.date,
+        activityCategory: selectedActivity.category,
+        deadline: deadline.toISOString(),
+        proposedBy: currentUser.uid,
+        proposedAt: new Date().toISOString(),
+        participants,
+      });
+
+      // Envoyer les notifications
       const creatorName = currentUser.displayName || "Un utilisateur";
       
-      for (const friendId of selectedFriends) {
-        await notifyUser(
-          friendId,
-          "group_invite",
-          "Nouveau groupe",
-          `${creatorName} vous a ajouté au groupe "${groupName}"`,
-          { 
-            fromUserId: currentUser.uid,
-            groupId: groupDoc.id,
-            groupName: groupName,
-          }
-        );
-      }
+      Promise.all(
+        selectedFriends.map(friendId =>
+          notifyUser(
+            friendId,
+            "group_invite",
+            "Nouveau groupe",
+            `${creatorName} vous a ajouté au groupe "${groupName}" pour ${selectedActivity.title}`,
+            { 
+              fromUserId: currentUser.uid,
+              groupId: groupDoc.id,
+              groupName: groupName,
+            }
+          ).catch(err => console.error("Notification error:", err))
+        )
+      ).catch(err => console.error("Notifications error:", err));
 
-      Alert.alert("Succès", `Groupe "${groupName}" créé !`, [
+      Alert.alert("Succès", `Groupe "${groupName}" créé ! 🎉`, [
         { 
           text: "OK", 
-          onPress: () => router.back()
+          onPress: () => router.push(`/Groupe/${groupDoc.id}`)
         }
       ]);
     } catch (error: any) {
@@ -149,6 +264,11 @@ export default function CreateGroupScreen() {
       setCreating(false);
     }
   };
+
+  const filteredActivities = activities.filter(activity =>
+    activity.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    activity.category.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   if (loading) {
     return (
@@ -178,109 +298,184 @@ export default function CreateGroupScreen() {
           <View style={styles.header}>
             <TouchableOpacity
               style={styles.backButton}
-              onPress={() => router.back()}
+              onPress={goToPreviousStep}
             >
               <Icon name="chevron-back" size={24} color={COLORS.textPrimary} />
             </TouchableOpacity>
-            <Text style={styles.headerTitle}>Créer un groupe</Text>
+            <Text style={styles.headerTitle}>
+              {step === 1 ? "Infos du groupe" : step === 2 ? "Ajouter des amis" : "Choisir une activité"}
+            </Text>
             <View style={{ width: 40 }} />
           </View>
 
-          {/* NOM DU GROUPE */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Nom du groupe</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Ex: Bowling 🎳"
-              placeholderTextColor={COLORS.textSecondary}
-              value={groupName}
-              onChangeText={setGroupName}
-              maxLength={30}
-            />
+          {/* PROGRESS INDICATOR */}
+          <View style={styles.progressContainer}>
+            <View style={[styles.progressDot, step >= 1 && styles.progressDotActive]} />
+            <View style={[styles.progressLine, step >= 2 && styles.progressLineActive]} />
+            <View style={[styles.progressDot, step >= 2 && styles.progressDotActive]} />
+            <View style={[styles.progressLine, step >= 3 && styles.progressLineActive]} />
+            <View style={[styles.progressDot, step >= 3 && styles.progressDotActive]} />
           </View>
 
-          {/* EMOJI SELECTION */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Choisir un emoji</Text>
-            <View style={styles.emojiGrid}>
-              {EMOJIS.map(emoji => (
-                <TouchableOpacity
-                  key={emoji}
-                  style={[
-                    styles.emojiButton,
-                    selectedEmoji === emoji && styles.emojiButtonSelected
-                  ]}
-                  onPress={() => setSelectedEmoji(emoji)}
-                >
-                  <Text style={styles.emojiText}>{emoji}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
-
-          {/* SÉLECTION DES AMIS */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>
-              Ajouter des amis ({selectedFriends.length} sélectionné{selectedFriends.length > 1 ? "s" : ""})
-            </Text>
-            
-            {friends.length === 0 ? (
-              <View style={styles.emptyContainer}>
-                <Icon name="people-outline" size={48} color={COLORS.textSecondary} />
-                <Text style={styles.emptyText}>
-                  Vous n'avez pas encore d'amis
-                </Text>
-                <TouchableOpacity 
-                  style={styles.addFriendsButton}
-                  onPress={() => (router as any).push("/Profile/Search_friends")}
-                >
-                  <Text style={styles.addFriendsButtonText}>
-                    Ajouter des amis
-                  </Text>
-                </TouchableOpacity>
+          {/* STEP 1: INFO DU GROUPE */}
+          {step === 1 && (
+            <>
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Nom du groupe</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Ex: Bowling 🎳"
+                  placeholderTextColor={COLORS.textSecondary}
+                  value={groupName}
+                  onChangeText={setGroupName}
+                  maxLength={30}
+                />
               </View>
-            ) : (
-              <View style={styles.friendsList}>
-                {friends.map(friend => (
-                  <TouchableOpacity
-                    key={friend.id}
-                    style={[
-                      styles.friendCard,
-                      selectedFriends.includes(friend.id) && styles.friendCardSelected
-                    ]}
-                    onPress={() => toggleFriend(friend.id)}
+
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Choisir un emoji</Text>
+                <View style={styles.emojiGrid}>
+                  {EMOJIS.map(emoji => (
+                    <TouchableOpacity
+                      key={emoji}
+                      style={[
+                        styles.emojiButton,
+                        selectedEmoji === emoji && styles.emojiButtonSelected
+                      ]}
+                      onPress={() => setSelectedEmoji(emoji)}
+                    >
+                      <Text style={styles.emojiText}>{emoji}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+            </>
+          )}
+
+          {/* STEP 2: SÉLECTION DES AMIS */}
+          {step === 2 && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>
+                Ajouter des amis ({selectedFriends.length} sélectionné{selectedFriends.length > 1 ? "s" : ""})
+              </Text>
+              
+              {friends.length === 0 ? (
+                <View style={styles.emptyContainer}>
+                  <Icon name="people-outline" size={48} color={COLORS.textSecondary} />
+                  <Text style={styles.emptyText}>
+                    Vous n'avez pas encore d'amis
+                  </Text>
+                  <TouchableOpacity 
+                    style={styles.addFriendsButton}
+                    onPress={() => router.push("/Profile/Search_friends")}
                   >
-                    <View style={styles.friendInfo}>
-                      <View style={styles.friendAvatar}>
-                        <Text style={styles.friendAvatarText}>
-                          {friend.username.charAt(0).toUpperCase()}
-                        </Text>
+                    <Text style={styles.addFriendsButtonText}>
+                      Ajouter des amis
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <View style={styles.friendsList}>
+                  {friends.map(friend => (
+                    <TouchableOpacity
+                      key={friend.id}
+                      style={[
+                        styles.friendCard,
+                        selectedFriends.includes(friend.id) && styles.friendCardSelected
+                      ]}
+                      onPress={() => toggleFriend(friend.id)}
+                    >
+                      <View style={styles.friendInfo}>
+                        <View style={styles.friendAvatar}>
+                          <Text style={styles.friendAvatarText}>
+                            {friend.username.charAt(0).toUpperCase()}
+                          </Text>
+                        </View>
+                        <View>
+                          <Text style={styles.friendName}>{friend.username}</Text>
+                          <Text style={styles.friendEmail}>{friend.email}</Text>
+                        </View>
                       </View>
-                      <View>
-                        <Text style={styles.friendName}>{friend.username}</Text>
-                        <Text style={styles.friendEmail}>{friend.email}</Text>
+                      
+                      <View style={[
+                        styles.checkbox,
+                        selectedFriends.includes(friend.id) && styles.checkboxChecked
+                      ]}>
+                        {selectedFriends.includes(friend.id) && (
+                          <Icon name="checkmark" size={16} color={COLORS.textPrimary} />
+                        )}
                       </View>
-                    </View>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+            </View>
+          )}
+
+          {/* STEP 3: SÉLECTION DE L'ACTIVITÉ */}
+          {step === 3 && (
+            <>
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Rechercher une activité</Text>
+                <View style={styles.searchBar}>
+                  <Icon name="search" size={18} color={COLORS.textSecondary} />
+                  <TextInput
+                    placeholder="Rechercher..."
+                    placeholderTextColor={COLORS.textSecondary}
+                    style={styles.searchInput}
+                    value={searchQuery}
+                    onChangeText={setSearchQuery}
+                  />
+                </View>
+              </View>
+
+              <View style={styles.activitiesList}>
+                {filteredActivities.map((activity) => (
+                  <TouchableOpacity
+                    key={activity.id}
+                    style={[
+                      styles.activityCard,
+                      selectedActivity?.id === activity.id && styles.activityCardSelected
+                    ]}
+                    onPress={() => setSelectedActivity(activity)}
+                  >
+                    {activity.image ? (
+                      <ImageBackground
+                        source={{ uri: activity.image }}
+                        style={styles.activityImage}
+                        imageStyle={{ borderRadius: 12 }}
+                      >
+                        <View style={styles.activityOverlay} />
+                      </ImageBackground>
+                    ) : (
+                      <LinearGradient
+                        colors={["#7C3AED", "#5B21B6"]}
+                        style={styles.activityImage}
+                      />
+                    )}
                     
-                    <View style={[
-                      styles.checkbox,
-                      selectedFriends.includes(friend.id) && styles.checkboxChecked
-                    ]}>
-                      {selectedFriends.includes(friend.id) && (
-                        <Icon name="checkmark" size={16} color={COLORS.textPrimary} />
-                      )}
+                    <View style={styles.activityInfo}>
+                      <Text style={styles.activityTitle}>{activity.title}</Text>
+                      <View style={styles.activityMeta}>
+                        <Icon name="location" size={12} color={COLORS.textSecondary} />
+                        <Text style={styles.activityMetaText}>{activity.location}</Text>
+                      </View>
                     </View>
+
+                    {selectedActivity?.id === activity.id && (
+                      <Icon name="checkmark-circle" size={24} color={COLORS.secondary} />
+                    )}
                   </TouchableOpacity>
                 ))}
               </View>
-            )}
-          </View>
+            </>
+          )}
 
-          {/* BOUTON CRÉER */}
+          {/* BOUTON SUIVANT/CRÉER */}
           <TouchableOpacity
             style={styles.createButtonWrapper}
-            onPress={createGroup}
-            disabled={creating || friends.length === 0}
+            onPress={step === 3 ? createGroup : goToNextStep}
+            disabled={creating || (step === 2 && friends.length === 0)}
           >
             <LinearGradient
               colors={[COLORS.titleGradientStart, COLORS.titleGradientEnd]}
@@ -288,11 +483,11 @@ export default function CreateGroupScreen() {
               end={{ x: 1, y: 0 }}
               style={[
                 styles.createButton,
-                (creating || friends.length === 0) && styles.createButtonDisabled
+                ((creating || (step === 2 && friends.length === 0))) && styles.createButtonDisabled
               ]}
             >
               <Text style={styles.createButtonText}>
-                {creating ? "Création..." : "Créer le groupe"}
+                {creating ? "Création..." : step === 3 ? "Créer le groupe" : "Suivant"}
               </Text>
             </LinearGradient>
           </TouchableOpacity>
@@ -324,7 +519,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: 32,
+    marginBottom: 24,
   },
   backButton: {
     width: 40,
@@ -340,6 +535,32 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: "700",
     color: COLORS.textPrimary,
+  },
+  progressContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 32,
+  },
+  progressDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: COLORS.neutralGray800,
+    borderWidth: 2,
+    borderColor: COLORS.border,
+  },
+  progressDotActive: {
+    backgroundColor: COLORS.secondary,
+    borderColor: COLORS.secondary,
+  },
+  progressLine: {
+    width: 40,
+    height: 2,
+    backgroundColor: COLORS.neutralGray800,
+  },
+  progressLineActive: {
+    backgroundColor: COLORS.secondary,
   },
   section: {
     marginBottom: 32,
@@ -461,6 +682,67 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "600",
     color: COLORS.textPrimary,
+  },
+  searchBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: COLORS.neutralGray800,
+    borderRadius: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    gap: 10,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  searchInput: {
+    flex: 1,
+    color: COLORS.textPrimary,
+    fontSize: 14,
+  },
+  activitiesList: {
+    gap: 12,
+  },
+  activityCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: COLORS.neutralGray800,
+    borderRadius: 16,
+    padding: 8,
+    borderWidth: 2,
+    borderColor: COLORS.border,
+    gap: 12,
+  },
+  activityCardSelected: {
+    borderColor: COLORS.secondary,
+    backgroundColor: COLORS.primary,
+  },
+  activityImage: {
+    width: 60,
+    height: 60,
+    borderRadius: 12,
+    overflow: "hidden",
+  },
+  activityOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.2)",
+  },
+  activityInfo: {
+    flex: 1,
+  },
+  activityTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: COLORS.textPrimary,
+    marginBottom: 4,
+  },
+  activityMeta: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  activityMetaText: {
+    fontSize: 11,
+    color: COLORS.textSecondary,
   },
   createButtonWrapper: {
     borderRadius: 999,

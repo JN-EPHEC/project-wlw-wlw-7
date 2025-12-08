@@ -1,5 +1,6 @@
 import { useAuth } from "@/Auth_context";
 import { Ionicons } from "@expo/vector-icons";
+import MaskedView from "@react-native-masked-view/masked-view";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { sendPasswordResetEmail } from "firebase/auth";
@@ -17,7 +18,7 @@ import {
 } from "react-native";
 import { COLORS } from "../components/Colors";
 import { auth } from "../firebase_Config";
-import { signInWithGooglePopup } from "./SimpleGoogleAuth";
+import { signInWithGooglePopup } from "../service/SimpleGoogleAuth";
 
 export default function LoginScreen() {
   const { signInWithEmail, user, loading, isRegistering } = useAuth();
@@ -165,12 +166,30 @@ export default function LoginScreen() {
           keyboardShouldPersistTaps="handled"
         >
           {/* LOGO */}
-          <View style={styles.logoContainer}>
-            <Text style={styles.logoText}>
-              <Text style={styles.logoWhat}>What</Text>
-              <Text style={styles.logo2Do}>2Do</Text>
-            </Text>
-          </View>
+<View style={styles.logoContainer}>
+  {Platform.OS === 'web' ? (
+    // VERSION WEB : Deux couleurs séparées
+    <Text style={styles.logoText}>
+      <Text style={styles.logoWhat}>What</Text>
+      <Text style={styles.logo2Do}>2Do</Text>
+    </Text>
+  ) : (
+    // VERSION MOBILE : Vrai gradient
+    <MaskedView
+      maskElement={
+        <Text style={styles.logoTextMask}>What2do</Text>
+      }
+    >
+      <LinearGradient
+        colors={[COLORS.titleGradientStart, COLORS.titleGradientEnd]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 0 }}
+      >
+        <Text style={styles.logoTextMask}>What2do</Text>
+      </LinearGradient>
+    </MaskedView>
+  )}
+</View>
 
           {/* MESSAGE D'ERREUR */}
           {error ? (
@@ -336,7 +355,11 @@ const styles = StyleSheet.create({
   logo2Do: {
     color: COLORS.titleGradientEnd,
   },
-
+  logoTextMask: {  // ← AJOUTE CE STYLE ICI
+    fontSize: 34,
+    fontFamily: "Poppins-Bold",
+    color: "#000000",
+  },
   /* ERROR MESSAGE */
 
   errorContainer: {
