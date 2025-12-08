@@ -402,4 +402,15 @@ const styles = StyleSheet.create({
     color: "#FFD700",
     fontFamily: "Poppins-SemiBold",
   },
+  cardButtons: {
+  flexDirection: "row",
+  gap: 8,
+},
+cardButtonOutline: {
+  paddingHorizontal: 20,
+  paddingVertical: 10,
+  borderRadius: 999,
+  borderWidth: 1,
+  borderColor: COLORS.secondary,
+},
 });
