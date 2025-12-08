@@ -2,10 +2,10 @@ import { useAuth } from "@/Auth_context";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
+import { sendPasswordResetEmail } from "firebase/auth";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -16,24 +16,32 @@ import {
   View,
 } from "react-native";
 import { COLORS } from "../components/Colors";
+import { auth } from "../firebase_Config";
+import { signInWithGooglePopup } from "./SimpleGoogleAuth";
 
 export default function LoginScreen() {
-  const { signInWithEmail, user, loading } = useAuth();
+  const { signInWithEmail, user, loading, isRegistering } = useAuth();
   const router = useRouter();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [passwordVisible, setPasswordVisible] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+  const [googleLoading, setGoogleLoading] = useState(false);
 
   useEffect(() => {
-    if (!loading && user) {
+    if (!loading && user && !isRegistering) {
       router.replace("/(tabs)/Home");
     }
-  }, [loading, user]);
+  }, [loading, user, isRegistering]);
 
   const handleLogin = async () => {
+    setError("");
+    setSuccess("");
+
     if (!email || !password) {
-      Alert.alert("Erreur", "Email et mot de passe obligatoires.");
+      setError("Email et mot de passe obligatoires.");
       return;
     }
 
@@ -41,7 +49,96 @@ export default function LoginScreen() {
       await signInWithEmail(email, password);
       router.replace("/(tabs)/Home");
     } catch (e: any) {
-      Alert.alert("Erreur", e.message || "Connexion impossible.");
+      console.error("❌ Login error:", e);
+      
+      let errorMessage = "Connexion impossible.";
+      
+      switch (e.code) {
+        case "auth/invalid-credential":
+        case "auth/wrong-password":
+        case "auth/user-not-found":
+          errorMessage = "❌ Email ou mot de passe incorrect.";
+          break;
+        case "auth/invalid-email":
+          errorMessage = "❌ Email invalide.";
+          break;
+        case "auth/user-disabled":
+          errorMessage = "❌ Ce compte a été désactivé.";
+          break;
+        case "auth/too-many-requests":
+          errorMessage = "❌ Trop de tentatives. Réessayez plus tard.";
+          break;
+        case "auth/network-request-failed":
+          errorMessage = "❌ Erreur réseau. Vérifiez votre connexion.";
+          break;
+        default:
+          if (e.message) {
+            errorMessage = `❌ ${e.message}`;
+          }
+      }
+      
+      setError(errorMessage);
+    }
+  };
+
+  const handleGoogleSignIn = async () => {
+    setError("");
+    setSuccess("");
+    setGoogleLoading(true);
+
+    try {
+      const result = await signInWithGooglePopup();
+      
+      if (result.needsSurvey) {
+        router.replace("/sondage");
+      } else {
+        router.replace("/(tabs)/Home");
+      }
+    } catch (e: any) {
+      console.error("❌ Google Sign-In error:", e);
+      
+      if (e.message === "Connexion annulée") {
+        // L'utilisateur a fermé la popup, pas d'erreur à afficher
+        return;
+      }
+      
+      setError("❌ Impossible de se connecter avec Google.");
+    } finally {
+      setGoogleLoading(false);
+    }
+  };
+
+  const handleForgotPassword = async () => {
+    setError("");
+    setSuccess("");
+
+    if (!email) {
+      setError("Entrez votre email pour réinitialiser le mot de passe.");
+      return;
+    }
+
+    try {
+      await sendPasswordResetEmail(auth, email);
+      setSuccess("✅ Email de réinitialisation envoyé ! Vérifiez votre boîte mail.");
+    } catch (e: any) {
+      console.error("❌ Password reset error:", e);
+      
+      let errorMessage = "Impossible d'envoyer l'email.";
+      
+      switch (e.code) {
+        case "auth/invalid-email":
+          errorMessage = "❌ Email invalide.";
+          break;
+        case "auth/user-not-found":
+          errorMessage = "❌ Aucun compte associé à cet email.";
+          break;
+        default:
+          if (e.message) {
+            errorMessage = `❌ ${e.message}`;
+          }
+      }
+      
+      setError(errorMessage);
     }
   };
 
@@ -49,7 +146,7 @@ export default function LoginScreen() {
     return (
       <View style={styles.center}>
         <ActivityIndicator />
-        <Text style={{ color: COLORS.textPrimary }}>Chargement...</Text>
+        <Text style={{ color: COLORS.textPrimary, fontFamily: "Poppins-Regular" }}>Chargement...</Text>
       </View>
     );
   }
@@ -74,6 +171,20 @@ export default function LoginScreen() {
               <Text style={styles.logo2Do}>2Do</Text>
             </Text>
           </View>
+
+          {/* MESSAGE D'ERREUR */}
+          {error ? (
+            <View style={styles.errorContainer}>
+              <Text style={styles.errorText}>{error}</Text>
+            </View>
+          ) : null}
+
+          {/* MESSAGE DE SUCCÈS */}
+          {success ? (
+            <View style={styles.successContainer}>
+              <Text style={styles.successText}>{success}</Text>
+            </View>
+          ) : null}
 
           {/* FORM */}
           <View style={styles.form}>
@@ -113,6 +224,16 @@ export default function LoginScreen() {
                   />
                 </TouchableOpacity>
               </View>
+
+              {/* LIEN MOT DE PASSE OUBLIÉ */}
+              <TouchableOpacity 
+                style={styles.forgotPasswordButton}
+                onPress={handleForgotPassword}
+              >
+                <Text style={styles.forgotPasswordText}>
+                  Mot de passe oublié ?
+                </Text>
+              </TouchableOpacity>
             </View>
 
             {/* LOGIN BUTTON */}
@@ -125,19 +246,30 @@ export default function LoginScreen() {
           <View style={styles.socialSection}>
             <Text style={styles.socialSeparatorText}>Ou continuer avec</Text>
 
-            <TouchableOpacity style={styles.socialButtonLight}>
-              <Ionicons
-                name="logo-google"
-                size={18}
-                color="#000000"
-                style={styles.socialIcon}
-              />
+            <TouchableOpacity 
+              style={styles.socialButtonLight}
+              onPress={handleGoogleSignIn}
+              disabled={googleLoading}
+            >
+              {googleLoading ? (
+                <ActivityIndicator color="#000000" style={{ position: "absolute", left: 18 }} />
+              ) : (
+                <Ionicons
+                  name="logo-google"
+                  size={18}
+                  color="#000000"
+                  style={styles.socialIcon}
+                />
+              )}
               <Text style={styles.socialButtonLightText}>
-                Continuer avec Google
+                {googleLoading ? "Connexion..." : "Continuer avec Google"}
               </Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.socialButtonDark}>
+            <TouchableOpacity 
+              style={styles.socialButtonDark}
+              onPress={() => setError("Apple Sign-In non implémenté pour ce MVP")}
+            >
               <Ionicons
                 name="logo-apple"
                 size={18}
@@ -153,7 +285,7 @@ export default function LoginScreen() {
           {/* BOTTOM SIGNUP */}
           <View style={styles.bottom}>
             <Text style={styles.bottomText}>
-              Vous n’avez pas de compte?
+              Vous n'avez pas de compte?
             </Text>
             <TouchableOpacity onPress={() => router.push("/register")}>
               <Text style={styles.bottomLink}>Inscrivez-vous</Text>
@@ -203,6 +335,42 @@ const styles = StyleSheet.create({
 
   logo2Do: {
     color: COLORS.titleGradientEnd,
+  },
+
+  /* ERROR MESSAGE */
+
+  errorContainer: {
+    backgroundColor: "rgba(255, 59, 48, 0.1)",
+    borderWidth: 1,
+    borderColor: "#FF3B30",
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 24,
+  },
+
+  errorText: {
+    color: "#FF3B30",
+    fontSize: 14,
+    fontFamily: "Poppins-Medium",
+    textAlign: "center",
+  },
+
+  /* SUCCESS MESSAGE */
+
+  successContainer: {
+    backgroundColor: "rgba(52, 199, 89, 0.1)",
+    borderWidth: 1,
+    borderColor: "#34C759",
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 24,
+  },
+
+  successText: {
+    color: "#34C759",
+    fontSize: 14,
+    fontFamily: "Poppins-Medium",
+    textAlign: "center",
   },
 
   /* FORM */
@@ -257,6 +425,17 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
 
+  forgotPasswordButton: {
+    alignSelf: "center",
+    marginTop: 8,
+  },
+
+  forgotPasswordText: {
+    fontSize: 13,
+    fontFamily: "Poppins-Medium",
+    color: COLORS.secondary,
+  },
+
   primaryButton: {
     marginTop: 24,
     width: "100%",
@@ -268,7 +447,7 @@ const styles = StyleSheet.create({
   },
 
   primaryButtonText: {
-    fontFamily: "Poppins-Medium",
+    fontFamily: "Poppins-SemiBold",
     fontSize: 15,
     color: COLORS.textPrimary,
   },

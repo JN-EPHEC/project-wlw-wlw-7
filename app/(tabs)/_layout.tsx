@@ -8,7 +8,7 @@ const TAB_CONFIG: Record<string, { label: string; icon: string }> = {
   Home: { label: "Accueil", icon: "home" },
   Jeux: { label: "Jeux", icon: "game-controller" },
   Groupe: { label: "Groupes", icon: "people" },
-  Profile: { label: "Profile", icon: "person" },
+  Profile: { label: "Profil", icon: "person" },
 };
 
 export default function TabLayout() {
