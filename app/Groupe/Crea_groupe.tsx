@@ -1,7 +1,7 @@
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
-import { addDoc, collection, doc, getDoc, getDocs, query, where } from "firebase/firestore";
-import React, { useEffect, useState } from "react";
+import { addDoc, collection, doc, getDoc } from "firebase/firestore";
+import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -68,6 +68,7 @@ export default function CreateGroupScreen() {
     if (!currentUser) return;
 
     try {
+      // Récupérer la liste d'amis du user
       const userDoc = await getDoc(doc(db, "users", currentUser.uid));
       const userData = userDoc.data();
       const friendIds = userData?.friends || [];
@@ -78,6 +79,7 @@ export default function CreateGroupScreen() {
         return;
       }
 
+      // Récupérer les infos de chaque ami
       const friendsData: Friend[] = [];
       for (const friendId of friendIds) {
         const friendDoc = await getDoc(doc(db, "users", friendId));
@@ -156,7 +158,9 @@ export default function CreateGroupScreen() {
 
     setCreating(true);
     try {
+      // Créer le groupe dans Firestore
       const groupsRef = collection(db, "groups");
+<<<<<<< HEAD
       const allMembers = [currentUser.uid, ...selectedFriends].sort();
       
       // Vérifier si un groupe existe déjà avec exactement les mêmes membres
@@ -190,6 +194,9 @@ export default function CreateGroupScreen() {
         );
         return;
       }
+=======
+      const allMembers = [currentUser.uid, ...selectedFriends];
+>>>>>>> 41ea0eb6c35d700a58f4715e4010b3cdee99a5c7
       
       const groupData = {
         name: groupName.trim(),
@@ -204,6 +211,7 @@ export default function CreateGroupScreen() {
       const groupDoc = await addDoc(groupsRef, groupData);
       console.log("✅ Group created:", groupDoc.id);
 
+<<<<<<< HEAD
       // Créer l'activité de groupe avec deadline automatique
       const activityDate = new Date(selectedActivity.date);
       const deadline = new Date(activityDate.getTime() - 60 * 60 * 1000); // 1h avant
@@ -255,6 +263,29 @@ export default function CreateGroupScreen() {
         { 
           text: "OK", 
           onPress: () => router.push(`/Groupe/${groupDoc.id}`)
+=======
+      // Envoyer des notifications à tous les membres ajoutés
+      const creatorName = currentUser.displayName || "Un utilisateur";
+      
+      for (const friendId of selectedFriends) {
+        await notifyUser(
+          friendId,
+          "group_invite",
+          "Nouveau groupe",
+          `${creatorName} vous a ajouté au groupe "${groupName}"`,
+          { 
+            fromUserId: currentUser.uid,
+            groupId: groupDoc.id,
+            groupName: groupName,
+          }
+        );
+      }
+
+      Alert.alert("Succès", `Groupe "${groupName}" créé !`, [
+        { 
+          text: "OK", 
+          onPress: () => router.back()
+>>>>>>> 41ea0eb6c35d700a58f4715e4010b3cdee99a5c7
         }
       ]);
     } catch (error: any) {
@@ -308,6 +339,7 @@ export default function CreateGroupScreen() {
             <View style={{ width: 40 }} />
           </View>
 
+<<<<<<< HEAD
           {/* PROGRESS INDICATOR */}
           <View style={styles.progressContainer}>
             <View style={[styles.progressDot, step >= 1 && styles.progressDotActive]} />
@@ -330,6 +362,60 @@ export default function CreateGroupScreen() {
                   onChangeText={setGroupName}
                   maxLength={30}
                 />
+=======
+          {/* NOM DU GROUPE */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Nom du groupe</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Ex: Bowling 🎳"
+              placeholderTextColor={COLORS.textSecondary}
+              value={groupName}
+              onChangeText={setGroupName}
+              maxLength={30}
+            />
+          </View>
+
+          {/* EMOJI SELECTION */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Choisir un emoji</Text>
+            <View style={styles.emojiGrid}>
+              {EMOJIS.map(emoji => (
+                <TouchableOpacity
+                  key={emoji}
+                  style={[
+                    styles.emojiButton,
+                    selectedEmoji === emoji && styles.emojiButtonSelected
+                  ]}
+                  onPress={() => setSelectedEmoji(emoji)}
+                >
+                  <Text style={styles.emojiText}>{emoji}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+
+          {/* SÉLECTION DES AMIS */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>
+              Ajouter des amis ({selectedFriends.length} sélectionné{selectedFriends.length > 1 ? "s" : ""})
+            </Text>
+            
+            {friends.length === 0 ? (
+              <View style={styles.emptyContainer}>
+                <Icon name="people-outline" size={48} color={COLORS.textSecondary} />
+                <Text style={styles.emptyText}>
+                  Vous n'avez pas encore d'amis
+                </Text>
+                <TouchableOpacity 
+                  style={styles.addFriendsButton}
+                  onPress={() => (router as any).push("/Profile/Search_friends")}
+                >
+                  <Text style={styles.addFriendsButtonText}>
+                    Ajouter des amis
+                  </Text>
+                </TouchableOpacity>
+>>>>>>> 41ea0eb6c35d700a58f4715e4010b3cdee99a5c7
               </View>
 
               <View style={styles.section}>
