@@ -53,6 +53,10 @@ export default function JeuxScreen() {
                 <TouchableOpacity style={styles.cardButton}>
                   <Text style={styles.cardButtonText}>Jouer</Text>
                 </TouchableOpacity>
+                <TouchableOpacity style={styles.cardButton}
+                 onPress={() => router.push("../Game/Description_jeu")} >
+                  <Text style={styles.cardButtonText}>Détails</Text>
+                </TouchableOpacity>
                 <View style={styles.badge}>
                   <Text style={styles.badgeText}>Free</Text>
                 </View>
