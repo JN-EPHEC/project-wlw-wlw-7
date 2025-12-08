@@ -1,12 +1,9 @@
 # Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
-<<<<<<< HEAD
+
+# Firebase config (contains sensitive API keys)
 firebase_Config.js
-=======
+firebase_Config.ts
 
-
-firebase_Config.js
-
->>>>>>> eaf83161e3736f37e740212311bc2c7635600474
 # dependencies
 node_modules/
 
@@ -48,5 +45,4 @@ app-example
 # generated native folders
 /ios
 /android
-.gitignore
 package-lock.json
