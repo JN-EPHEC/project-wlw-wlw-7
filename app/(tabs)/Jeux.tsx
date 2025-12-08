@@ -50,13 +50,21 @@ export default function JeuxScreen() {
               </Text>
               
               <View style={styles.cardFooter}>
-                <TouchableOpacity style={styles.cardButton}>
-                  <Text style={styles.cardButtonText}>Jouer</Text>
-                </TouchableOpacity>
-                <View style={styles.badge}>
-                  <Text style={styles.badgeText}>Free</Text>
-                </View>
-              </View>
+  <View style={styles.cardButtons}>
+    <TouchableOpacity style={styles.cardButton}>
+      <Text style={styles.cardButtonText}>Jouer</Text>
+    </TouchableOpacity>
+    <TouchableOpacity 
+      style={styles.cardButton} 
+      onPress={() => router.push("../Game/Description_jeu")}
+    >
+      <Text style={styles.cardButtonText}>Détails</Text>
+    </TouchableOpacity>
+  </View>
+  <View style={styles.badge}>
+    <Text style={styles.badgeText}>Free</Text>
+  </View>
+</View>
             </View>
           </View>
 
@@ -243,4 +251,15 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#FFD700",
   },
+  cardButtons: {
+  flexDirection: "row",
+  gap: 8,
+},
+cardButtonOutline: {
+  paddingHorizontal: 20,
+  paddingVertical: 10,
+  borderRadius: 999,
+  borderWidth: 1,
+  borderColor: COLORS.secondary,
+},
 });
