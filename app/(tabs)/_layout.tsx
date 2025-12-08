@@ -1,5 +1,3 @@
-import MaskedView from "@react-native-masked-view/masked-view";
-import { LinearGradient } from "expo-linear-gradient";
 import { Tabs } from "expo-router";
 import React from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
@@ -27,6 +25,11 @@ export default function TabLayout() {
 
             const isFocused = state.index === index;
 
+            // Alterne entre violet et rose selon l'index
+            const iconColor = index % 2 === 0 
+              ? COLORS.titleGradientStart 
+              : COLORS.titleGradientEnd;
+
             return (
               <TouchableOpacity
                 key={route.key}
@@ -34,29 +37,15 @@ export default function TabLayout() {
                 onPress={() => navigation.navigate(route.name)}
               >
                 {isFocused ? (
-                  // VERSION ACTIVE : Icône + Texte avec gradient
-                  <MaskedView
-                    style={{ alignItems: "center" }}
-                    maskElement={
-                      <View style={{ alignItems: "center" }}>
-                        <Icon name={tab.icon} size={22} color="#FFFFFF" />
-                        <Text style={styles.tabLabelMask}>{tab.label}</Text>
-                      </View>
-                    }
-                  >
-                    <LinearGradient
-                      colors={[COLORS.titleGradientStart, COLORS.titleGradientEnd]}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 0 }}
-                    >
-                      <View style={{ alignItems: "center" }}>
-                        <Icon name={tab.icon} size={22} color="#FFFFFF" />
-                        <Text style={styles.tabLabelMask}>{tab.label}</Text>
-                      </View>
-                    </LinearGradient>
-                  </MaskedView>
+                  // VERSION ACTIVE : Icône + Texte colorés (alterne violet/rose)
+                  <>
+                    <Icon name={tab.icon} size={22} color={iconColor} />
+                    <Text style={[styles.tabLabelActive, { color: iconColor }]}>
+                      {tab.label}
+                    </Text>
+                  </>
                 ) : (
-                  // VERSION INACTIVE : Icône + Texte normaux
+                  // VERSION INACTIVE : Icône + Texte gris
                   <>
                     <Icon name={tab.icon} size={22} color={COLORS.textSecondary} />
                     <Text style={styles.tabLabel}>{tab.label}</Text>
@@ -100,11 +89,12 @@ const styles = StyleSheet.create({
     marginTop: 4,
     fontSize: 11,
     color: COLORS.textSecondary,
+    fontFamily: "Poppins-Regular",
   },
-  tabLabelMask: {
+  tabLabelActive: {
     marginTop: 4,
     fontSize: 11,
     fontWeight: "600",
-    color: "#000000",
+    fontFamily: "Poppins-SemiBold",
   },
 });

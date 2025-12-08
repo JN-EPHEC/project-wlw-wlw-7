@@ -1,6 +1,5 @@
 import { useAuth } from "@/Auth_context";
 import { Ionicons } from "@expo/vector-icons";
-import MaskedView from "@react-native-masked-view/masked-view";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { sendPasswordResetEmail } from "firebase/auth";
@@ -165,31 +164,13 @@ export default function LoginScreen() {
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
         >
-          {/* LOGO */}
-<View style={styles.logoContainer}>
-  {Platform.OS === 'web' ? (
-    // VERSION WEB : Deux couleurs séparées
-    <Text style={styles.logoText}>
-      <Text style={styles.logoWhat}>What</Text>
-      <Text style={styles.logo2Do}>2Do</Text>
-    </Text>
-  ) : (
-    // VERSION MOBILE : Vrai gradient
-    <MaskedView
-      maskElement={
-        <Text style={styles.logoTextMask}>What2do</Text>
-      }
-    >
-      <LinearGradient
-        colors={[COLORS.titleGradientStart, COLORS.titleGradientEnd]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 0 }}
-      >
-        <Text style={styles.logoTextMask}>What2do</Text>
-      </LinearGradient>
-    </MaskedView>
-  )}
-</View>
+          {/* LOGO SIMPLE : Deux couleurs */}
+          <View style={styles.logoContainer}>
+            <Text style={styles.logoText}>
+              <Text style={styles.logoWhat}>What</Text>
+              <Text style={styles.logo2Do}>2do</Text>
+            </Text>
+          </View>
 
           {/* MESSAGE D'ERREUR */}
           {error ? (
@@ -320,7 +301,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-
   scrollContent: {
     flexGrow: 1,
     paddingHorizontal: 24,
@@ -328,40 +308,26 @@ const styles = StyleSheet.create({
     paddingBottom: 32,
     justifyContent: "flex-start",
   },
-
   center: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
     backgroundColor: COLORS.backgroundBottom,
   },
-
-  /* LOGO */
-
   logoContainer: {
     marginBottom: 40,
     alignItems: "center",
   },
-
   logoText: {
     fontSize: 34,
     fontFamily: "Poppins-Bold",
   },
-
   logoWhat: {
     color: COLORS.titleGradientStart,
   },
-
   logo2Do: {
     color: COLORS.titleGradientEnd,
   },
-  logoTextMask: {  // ← AJOUTE CE STYLE ICI
-    fontSize: 34,
-    fontFamily: "Poppins-Bold",
-    color: "#000000",
-  },
-  /* ERROR MESSAGE */
-
   errorContainer: {
     backgroundColor: "rgba(255, 59, 48, 0.1)",
     borderWidth: 1,
@@ -370,16 +336,12 @@ const styles = StyleSheet.create({
     padding: 16,
     marginBottom: 24,
   },
-
   errorText: {
     color: "#FF3B30",
     fontSize: 14,
     fontFamily: "Poppins-Medium",
     textAlign: "center",
   },
-
-  /* SUCCESS MESSAGE */
-
   successContainer: {
     backgroundColor: "rgba(52, 199, 89, 0.1)",
     borderWidth: 1,
@@ -388,24 +350,18 @@ const styles = StyleSheet.create({
     padding: 16,
     marginBottom: 24,
   },
-
   successText: {
     color: "#34C759",
     fontSize: 14,
     fontFamily: "Poppins-Medium",
     textAlign: "center",
   },
-
-  /* FORM */
-
   form: {
     marginBottom: 32,
   },
-
   fieldGroup: {
     marginBottom: 18,
   },
-
   label: {
     fontFamily: "Poppins-Regular",
     fontSize: 13,
@@ -413,7 +369,6 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     textAlign: "center",
   },
-
   input: {
     width: "100%",
     height: 52,
@@ -427,7 +382,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     textAlign: "center",
   },
-
   passwordContainer: {
     flexDirection: "row",
     alignItems: "center",
@@ -439,7 +393,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: COLORS.border,
   },
-
   passwordInput: {
     flex: 1,
     color: COLORS.textPrimary,
@@ -447,18 +400,15 @@ const styles = StyleSheet.create({
     fontSize: 14,
     textAlign: "center",
   },
-
   forgotPasswordButton: {
     alignSelf: "center",
     marginTop: 8,
   },
-
   forgotPasswordText: {
     fontSize: 13,
     fontFamily: "Poppins-Medium",
     color: COLORS.secondary,
   },
-
   primaryButton: {
     marginTop: 24,
     width: "100%",
@@ -468,19 +418,14 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-
   primaryButtonText: {
     fontFamily: "Poppins-SemiBold",
     fontSize: 15,
     color: COLORS.textPrimary,
   },
-
-  /* SOCIAL */
-
   socialSection: {
     marginTop: 16,
   },
-
   socialSeparatorText: {
     textAlign: "center",
     fontFamily: "Poppins-Regular",
@@ -488,7 +433,6 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
     marginBottom: 16,
   },
-
   socialButtonLight: {
     flexDirection: "row",
     alignItems: "center",
@@ -499,7 +443,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     marginBottom: 12,
   },
-
   socialButtonDark: {
     flexDirection: "row",
     alignItems: "center",
@@ -509,12 +452,10 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 16,
   },
-
   socialIcon: {
     position: "absolute",
     left: 18,
   },
-
   socialButtonLightText: {
     flex: 1,
     fontFamily: "Poppins-Medium",
@@ -522,7 +463,6 @@ const styles = StyleSheet.create({
     color: "#000000",
     textAlign: "center",
   },
-
   socialButtonDarkText: {
     flex: 1,
     fontFamily: "Poppins-Medium",
@@ -530,21 +470,16 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     textAlign: "center",
   },
-
-  /* BOTTOM */
-
   bottom: {
     marginTop: 28,
     alignItems: "center",
   },
-
   bottomText: {
     fontFamily: "Poppins-Regular",
     fontSize: 13,
     color: COLORS.textSecondary,
     marginBottom: 4,
   },
-
   bottomLink: {
     fontFamily: "Poppins-SemiBold",
     fontSize: 13,

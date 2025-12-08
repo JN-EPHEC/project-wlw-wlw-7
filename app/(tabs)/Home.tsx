@@ -1,4 +1,3 @@
-import MaskedView from "@react-native-masked-view/masked-view";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { arrayRemove, arrayUnion, collection, doc, getDoc, getDocs, setDoc, updateDoc } from "firebase/firestore";
@@ -7,7 +6,6 @@ import {
   ActivityIndicator,
   Alert,
   ImageBackground,
-  Platform,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -303,31 +301,11 @@ export default function HomeScreen() {
           ) : (
             <View>
               <View style={styles.header}>
-                {Platform.OS === 'web' ? (
-                  // VERSION WEB : Deux couleurs séparées (fallback)
-                  <View style={styles.titleContainer}>
-                    <Text style={[styles.title, styles.titleGradientStart]}>What</Text>
-                    <Text style={[styles.title, styles.titleGradientEnd]}>2do</Text>
-                  </View>
-                ) : (
-                  // VERSION MOBILE : Vrai gradient avec MaskedView
-                  <MaskedView
-                    maskElement={
-                      <View style={styles.titleContainer}>
-                        <Text style={styles.titleMask}>What2do</Text>
-                      </View>
-                    }
-                  >
-                    <LinearGradient
-                      colors={[COLORS.titleGradientStart, COLORS.titleGradientEnd]}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 0 }}
-                      style={styles.titleGradient}
-                    >
-                      <Text style={styles.titleMask}>What2do</Text>
-                    </LinearGradient>
-                  </MaskedView>
-                )}
+                {/* TITRE SIMPLE : Deux couleurs (marche partout) */}
+                <View style={styles.titleContainer}>
+                  <Text style={[styles.title, styles.titleGradientStart]}>What</Text>
+                  <Text style={[styles.title, styles.titleGradientEnd]}>2do</Text>
+                </View>
                 
                 <TouchableOpacity 
                   style={styles.iconButton}
@@ -597,14 +575,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-  },
-  titleMask: {
-    fontSize: 32,
-    fontWeight: "800",
-    color: "#000000",
-  },
-  titleGradient: {
-    flexDirection: "row",
   },
   title: {
     fontSize: 32,

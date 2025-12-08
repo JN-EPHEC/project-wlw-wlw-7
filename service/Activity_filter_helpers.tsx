@@ -1,4 +1,4 @@
-import { calculateDistance } from "../../service/Location_service";
+import { calculateDistance } from "./Location_service";
 
 export interface Activity {
   id: string;
