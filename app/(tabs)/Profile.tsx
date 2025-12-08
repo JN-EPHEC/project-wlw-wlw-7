@@ -1,11 +1,13 @@
+import { useFocusEffect } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { signOut } from "firebase/auth";
 import { doc, getDoc, updateDoc } from "firebase/firestore";
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Image,
   Modal,
   ScrollView,
   StyleSheet,
@@ -21,15 +23,19 @@ export default function ProfileScreen() {
   const router = useRouter();
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
+  const [photoURL, setPhotoURL] = useState<string | null>(null);
   const [friendsCount, setFriendsCount] = useState(0);
   const [loadingStats, setLoadingStats] = useState(true);
   const [isPremium, setIsPremium] = useState(false);
   const [premiumType, setPremiumType] = useState<string | null>(null);
   const [showCancelModal, setShowCancelModal] = useState(false);
 
-  useEffect(() => {
-    loadUserData();
-  }, []);
+  // Recharger les données à chaque fois qu'on revient sur la page
+  useFocusEffect(
+    useCallback(() => {
+      loadUserData();
+    }, [])
+  );
 
   const loadUserData = async () => {
     try {
@@ -37,6 +43,7 @@ export default function ProfileScreen() {
       if (user) {
         setUsername(user.displayName || "Utilisateur");
         setEmail(user.email || "");
+        setPhotoURL(user.photoURL || null);
 
         // Charger le nombre d'amis et le statut premium
         const userDoc = await getDoc(doc(db, "users", user.uid));
@@ -45,6 +52,11 @@ export default function ProfileScreen() {
           setFriendsCount(data.friends?.length || 0);
           setIsPremium(data.isPremium || false);
           setPremiumType(data.premiumType || null);
+          
+          // Mettre à jour la photo si elle existe dans Firestore
+          if (data.photoURL) {
+            setPhotoURL(data.photoURL);
+          }
         }
       }
     } catch (e) {
@@ -138,14 +150,18 @@ export default function ProfileScreen() {
         <View style={styles.profileCard}>
           {/* AVATAR */}
           <View style={styles.avatarContainer}>
-            <LinearGradient
-              colors={[COLORS.titleGradientStart, COLORS.titleGradientEnd]}
-              style={styles.avatar}
-            >
-              <Text style={styles.avatarText}>
-                {username.charAt(0).toUpperCase()}
-              </Text>
-            </LinearGradient>
+            {photoURL ? (
+              <Image source={{ uri: photoURL }} style={styles.avatarImage} />
+            ) : (
+              <LinearGradient
+                colors={[COLORS.titleGradientStart, COLORS.titleGradientEnd]}
+                style={styles.avatar}
+              >
+                <Text style={styles.avatarText}>
+                  {username.charAt(0).toUpperCase()}
+                </Text>
+              </LinearGradient>
+            )}
           </View>
 
           {/* USERNAME */}
@@ -355,6 +371,11 @@ const styles = StyleSheet.create({
     borderRadius: 50,
     justifyContent: "center",
     alignItems: "center",
+  },
+  avatarImage: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
   },
   avatarText: {
     fontSize: 40,
