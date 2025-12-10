@@ -28,13 +28,14 @@ type LobbyMode = "choice" | "create" | "join" | "waiting";
 
 export default function Lobby() {
   const router = useRouter();
-  const { user, userProfile } = useAuth(); // userProfile contient displayName
+  const { user } = useAuth();
 
   const [mode, setMode] = useState<LobbyMode>("choice");
   const [gameCode, setGameCode] = useState("");
   const [gameId, setGameId] = useState<string | null>(null);
   const [game, setGame] = useState<Game | null>(null);
   const [loading, setLoading] = useState(false);
+  const [playerName, setPlayerName] = useState("");
 
   // Écouter les changements de la partie en temps réel
   useEffect(() => {
@@ -54,22 +55,14 @@ export default function Lobby() {
 
   // Créer une nouvelle partie
   const handleCreateGame = async () => {
-    if (!user) {
-      Alert.alert("Erreur", "Tu dois être connecté pour créer une partie");
-      return;
-    }
-
-    if (!userProfile?.displayName) {
-      Alert.alert(
-        "Erreur",
-        "Tu dois avoir un nom d'utilisateur dans ton profil pour jouer"
-      );
+    if (!user || !playerName.trim()) {
+      Alert.alert("Erreur", "Entre ton pseudo pour continuer");
       return;
     }
 
     setLoading(true);
     try {
-      const newGameId = await createGame(user.uid, userProfile.displayName);
+      const newGameId = await createGame(user.uid, playerName.trim());
       setGameId(newGameId);
       setMode("waiting");
     } catch (error) {
@@ -82,19 +75,10 @@ export default function Lobby() {
 
   // Rejoindre une partie existante
   const handleJoinGame = async () => {
-    if (!user) {
-      Alert.alert("Erreur", "Tu dois être connecté pour rejoindre une partie");
+    if (!user || !playerName.trim()) {
+      Alert.alert("Erreur", "Entre ton pseudo pour continuer");
       return;
     }
-
-    if (!userProfile?.displayName) {
-      Alert.alert(
-        "Erreur",
-        "Tu dois avoir un nom d'utilisateur dans ton profil pour jouer"
-      );
-      return;
-    }
-
     if (!gameCode.trim()) {
       Alert.alert("Erreur", "Entre le code de la partie");
       return;
@@ -105,7 +89,7 @@ export default function Lobby() {
       const joinedGameId = await joinGame(
         gameCode.trim().toUpperCase(),
         user.uid,
-        userProfile.displayName
+        playerName.trim()
       );
 
       if (joinedGameId) {
@@ -205,15 +189,18 @@ export default function Lobby() {
           <>
             <Text style={styles.title}>Comment veux-tu jouer ?</Text>
 
-            {/* Afficher le nom du joueur */}
-            {userProfile?.displayName && (
-              <View style={styles.playerInfoBox}>
-                <Icon name="person-circle" size={24} color={COLORS.secondary} />
-                <Text style={styles.playerInfoText}>
-                  Tu joueras en tant que <Text style={styles.playerInfoName}>{userProfile.displayName}</Text>
-                </Text>
-              </View>
-            )}
+            {/* Input pseudo */}
+            <View style={styles.inputContainer}>
+              <Icon name="person" size={20} color={COLORS.textSecondary} />
+              <TextInput
+                style={styles.input}
+                placeholder="Ton pseudo"
+                placeholderTextColor={COLORS.textSecondary}
+                value={playerName}
+                onChangeText={setPlayerName}
+                maxLength={15}
+              />
+            </View>
 
             <TouchableOpacity
               style={styles.optionCard}
@@ -421,10 +408,9 @@ const styles = StyleSheet.create({
     textAlign: "center",
     marginBottom: 32,
   },
-  playerInfoBox: {
+  inputContainer: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
     backgroundColor: COLORS.neutralGray800,
     borderRadius: 16,
     paddingHorizontal: 16,
@@ -434,14 +420,11 @@ const styles = StyleSheet.create({
     borderColor: COLORS.border,
     gap: 12,
   },
-  playerInfoText: {
-    fontSize: 14,
+  input: {
+    flex: 1,
+    fontSize: 16,
     fontFamily: "Poppins-Regular",
-    color: COLORS.textSecondary,
-  },
-  playerInfoName: {
-    fontFamily: "Poppins-SemiBold",
-    color: COLORS.secondary,
+    color: COLORS.textPrimary,
   },
   optionCard: {
     flexDirection: "row",
