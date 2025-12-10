@@ -86,7 +86,6 @@ export default function HomeScreen() {
     const granted = await checkLocationPermission();
     if (granted) {
       setLocationGranted(true);
-      // Récupérer la localisation si déjà autorisée (sans popup)
       const { location } = await requestLocationPermission();
       if (location) {
         setUserLocation(location);
@@ -97,7 +96,6 @@ export default function HomeScreen() {
   // Gérer le filtre "Près de moi"
   const handleNearbyFilter = async () => {
     if (!locationGranted) {
-      // Demander la permission avec popup natif
       Alert.alert(
         "📍 Localisation requise",
         "Pour voir les activités près de vous, nous avons besoin d'accéder à votre localisation.",
@@ -128,7 +126,6 @@ export default function HomeScreen() {
         ]
       );
     } else {
-      // Toggle le filtre si déjà autorisé
       setActiveFilter(activeFilter === "near" ? "all" : "near");
     }
   };
@@ -166,12 +163,10 @@ export default function HomeScreen() {
   const applyFilters = () => {
     let filtered = [...activities];
 
-    // Filtre : Favoris uniquement
     if (showFavorites) {
       filtered = filtered.filter(activity => favorites.includes(activity.id));
     }
 
-    // Filtre : Recherche
     if (searchQuery.trim()) {
       filtered = filtered.filter(activity =>
         activity.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -180,10 +175,8 @@ export default function HomeScreen() {
       );
     }
 
-    // Filtre : Prix/Nouveau (désactivé en mode favoris)
     if (!showFavorites) {
       if (activeFilter === "near" && userLocation) {
-        // Liste des communes bruxelloises
         const brusselsCommunes = [
           "auderghem", "berchem-sainte-agathe", "bruxelles", "etterbeek",
           "evere", "forest", "ganshoren", "ixelles", "jette", "koekelberg",
@@ -194,13 +187,11 @@ export default function HomeScreen() {
 
         const userCity = userLocation.city?.toLowerCase() || "";
         
-        // Vérifier si le user est dans une commune bruxelloise
         const isInBrussels = brusselsCommunes.some(commune => 
           userCity.includes(commune) || commune.includes(userCity)
         );
 
         if (isInBrussels) {
-          // Si le user est à Bruxelles, affiche toutes les activités de Bruxelles et ses communes
           filtered = filtered.filter(activity => {
             const activityLocation = activity.location.toLowerCase();
             return activityLocation.includes("bruxelles") || 
@@ -208,7 +199,6 @@ export default function HomeScreen() {
                    brusselsCommunes.some(commune => activityLocation.includes(commune));
           });
         } else {
-          // Sinon, filtre par la ville exacte
           filtered = filtered.filter(activity =>
             activity.location.toLowerCase().includes(userCity)
           );
@@ -278,12 +268,8 @@ export default function HomeScreen() {
         colors={[COLORS.backgroundTop, COLORS.backgroundBottom]}
         style={styles.background}
       >
-        <ScrollView
-          style={styles.scrollView}
-          contentContainerStyle={styles.contentContainer}
-          showsVerticalScrollIndicator={false}
-        >
-          {/* HEADER - Différent selon le mode */}
+        {/* HEADER STICKY - Reste toujours visible */}
+        <View style={styles.stickyHeader}>
           {showFavorites ? (
             <View style={styles.header}>
               <TouchableOpacity 
@@ -301,7 +287,6 @@ export default function HomeScreen() {
           ) : (
             <View>
               <View style={styles.header}>
-                {/* TITRE SIMPLE : Deux couleurs (marche partout) */}
                 <View style={styles.titleContainer}>
                   <Text style={[styles.title, styles.titleGradientStart]}>What</Text>
                   <Text style={[styles.title, styles.titleGradientEnd]}>2do</Text>
@@ -315,7 +300,6 @@ export default function HomeScreen() {
                 </TouchableOpacity>
               </View>
               
-              {/* BADGE DE LOCALISATION EN DESSOUS */}
               {userLocation && locationGranted && (
                 <View style={styles.locationBadgeContainer}>
                   <View style={styles.locationBadge}>
@@ -327,7 +311,6 @@ export default function HomeScreen() {
             </View>
           )}
 
-          {/* Afficher le compteur de favoris en mode favoris */}
           {showFavorites && (
             <View style={styles.favoritesCount}>
               <Text style={styles.favoritesCountText}>
@@ -353,10 +336,9 @@ export default function HomeScreen() {
             )}
           </View>
 
-          {/* FILTRES - Masqués en mode favoris */}
+          {/* FILTRES */}
           {!showFavorites && (
             <View style={styles.filters}>
-              {/* FILTRE PRÈS DE MOI avec géolocalisation */}
               <TouchableOpacity 
                 style={[
                   styles.chip, 
@@ -395,7 +377,14 @@ export default function HomeScreen() {
               </TouchableOpacity>
             </View>
           )}
+        </View>
 
+        {/* CONTENU SCROLLABLE */}
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.contentContainer}
+          showsVerticalScrollIndicator={false}
+        >
           {/* BOUTON GÉNÉRER ACTIVITÉS */}
           {activities.length === 0 && !loading && !showFavorites && (
             <TouchableOpacity 
@@ -444,8 +433,12 @@ export default function HomeScreen() {
                 const isFavorite = favorites.includes(activity.id);
                 
                 return (
-                  <View key={activity.id} style={styles.card}>
-                    {/* IMAGE DE L'ACTIVITÉ */}
+                  <TouchableOpacity 
+                    key={activity.id} 
+                    style={styles.card}
+                    onPress={() => router.push(`/activity[id]?id=${activity.id}` as any)}
+                    activeOpacity={0.8}
+                  >
                     {activity.image ? (
                       <ImageBackground
                         source={{ uri: activity.image }}
@@ -483,7 +476,10 @@ export default function HomeScreen() {
 
                     <TouchableOpacity 
                       style={styles.cardHeart}
-                      onPress={() => toggleFavorite(activity.id)}
+                      onPress={(e) => {
+                        e.stopPropagation();
+                        toggleFavorite(activity.id);
+                      }}
                     >
                       <Icon 
                         name={isFavorite ? "heart" : "heart-outline"} 
@@ -517,11 +513,6 @@ export default function HomeScreen() {
                         </View>
                       </View>
                       <View style={styles.cardFooter}>
-                        <TouchableOpacity 
-                          style={styles.cardButton}
-                          onPress={() => router.push(`/activity[id]?id=${activity.id}` as any)}                      >
-                          <Text style={styles.cardButtonText}>Découvrir</Text>
-                        </TouchableOpacity>
                         <Text style={styles.cardDate}>
                           {new Date(activity.date).toLocaleDateString('fr-FR', { 
                             day: 'numeric', 
@@ -530,7 +521,7 @@ export default function HomeScreen() {
                         </Text>
                       </View>
                     </View>
-                  </View>
+                  </TouchableOpacity>
                 );
               })}
             </View>
@@ -554,6 +545,16 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
+  stickyHeader: {
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 16,
+    gap: 16,
+    backgroundColor: COLORS.backgroundTop,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(255, 255, 255, 0.05)",
+    zIndex: 10,
+  },
   contentContainer: {
     paddingHorizontal: 20,
     paddingTop: 20,
@@ -565,7 +566,6 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   header: {
-    position: "relative",
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
@@ -578,6 +578,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 32,
     fontWeight: "800",
+    fontFamily: "Poppins-Bold",
   },
   titleGradientStart: {
     color: COLORS.titleGradientStart,
@@ -631,6 +632,7 @@ const styles = StyleSheet.create({
   favoritesTitle: {
     fontSize: 28,
     fontWeight: "800",
+    fontFamily: "Poppins-Bold",
     color: COLORS.textPrimary,
   },
   favoritesCount: {
@@ -643,7 +645,7 @@ const styles = StyleSheet.create({
   favoritesCountText: {
     color: COLORS.textSecondary,
     fontSize: 14,
-    fontWeight: "600",
+    fontFamily: "Poppins-SemiBold",
   },
   searchBar: {
     flexDirection: "row",
@@ -658,6 +660,7 @@ const styles = StyleSheet.create({
     flex: 1,
     color: COLORS.textPrimary,
     fontSize: 14,
+    fontFamily: "Poppins-Regular",
   },
   filters: {
     flexDirection: "row",
@@ -674,19 +677,18 @@ const styles = StyleSheet.create({
     backgroundColor: "transparent",
     position: "relative",
   },
-  chipPending: {
-    // Style pour indiquer que la permission n'est pas encore accordée
-  },
+  chipPending: {},
   chipActive: {
     backgroundColor: "#2A1B3D",
   },
   chipText: {
     fontSize: 12,
+    fontFamily: "Poppins-Regular",
     color: COLORS.textSecondary,
   },
   chipTextActive: {
     color: COLORS.textPrimary,
-    fontWeight: "600",
+    fontFamily: "Poppins-SemiBold",
   },
   permissionDot: {
     width: 6,
@@ -705,12 +707,13 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 18,
-    fontWeight: "600",
+    fontFamily: "Poppins-SemiBold",
     color: COLORS.textPrimary,
     marginTop: 16,
   },
   emptySubtext: {
     fontSize: 14,
+    fontFamily: "Poppins-Regular",
     color: COLORS.textSecondary,
     marginTop: 8,
     textAlign: "center",
@@ -748,7 +751,7 @@ const styles = StyleSheet.create({
   },
   cardTagText: {
     color: COLORS.textPrimary,
-    fontWeight: "600",
+    fontFamily: "Poppins-SemiBold",
     fontSize: 12,
   },
   newBadge: {
@@ -760,7 +763,7 @@ const styles = StyleSheet.create({
   },
   newBadgeText: {
     color: COLORS.textPrimary,
-    fontWeight: "700",
+    fontFamily: "Poppins-Bold",
     fontSize: 11,
   },
   cardHeart: {
@@ -781,11 +784,12 @@ const styles = StyleSheet.create({
   },
   cardTitle: {
     fontSize: 18,
-    fontWeight: "700",
+    fontFamily: "Poppins-Bold",
     color: COLORS.textPrimary,
   },
   cardDescription: {
     fontSize: 13,
+    fontFamily: "Poppins-Regular",
     color: COLORS.textSecondary,
     lineHeight: 18,
   },
@@ -801,28 +805,19 @@ const styles = StyleSheet.create({
   },
   cardMetaText: {
     fontSize: 12,
+    fontFamily: "Poppins-Regular",
     color: COLORS.textSecondary,
   },
   cardFooter: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
+    justifyContent: "flex-end",
     marginTop: 8,
-  },
-  cardButton: {
-    backgroundColor: COLORS.secondary,
-    paddingHorizontal: 18,
-    paddingVertical: 10,
-    borderRadius: 999,
-  },
-  cardButtonText: {
-    color: COLORS.textPrimary,
-    fontSize: 14,
-    fontWeight: "700",
   },
   cardDate: {
     color: COLORS.textSecondary,
     fontSize: 12,
+    fontFamily: "Poppins-Regular",
   },
   generateButton: {
     borderRadius: 16,
@@ -840,6 +835,6 @@ const styles = StyleSheet.create({
   generateButtonText: {
     color: COLORS.textPrimary,
     fontSize: 16,
-    fontWeight: "700",
+    fontFamily: "Poppins-Bold",
   },
 });

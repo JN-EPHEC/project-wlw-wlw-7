@@ -388,6 +388,7 @@ const styles = StyleSheet.create({
     color: COLORS.textPrimary,
     fontSize: 15,
     fontFamily: "Poppins-Regular",
+    alignItems: "baseline"
   },
   emptyContainer: {
     flex: 1,
