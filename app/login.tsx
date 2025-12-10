@@ -17,7 +17,6 @@ import {
 } from "react-native";
 import { COLORS } from "../components/Colors";
 import { auth } from "../firebase_Config";
-import { signInWithGooglePopup } from "../service/SimpleGoogleAuth";
 
 export default function LoginScreen() {
   const { signInWithEmail, user, loading, isRegistering } = useAuth();
@@ -28,7 +27,6 @@ export default function LoginScreen() {
   const [passwordVisible, setPasswordVisible] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
-  const [googleLoading, setGoogleLoading] = useState(false);
 
   useEffect(() => {
     if (!loading && user && !isRegistering) {
@@ -78,33 +76,6 @@ export default function LoginScreen() {
       }
       
       setError(errorMessage);
-    }
-  };
-
-  const handleGoogleSignIn = async () => {
-    setError("");
-    setSuccess("");
-    setGoogleLoading(true);
-
-    try {
-      const result = await signInWithGooglePopup();
-      
-      if (result.needsSurvey) {
-        router.replace("/sondage");
-      } else {
-        router.replace("/(tabs)/Home");
-      }
-    } catch (e: any) {
-      console.error("❌ Google Sign-In error:", e);
-      
-      if (e.message === "Connexion annulée") {
-        // L'utilisateur a fermé la popup, pas d'erreur à afficher
-        return;
-      }
-      
-      setError("❌ Impossible de se connecter avec Google.");
-    } finally {
-      setGoogleLoading(false);
     }
   };
 
@@ -164,7 +135,6 @@ export default function LoginScreen() {
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
         >
-          {/* LOGO SIMPLE : Deux couleurs */}
           <View style={styles.logoContainer}>
             <Text style={styles.logoText}>
               <Text style={styles.logoWhat}>What</Text>
@@ -172,23 +142,19 @@ export default function LoginScreen() {
             </Text>
           </View>
 
-          {/* MESSAGE D'ERREUR */}
           {error ? (
             <View style={styles.errorContainer}>
               <Text style={styles.errorText}>{error}</Text>
             </View>
           ) : null}
 
-          {/* MESSAGE DE SUCCÈS */}
           {success ? (
             <View style={styles.successContainer}>
               <Text style={styles.successText}>{success}</Text>
             </View>
           ) : null}
 
-          {/* FORM */}
           <View style={styles.form}>
-            {/* EMAIL */}
             <View style={styles.fieldGroup}>
               <Text style={styles.label}>Email</Text>
               <TextInput
@@ -202,7 +168,6 @@ export default function LoginScreen() {
               />
             </View>
 
-            {/* PASSWORD */}
             <View style={styles.fieldGroup}>
               <Text style={styles.label}>Mot de passe</Text>
               <View style={styles.passwordContainer}>
@@ -225,7 +190,6 @@ export default function LoginScreen() {
                 </TouchableOpacity>
               </View>
 
-              {/* LIEN MOT DE PASSE OUBLIÉ */}
               <TouchableOpacity 
                 style={styles.forgotPasswordButton}
                 onPress={handleForgotPassword}
@@ -236,53 +200,11 @@ export default function LoginScreen() {
               </TouchableOpacity>
             </View>
 
-            {/* LOGIN BUTTON */}
             <TouchableOpacity style={styles.primaryButton} onPress={handleLogin}>
               <Text style={styles.primaryButtonText}>Se connecter</Text>
             </TouchableOpacity>
           </View>
 
-          {/* SOCIAL LOGIN */}
-          <View style={styles.socialSection}>
-            <Text style={styles.socialSeparatorText}>Ou continuer avec</Text>
-
-            <TouchableOpacity 
-              style={styles.socialButtonLight}
-              onPress={handleGoogleSignIn}
-              disabled={googleLoading}
-            >
-              {googleLoading ? (
-                <ActivityIndicator color="#000000" style={{ position: "absolute", left: 18 }} />
-              ) : (
-                <Ionicons
-                  name="logo-google"
-                  size={18}
-                  color="#000000"
-                  style={styles.socialIcon}
-                />
-              )}
-              <Text style={styles.socialButtonLightText}>
-                {googleLoading ? "Connexion..." : "Continuer avec Google"}
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity 
-              style={styles.socialButtonDark}
-              onPress={() => setError("Apple Sign-In non implémenté pour ce MVP")}
-            >
-              <Ionicons
-                name="logo-apple"
-                size={18}
-                color="#FFFFFF"
-                style={styles.socialIcon}
-              />
-              <Text style={styles.socialButtonDarkText}>
-                Continuer avec Apple
-              </Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* BOTTOM SIGNUP */}
           <View style={styles.bottom}>
             <Text style={styles.bottomText}>
               Vous n'avez pas de compte?
@@ -422,53 +344,6 @@ const styles = StyleSheet.create({
     fontFamily: "Poppins-SemiBold",
     fontSize: 15,
     color: COLORS.textPrimary,
-  },
-  socialSection: {
-    marginTop: 16,
-  },
-  socialSeparatorText: {
-    textAlign: "center",
-    fontFamily: "Poppins-Regular",
-    fontSize: 13,
-    color: COLORS.textSecondary,
-    marginBottom: 16,
-  },
-  socialButtonLight: {
-    flexDirection: "row",
-    alignItems: "center",
-    position: "relative",
-    borderRadius: 999,
-    backgroundColor: "#FFFFFF",
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    marginBottom: 12,
-  },
-  socialButtonDark: {
-    flexDirection: "row",
-    alignItems: "center",
-    position: "relative",
-    borderRadius: 999,
-    backgroundColor: "#000000",
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-  },
-  socialIcon: {
-    position: "absolute",
-    left: 18,
-  },
-  socialButtonLightText: {
-    flex: 1,
-    fontFamily: "Poppins-Medium",
-    fontSize: 14,
-    color: "#000000",
-    textAlign: "center",
-  },
-  socialButtonDarkText: {
-    flex: 1,
-    fontFamily: "Poppins-Medium",
-    fontSize: 14,
-    color: "#FFFFFF",
-    textAlign: "center",
   },
   bottom: {
     marginTop: 28,
