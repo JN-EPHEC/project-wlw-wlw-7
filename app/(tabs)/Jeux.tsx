@@ -16,7 +16,7 @@ export default function JeuxScreen() {
       <ScrollView contentContainerStyle={styles.scrollContent}>
         {/* HEADER */}
         <View style={styles.header}>
-          <Text style={styles.appTitle}>What2do</Text>
+          <Text style={styles.appTitle}>Jeux</Text>
           <View style={styles.headerRight}>
             <TouchableOpacity style={styles.iconCircle}>
               <Icon name="heart" size={20} color={COLORS.secondary} />
@@ -140,9 +140,9 @@ const styles = StyleSheet.create({
     marginBottom: 32,
   },
   appTitle: {
-    fontSize: 24,
+    fontSize: 32,
     fontWeight: "700",
-    color: COLORS.titleGradientStart,
+    color: COLORS.textPrimary,
   },
   headerRight: {
     flexDirection: "row",

@@ -336,7 +336,7 @@ const styles = StyleSheet.create({
     marginBottom: 32,
   },
   headerTitle: {
-    fontSize: 28,
+    fontSize: 32,
     fontFamily: "Poppins-Bold",
     color: COLORS.textPrimary,
   },

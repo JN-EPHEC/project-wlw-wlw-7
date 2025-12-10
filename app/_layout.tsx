@@ -58,7 +58,7 @@ function RootLayoutContent() {
         <Stack.Screen name="sondage" options={{ headerShown: false }} />
         
         {/* Edit profile (hors tabs) */}
-        <Stack.Screen name="Profile/Modif-prof" options={{ headerShown: false }} />
+        <Stack.Screen name="Profile/Modif_prof" options={{ headerShown: false }} />
         <Stack.Screen name="Profile/Friends_management" options={{ headerShown: false }} />
         
         {/* Tabs (Home, Jeux, Groupes, Profile) */}
