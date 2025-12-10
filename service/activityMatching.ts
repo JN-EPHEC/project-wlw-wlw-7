@@ -108,11 +108,11 @@ export async function suggestActivitiesForGroup(groupId: string): Promise<Scored
 
     // 6. Filtrer, trier et LIMITER À 10 ACTIVITÉS MAX
     const filteredActivities = scoredActivities
-      .filter(activity => activity.score > 10) // Ignorer les scores trop faibles
+      .filter(activity => activity.score > 5) // Ignorer les scores trop faibles
       .sort((a, b) => b.score - a.score)
-      .slice(0, 10); // ⭐ TOP 10 SEULEMENT
+      .slice(0, 5); // ⭐ TOP 5,SEULEMENT
 
-    console.log(`✅ Top ${filteredActivities.length} suggestions (max 10):`);
+    console.log(`✅ Top ${filteredActivities.length} suggestions (max 5):`);
     filteredActivities.forEach((act, index) => {
       console.log(`${index + 1}. ${act.title} - ${act.score}pts`);
     });
@@ -317,7 +317,7 @@ export async function getGroupSuggestions(groupId: string): Promise<ScoredActivi
     // Trier par score et limiter à 10
     return activities
       .sort((a, b) => b.score - a.score)
-      .slice(0, 10);
+      .slice(0, 5);
 
   } catch (error) {
     console.error("❌ Erreur récupération suggestions:", error);

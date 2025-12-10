@@ -165,7 +165,7 @@ export default function RecommendationsModal({
             <View style={styles.infoBanner}>
               <Icon name="information-circle" size={20} color="#6366F1" />
               <Text style={styles.infoBannerText}>
-                Basé sur les intérêts communs • {recommendations.length}/10 activités
+                Basé sur les intérêts communs • {recommendations.length}/5 activités
               </Text>
             </View>
 
