@@ -2,40 +2,39 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    FlatList,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import Icon from "react-native-vector-icons/Ionicons";
 import { useAuth } from "../../Auth_context";
 import { COLORS } from "../../components/Colors";
 import {
-    createGame,
-    Game,
-    joinGame,
-    leaveGame,
-    Player,
-    startGame,
-    subscribeToGame,
+  createGame,
+  Game,
+  joinGame,
+  leaveGame,
+  Player,
+  startGame,
+  subscribeToGame,
 } from "../../service/TruthOrDareService";
 
 type LobbyMode = "choice" | "create" | "join" | "waiting";
 
 export default function Lobby() {
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, userProfile } = useAuth(); // userProfile contient displayName
 
   const [mode, setMode] = useState<LobbyMode>("choice");
   const [gameCode, setGameCode] = useState("");
   const [gameId, setGameId] = useState<string | null>(null);
   const [game, setGame] = useState<Game | null>(null);
   const [loading, setLoading] = useState(false);
-  const [playerName, setPlayerName] = useState("");
 
   // Écouter les changements de la partie en temps réel
   useEffect(() => {
@@ -55,14 +54,22 @@ export default function Lobby() {
 
   // Créer une nouvelle partie
   const handleCreateGame = async () => {
-    if (!user || !playerName.trim()) {
-      Alert.alert("Erreur", "Entre ton pseudo pour continuer");
+    if (!user) {
+      Alert.alert("Erreur", "Tu dois être connecté pour créer une partie");
+      return;
+    }
+
+    if (!userProfile?.displayName) {
+      Alert.alert(
+        "Erreur",
+        "Tu dois avoir un nom d'utilisateur dans ton profil pour jouer"
+      );
       return;
     }
 
     setLoading(true);
     try {
-      const newGameId = await createGame(user.uid, playerName.trim());
+      const newGameId = await createGame(user.uid, userProfile.displayName);
       setGameId(newGameId);
       setMode("waiting");
     } catch (error) {
@@ -75,10 +82,19 @@ export default function Lobby() {
 
   // Rejoindre une partie existante
   const handleJoinGame = async () => {
-    if (!user || !playerName.trim()) {
-      Alert.alert("Erreur", "Entre ton pseudo pour continuer");
+    if (!user) {
+      Alert.alert("Erreur", "Tu dois être connecté pour rejoindre une partie");
       return;
     }
+
+    if (!userProfile?.displayName) {
+      Alert.alert(
+        "Erreur",
+        "Tu dois avoir un nom d'utilisateur dans ton profil pour jouer"
+      );
+      return;
+    }
+
     if (!gameCode.trim()) {
       Alert.alert("Erreur", "Entre le code de la partie");
       return;
@@ -89,7 +105,7 @@ export default function Lobby() {
       const joinedGameId = await joinGame(
         gameCode.trim().toUpperCase(),
         user.uid,
-        playerName.trim()
+        userProfile.displayName
       );
 
       if (joinedGameId) {
@@ -189,18 +205,15 @@ export default function Lobby() {
           <>
             <Text style={styles.title}>Comment veux-tu jouer ?</Text>
 
-            {/* Input pseudo */}
-            <View style={styles.inputContainer}>
-              <Icon name="person" size={20} color={COLORS.textSecondary} />
-              <TextInput
-                style={styles.input}
-                placeholder="Ton pseudo"
-                placeholderTextColor={COLORS.textSecondary}
-                value={playerName}
-                onChangeText={setPlayerName}
-                maxLength={15}
-              />
-            </View>
+            {/* Afficher le nom du joueur */}
+            {userProfile?.displayName && (
+              <View style={styles.playerInfoBox}>
+                <Icon name="person-circle" size={24} color={COLORS.secondary} />
+                <Text style={styles.playerInfoText}>
+                  Tu joueras en tant que <Text style={styles.playerInfoName}>{userProfile.displayName}</Text>
+                </Text>
+              </View>
+            )}
 
             <TouchableOpacity
               style={styles.optionCard}
@@ -408,9 +421,10 @@ const styles = StyleSheet.create({
     textAlign: "center",
     marginBottom: 32,
   },
-  inputContainer: {
+  playerInfoBox: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
     backgroundColor: COLORS.neutralGray800,
     borderRadius: 16,
     paddingHorizontal: 16,
@@ -420,11 +434,14 @@ const styles = StyleSheet.create({
     borderColor: COLORS.border,
     gap: 12,
   },
-  input: {
-    flex: 1,
-    fontSize: 16,
+  playerInfoText: {
+    fontSize: 14,
     fontFamily: "Poppins-Regular",
-    color: COLORS.textPrimary,
+    color: COLORS.textSecondary,
+  },
+  playerInfoName: {
+    fontFamily: "Poppins-SemiBold",
+    color: COLORS.secondary,
   },
   optionCard: {
     flexDirection: "row",
