@@ -4,7 +4,7 @@ import { useRouter } from "expo-router";
 import { EmailAuthProvider, reauthenticateWithCredential, updatePassword, updateProfile } from "firebase/auth";
 import { collection, doc, getDoc, getDocs, query, updateDoc, where } from "firebase/firestore";
 import { getDownloadURL, getStorage, ref, uploadBytes } from "firebase/storage";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -26,6 +26,7 @@ type AccountType = "private" | "pro";
 
 export default function EditProfileScreen() {
   const router = useRouter();
+  const scrollViewRef = useRef<ScrollView>(null);
   
   // États pour les données utilisateur
   const [username, setUsername] = useState("");
@@ -170,6 +171,10 @@ export default function EditProfileScreen() {
 
       setPhotoURL(downloadURL);
       setSuccess("✅ Photo de profil mise à jour !");
+      
+      // Scroll vers le haut pour voir le message
+      scrollViewRef.current?.scrollTo({ y: 0, animated: true });
+      
       setTimeout(() => setSuccess(""), 3000);
     } catch (error) {
       console.error("Error uploading image:", error);
@@ -213,6 +218,8 @@ export default function EditProfileScreen() {
 
     if (!username.trim()) {
       setError("Le nom d'utilisateur est obligatoire.");
+      // Scroll vers le haut pour voir l'erreur
+      scrollViewRef.current?.scrollTo({ y: 0, animated: true });
       return;
     }
 
@@ -230,6 +237,8 @@ export default function EditProfileScreen() {
         
         if (!querySnapshot.empty) {
           setError("❌ Ce nom d'utilisateur est déjà utilisé.");
+          // Scroll vers le haut pour voir l'erreur
+          scrollViewRef.current?.scrollTo({ y: 0, animated: true });
           setSaving(false);
           return;
         }
@@ -249,10 +258,16 @@ export default function EditProfileScreen() {
       });
 
       setSuccess("✅ Profil mis à jour avec succès !");
+      
+      // Scroll vers le haut pour voir le message de succès
+      scrollViewRef.current?.scrollTo({ y: 0, animated: true });
+      
       setTimeout(() => setSuccess(""), 3000);
     } catch (e: any) {
       console.error("Error updating profile:", e);
       setError("❌ Impossible de mettre à jour le profil.");
+      // Scroll vers le haut pour voir l'erreur
+      scrollViewRef.current?.scrollTo({ y: 0, animated: true });
     } finally {
       setSaving(false);
     }
@@ -264,16 +279,22 @@ export default function EditProfileScreen() {
 
     if (!currentPassword || !newPassword || !confirmNewPassword) {
       setError("Tous les champs de mot de passe sont obligatoires.");
+      // Scroll vers le haut pour voir l'erreur
+      scrollViewRef.current?.scrollTo({ y: 0, animated: true });
       return;
     }
 
     if (newPassword.length < 6) {
       setError("Le nouveau mot de passe doit contenir au moins 6 caractères.");
+      // Scroll vers le haut pour voir l'erreur
+      scrollViewRef.current?.scrollTo({ y: 0, animated: true });
       return;
     }
 
     if (newPassword !== confirmNewPassword) {
       setError("Les nouveaux mots de passe ne correspondent pas.");
+      // Scroll vers le haut pour voir l'erreur
+      scrollViewRef.current?.scrollTo({ y: 0, animated: true });
       return;
     }
 
@@ -294,6 +315,10 @@ export default function EditProfileScreen() {
       setNewPassword("");
       setConfirmNewPassword("");
       setShowPasswordSection(false);
+      
+      // Scroll vers le haut pour voir le message de succès
+      scrollViewRef.current?.scrollTo({ y: 0, animated: true });
+      
       setTimeout(() => setSuccess(""), 3000);
     } catch (e: any) {
       console.error("Error changing password:", e);
@@ -302,6 +327,8 @@ export default function EditProfileScreen() {
       } else {
         setError("❌ Impossible de changer le mot de passe.");
       }
+      // Scroll vers le haut pour voir l'erreur
+      scrollViewRef.current?.scrollTo({ y: 0, animated: true });
     } finally {
       setSaving(false);
     }
@@ -328,6 +355,7 @@ export default function EditProfileScreen() {
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
         <ScrollView
+          ref={scrollViewRef}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
