@@ -1,20 +1,28 @@
 import { LinearGradient } from "expo-linear-gradient";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import React from "react";
 import {
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  Alert,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import Icon from "react-native-vector-icons/Ionicons";
+import { useAuth } from "../../Auth_context";
 import { COLORS } from "../../components/Colors";
 
-export default function DescriptionJeu() {
-  const router = useRouter();
+interface GameRules {
+  [key: string]: Array<{
+    icon: string;
+    title: string;
+    description: string;
+  }>;
+}
 
-  const rules = [
+const GAME_RULES: GameRules = {
+  "action-verite": [
     {
       icon: "people",
       title: "2 joueurs minimum",
@@ -40,7 +48,290 @@ export default function DescriptionJeu() {
       title: "Pas de perdant",
       description: "Le but c'est de s'amuser entre amis, pas de gagner !",
     },
-  ];
+  ],
+  "undercover": [
+    {
+      icon: "people",
+      title: "4 joueurs minimum",
+      description: "Plus vous êtes nombreux, plus c'est amusant !",
+    },
+    {
+      icon: "eye-off",
+      title: "Un imposteur",
+      description: "Un joueur est désigné comme Undercover avec un mot différent.",
+    },
+    {
+      icon: "chatbubbles",
+      title: "Tour de parole",
+      description: "Chaque joueur donne un indice sur son mot.",
+    },
+    {
+      icon: "search",
+      title: "Identifier l'imposteur",
+      description: "Débattez et votez pour éliminer celui qui vous semble suspect.",
+    },
+    {
+      icon: "trophy",
+      title: "Victoire",
+      description: "Les innocents gagnent s'ils éliminent l'Undercover.",
+    },
+  ],
+  "loup-garou": [
+    {
+      icon: "people",
+      title: "6 joueurs minimum",
+      description: "Les Loups-Garous se cachent parmi les Villageois.",
+    },
+    {
+      icon: "moon",
+      title: "Phase nuit",
+      description: "Les Loups-Garous désignent une victime.",
+    },
+    {
+      icon: "sunny",
+      title: "Phase jour",
+      description: "Les Villageois débattent et votent pour éliminer un suspect.",
+    },
+    {
+      icon: "medical",
+      title: "Rôles spéciaux",
+      description: "Voyante, Sorcière, Chasseur... Chacun a un pouvoir.",
+    },
+    {
+      icon: "trophy",
+      title: "Victoire",
+      description: "Loups-Garous gagnent s'ils éliminent tous les Villageois.",
+    },
+  ],
+  "qui-suis-je": [
+    {
+      icon: "people",
+      title: "2 joueurs minimum",
+      description: "Un contre un ou en équipes.",
+    },
+    {
+      icon: "help-circle",
+      title: "Personnage secret",
+      description: "Chaque joueur a un personnage secret sur le front.",
+    },
+    {
+      icon: "chatbubbles",
+      title: "Questions",
+      description: "Pose des questions pour deviner ton personnage.",
+    },
+    {
+      icon: "bulb",
+      title: "Hypothèses",
+      description: "Fais des hypothèses pour identifier ton personnage.",
+    },
+    {
+      icon: "trophy",
+      title: "Victoire",
+      description: "Le premier qui devine son personnage gagne.",
+    },
+  ],
+  "time-bomb": [
+    {
+      icon: "people",
+      title: "4 joueurs minimum",
+      description: "Formez des équipes ou jouez en coopératif.",
+    },
+    {
+      icon: "alarm",
+      title: "Bombe à désamorcer",
+      description: "Une bombe virtuelle doit être désamorcée à temps.",
+    },
+    {
+      icon: "flash",
+      title: "Défis rapides",
+      description: "Résolvez des énigmes pour couper les fils de la bombe.",
+    },
+    {
+      icon: "time",
+      title: "Compte à rebours",
+      description: "Le temps est limité pour réussir.",
+    },
+    {
+      icon: "trophy",
+      title: "Victoire",
+      description: "Désamorcez la bombe avant qu'elle n'explose.",
+    },
+  ],
+  "blind-test": [
+    {
+      icon: "people",
+      title: "2 joueurs minimum",
+      description: "Affronte-toi à tes amis ou joue en équipe.",
+    },
+    {
+      icon: "musical-notes",
+      title: "Extraits musicaux",
+      description: "Écoute des extraits de chansons.",
+    },
+    {
+      icon: "speedometer",
+      title: "Rapidité",
+      description: "Sois le plus rapide à reconnaître la chanson.",
+    },
+    {
+      icon: "bulb",
+      title: "Réponses",
+      description: "Donne le titre ou l'artiste.",
+    },
+    {
+      icon: "trophy",
+      title: "Victoire",
+      description: "Celui avec le plus de bonnes réponses gagne.",
+    },
+  ],
+  "pictionary": [
+    {
+      icon: "people",
+      title: "4 joueurs minimum",
+      description: "Forme deux équipes de dessinateurs et de devineurs.",
+    },
+    {
+      icon: "brush",
+      title: "Mot à dessiner",
+      description: "Un joueur tire un mot et doit le faire deviner en dessinant.",
+    },
+    {
+      icon: "time",
+      title: "Temps limité",
+      description: "Un sablier impose une limite de temps.",
+    },
+    {
+      icon: "bulb",
+      title: "Faire deviner",
+      description: "L'équipe doit deviner le mot avant la fin du temps.",
+    },
+    {
+      icon: "trophy",
+      title: "Victoire",
+      description: "L'équipe avec le plus de points gagne.",
+    },
+  ],
+  "mots-interdits": [
+    {
+      icon: "people",
+      title: "4 joueurs minimum",
+      description: "Joue en équipe contre équipe.",
+    },
+    {
+      icon: "chatbubbles",
+      title: "Mots interdits",
+      description: "Fais deviner un mot sans utiliser les mots interdits.",
+    },
+    {
+      icon: "warning",
+      title: "Attention",
+      description: "Si tu dis un mot interdit, l'équipe adverse gagne le point.",
+    },
+    {
+      icon: "time",
+      title: "Temps limité",
+      description: "Un tour dure 60 secondes.",
+    },
+    {
+      icon: "trophy",
+      title: "Victoire",
+      description: "L'équipe avec le plus de mots devinés gagne.",
+    },
+  ],
+  "mimic": [
+    {
+      icon: "people",
+      title: "4 joueurs minimum",
+      description: "Joue en équipe contre équipe.",
+    },
+    {
+      icon: "body",
+      title: "Mime",
+      description: "Un joueur mime un mot ou une phrase.",
+    },
+    {
+      icon: "hand-left",
+      title: "Sans parler",
+      description: "Aucun mot ni son n'est autorisé.",
+    },
+    {
+      icon: "time",
+      title: "Temps limité",
+      description: "L'équipe doit deviner avant la fin du temps.",
+    },
+    {
+      icon: "trophy",
+      title: "Victoire",
+      description: "L'équipe avec le plus de bonnes réponses gagne.",
+    },
+  ],
+  "quiz-culture": [
+    {
+      icon: "people",
+      title: "2 joueurs minimum",
+      description: "Affronte tes amis ou joue en solo.",
+    },
+    {
+      icon: "school",
+      title: "Questions variées",
+      description: "Culture générale, cinéma, musique, sports, sciences...",
+    },
+    {
+      icon: "speedometer",
+      title: "Rapidité",
+      description: "Sois rapide pour répondre avant tes adversaires.",
+    },
+    {
+      icon: "bulb",
+      title: "Choix multiples",
+      description: "Choisis parmi 4 réponses possibles.",
+    },
+    {
+      icon: "trophy",
+      title: "Victoire",
+      description: "Celui avec le meilleur score gagne.",
+    },
+  ],
+};
+
+export default function DescriptionJeu() {
+  const router = useRouter();
+  const { userProfile } = useAuth();
+  const params = useLocalSearchParams();
+  
+  // Récupérer les données du jeu depuis les params
+  const gameId = params.gameId as string;
+  const gameName = params.gameName as string;
+  const gameDescription = params.gameDescription as string;
+  const gameIcon = params.gameIcon as string;
+  const gameColors = JSON.parse(params.gameColors as string) as string[];
+  const gameMinPlayers = parseInt(params.gameMinPlayers as string);
+  const gameCategory = params.gameCategory as string;
+  const gameIsPremium = params.gameIsPremium === "true";
+
+  const isPremium = userProfile?.isPremium || false;
+  
+  const rules = GAME_RULES[gameId] || GAME_RULES["action-verite"];
+
+  const handlePlayPress = () => {
+    if (gameIsPremium && !isPremium) {
+      Alert.alert(
+        "Premium requis",
+        `${gameName} est réservé aux membres Premium. Passe à Premium pour débloquer tous les jeux !`,
+        [
+          { text: "Annuler", style: "cancel" },
+          { text: "Découvrir Premium", onPress: () => router.push("./Profile/Abo_choix") }
+        ]
+      );
+    } else {
+      router.push({
+        pathname: "/Game/Invitation",
+        params: { 
+          gameType: gameId // "action-verite" ou "qui-suis-je"
+        }
+      });
+    }
+  };
 
   return (
     <LinearGradient
@@ -55,7 +346,7 @@ export default function DescriptionJeu() {
         >
           <Icon name="arrow-back" size={24} color={COLORS.textPrimary} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Action ou Vérité</Text>
+        <Text style={styles.headerTitle}>{gameName}</Text>
         <View style={styles.placeholder} />
       </View>
 
@@ -65,21 +356,19 @@ export default function DescriptionJeu() {
       >
         {/* Image/Banner du jeu */}
         <LinearGradient
-          colors={["#9D4EDD", "#7B2CBF"]}
+          colors={gameColors as [string, string, ...string[]]}
           style={styles.banner}
         >
-          <Icon name="game-controller" size={64} color={COLORS.textPrimary} />
-          <Text style={styles.bannerTitle}>Action ou Vérité</Text>
-          <Text style={styles.bannerSubtitle}>Le classique revisité</Text>
+          <Icon name={gameIcon} size={64} color={COLORS.textPrimary} />
+          <Text style={styles.bannerTitle}>{gameName}</Text>
+          <Text style={styles.bannerSubtitle}>{gameCategory}</Text>
         </LinearGradient>
 
         {/* Description */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>C'est quoi ?</Text>
           <Text style={styles.description}>
-            Le jeu parfait pour pimenter vos soirées entre amis ! Chacun son 
-            tour, choisis entre réaliser une Action folle ou révéler une Vérité 
-            sur toi. Fous rires garantis !
+            {gameDescription}
           </Text>
         </View>
 
@@ -104,7 +393,7 @@ export default function DescriptionJeu() {
         <View style={styles.infoBox}>
           <Icon name="information-circle" size={20} color={COLORS.info} />
           <Text style={styles.infoText}>
-            Tous les joueurs doivent être connectés pour jouer en temps réel.
+            {gameMinPlayers}+ joueurs nécessaires. Tous les joueurs doivent être connectés pour jouer en temps réel.
           </Text>
         </View>
       </ScrollView>
@@ -113,16 +402,16 @@ export default function DescriptionJeu() {
       <View style={styles.bottomContainer}>
         <TouchableOpacity
           style={styles.playButton}
-          onPress={() => router.push("/Game/Invitation")}
+          onPress={handlePlayPress}
         >
           <LinearGradient
-            colors={[COLORS.titleGradientStart, COLORS.titleGradientEnd]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
+            colors={gameColors as [string, string, ...string[]]}
             style={styles.playButtonGradient}
           >
             <Icon name="play" size={24} color={COLORS.textPrimary} />
-            <Text style={styles.playButtonText}>Jouer maintenant</Text>
+            <Text style={styles.playButtonText}>
+              {gameIsPremium && !isPremium ? "Premium requis" : "Jouer maintenant"}
+            </Text>
           </LinearGradient>
         </TouchableOpacity>
       </View>

@@ -263,21 +263,32 @@ export default function JeuxScreen() {
   };
 
   const handleGamePress = (game: Game) => {
-    if (game.isPremium && !isPremium) {
-      Alert.alert(
-        "Premium requis",
-        `${game.name} est réservé aux membres Premium. Passe à Premium pour débloquer tous les jeux !`,
-        [
-          { text: "Annuler", style: "cancel" },
-          { text: "Découvrir Premium", onPress: () => {"./Profile/Abo_choix"} }
-        ]
-      );
-    } else {
-      // Navigation vers la description du jeu
-      router.push(`/Game/Description_${game.id}` as any);
-    }
-  };
-
+  if (game.isPremium && !isPremium) {
+    Alert.alert(
+      "Premium requis",
+      `${game.name} est réservé aux membres Premium. Passe à Premium pour débloquer tous les jeux !`,
+      [
+        { text: "Annuler", style: "cancel" },
+        { text: "Découvrir Premium", onPress: () => router.push("./Profile/Abo_choix") }
+      ]
+    );
+  } else {
+    // Navigation vers la description du jeu avec TOUS les paramètres
+    router.push({
+      pathname: "/Game/Description_jeu",
+      params: { 
+        gameId: game.id,
+        gameName: game.name,
+        gameDescription: game.description,
+        gameIcon: game.icon,
+        gameColors: JSON.stringify(game.colors),
+        gameMinPlayers: game.minPlayers.toString(),
+        gameCategory: game.category,
+        gameIsPremium: game.isPremium.toString()
+      }
+    });
+  }
+};
   return (
     <LinearGradient
       colors={[COLORS.backgroundTop, COLORS.backgroundBottom]}

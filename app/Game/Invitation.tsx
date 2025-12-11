@@ -46,7 +46,7 @@ export default function Lobby() {
 
       // Si la partie commence, naviguer vers l'écran de jeu
       if (updatedGame?.status === "playing") {
-        router.replace(`/Game/Jeux_en_cours?gameId=${gameId}`);
+        router.replace(`/Game/TruthOrDareGame?gameId=${gameId}`);
       }
     });
 
