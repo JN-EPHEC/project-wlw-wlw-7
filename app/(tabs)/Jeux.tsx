@@ -2,7 +2,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { arrayRemove, arrayUnion, doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
 import React, { useEffect, useState } from "react";
-import { ActivityIndicator, Alert, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, Alert, Animated, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import Icon from "react-native-vector-icons/Ionicons";
 import { useAuth } from "../../Auth_context";
 import { COLORS } from "../../components/Colors";
@@ -58,7 +58,7 @@ const GAMES: Game[] = [
     icon: "help-circle",
     colors: ["#F59E0B", "#D97706"],
     minPlayers: 2,
-    isPremium: false,
+    isPremium: true,
     category: "Devinette",
   },
   {
@@ -78,7 +78,7 @@ const GAMES: Game[] = [
     icon: "musical-notes",
     colors: ["#10B981", "#059669"],
     minPlayers: 2,
-    isPremium: false,
+    isPremium: true,
     category: "Musical",
   },
   {
@@ -98,7 +98,7 @@ const GAMES: Game[] = [
     icon: "chatbubbles",
     colors: ["#8B5CF6", "#7C3AED"],
     minPlayers: 4,
-    isPremium: false,
+    isPremium: true,
     category: "Vocabulaire",
   },
   {
@@ -118,7 +118,7 @@ const GAMES: Game[] = [
     icon: "school",
     colors: ["#3B82F6", "#2563EB"],
     minPlayers: 2,
-    isPremium: false,
+    isPremium: true,
     category: "Culture",
   },
 ];
@@ -135,8 +135,11 @@ export default function JeuxScreen() {
   const [favoriteGames, setFavoriteGames] = useState<string[]>([]);
   const [showFavorites, setShowFavorites] = useState(false);
   const [filteredGames, setFilteredGames] = useState<Game[]>(GAMES);
+  const [showBanner, setShowBanner] = useState(true);
+  const [fabScale] = useState(new Animated.Value(0));
 
   const isPremium = userProfile?.isPremium || false;
+  const lockedGamesCount = GAMES.filter(game => game.isPremium).length;
 
   useEffect(() => {
     loadFavoriteGames();
@@ -145,6 +148,18 @@ export default function JeuxScreen() {
   useEffect(() => {
     applyFilters();
   }, [searchQuery, activeFilter, showFavorites, favoriteGames]);
+
+  // Animation du FAB
+  useEffect(() => {
+    if (!isPremium) {
+      Animated.spring(fabScale, {
+        toValue: 1,
+        friction: 5,
+        tension: 40,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [isPremium]);
 
   const loadFavoriteGames = async () => {
     const currentUser = auth.currentUser;
@@ -156,13 +171,16 @@ export default function JeuxScreen() {
         setFavoriteGames(userDoc.data().favorites || []);
       }
     } catch (error) {
-      console.error("Error loading favorite games:", error);
+      console.error("Erreur lors du chargement des favoris:", error);
     }
   };
 
   const toggleFavorite = async (gameId: string) => {
     const currentUser = auth.currentUser;
-    if (!currentUser) return;
+    if (!currentUser) {
+      Alert.alert("Erreur", "Tu dois être connecté pour gérer tes favoris");
+      return;
+    }
 
     try {
       const userFavRef = doc(db, "userFavoriteGames", currentUser.uid);
@@ -189,7 +207,7 @@ export default function JeuxScreen() {
         setFavoriteGames(prev => [...prev, gameId]);
       }
     } catch (error) {
-      console.error("Error toggling favorite:", error);
+      console.error("Erreur lors de la gestion des favoris:", error);
       Alert.alert("Erreur", "Impossible de gérer les favoris");
     }
   };
@@ -197,12 +215,10 @@ export default function JeuxScreen() {
   const applyFilters = () => {
     let filtered = [...GAMES];
 
-    // Filtre : Favoris uniquement
     if (showFavorites) {
       filtered = filtered.filter(game => favoriteGames.includes(game.id));
     }
 
-    // Filtre : Recherche
     if (searchQuery.trim()) {
       filtered = filtered.filter(game =>
         game.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -211,7 +227,6 @@ export default function JeuxScreen() {
       );
     }
 
-    // Filtre : Type de jeux
     if (!showFavorites) {
       if (activeFilter === "free") {
         filtered = filtered.filter(game => !game.isPremium);
@@ -263,17 +278,6 @@ export default function JeuxScreen() {
   };
 
   const handleGamePress = (game: Game) => {
-  if (game.isPremium && !isPremium) {
-    Alert.alert(
-      "Premium requis",
-      `${game.name} est réservé aux membres Premium. Passe à Premium pour débloquer tous les jeux !`,
-      [
-        { text: "Annuler", style: "cancel" },
-        { text: "Découvrir Premium", onPress: () => router.push("./Profile/Abo_choix") }
-      ]
-    );
-  } else {
-    // Navigation vers la description du jeu avec TOUS les paramètres
     router.push({
       pathname: "/Game/Description_jeu",
       params: { 
@@ -287,8 +291,12 @@ export default function JeuxScreen() {
         gameIsPremium: game.isPremium.toString()
       }
     });
-  }
-};
+  };
+
+  const navigateToPremium = () => {
+    router.push("/Profile/Abo_choix");
+  };
+
   return (
     <LinearGradient
       colors={[COLORS.backgroundTop, COLORS.backgroundBottom]}
@@ -319,6 +327,11 @@ export default function JeuxScreen() {
                 onPress={() => setShowFavorites(true)}
               >
                 <Icon name="heart-outline" size={20} color={COLORS.secondary} />
+                {favoriteGames.length > 0 && (
+                  <View style={styles.badgeNotif}>
+                    <Text style={styles.badgeCount}>{favoriteGames.length}</Text>
+                  </View>
+                )}
               </TouchableOpacity>
               <TouchableOpacity 
                 style={styles.iconCircle}
@@ -328,6 +341,44 @@ export default function JeuxScreen() {
               </TouchableOpacity>
             </View>
           </View>
+        )}
+
+        {/* BANNER PREMIUM - Affiché uniquement si non premium et banner non fermé */}
+        {!isPremium && showBanner && !showFavorites && (
+          <TouchableOpacity 
+            style={styles.premiumBanner}
+            onPress={navigateToPremium}
+            activeOpacity={0.8}
+          >
+            <LinearGradient
+              colors={["#FFD700", "#FFA500"]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.premiumBannerGradient}
+            >
+              <View style={styles.premiumBannerContent}>
+                <Icon name="diamond" size={20} color="#1A1625" />
+                <View style={styles.premiumBannerText}>
+                  <Text style={styles.premiumBannerTitle}>
+                    Débloque {lockedGamesCount} jeux exclusifs
+                  </Text>
+                  <Text style={styles.premiumBannerSubtitle}>
+                    Accède à tous les jeux premium
+                  </Text>
+                </View>
+                <Icon name="arrow-forward" size={20} color="#1A1625" />
+              </View>
+            </LinearGradient>
+            <TouchableOpacity 
+              style={styles.closeBannerButton}
+              onPress={(e) => {
+                e.stopPropagation();
+                setShowBanner(false);
+              }}
+            >
+              <Icon name="close" size={16} color="#1A1625" />
+            </TouchableOpacity>
+          </TouchableOpacity>
         )}
 
         {showFavorites && (
@@ -424,21 +475,38 @@ export default function JeuxScreen() {
           <View style={styles.cardList}>
             {filteredGames.map((game) => {
               const isFavorite = favoriteGames.includes(game.id);
+              const isLocked = game.isPremium && !isPremium;
               
               return (
                 <TouchableOpacity
                   key={game.id}
-                  style={styles.card}
+                  style={[styles.card, isLocked && styles.cardDisabled]}
                   onPress={() => handleGamePress(game)}
                   activeOpacity={0.8}
                 >
-                  <LinearGradient
-                    colors={game.colors as [string, string, ...string[]]}
-                    style={styles.cardImage}
-                  >
-                    <Icon name={game.icon} size={48} color={COLORS.textPrimary} />
-                    <Text style={styles.cardImageTitle}>{game.name}</Text>
-                  </LinearGradient>
+                  <View style={styles.cardImageWrapper}>
+                    <LinearGradient
+                      colors={game.colors as [string, string, ...string[]]}
+                      style={[styles.cardImage, isLocked && styles.cardImageDisabled]}
+                    >
+                      <Icon 
+                        name={game.icon} 
+                        size={48} 
+                        color={isLocked ? "rgba(255,255,255,0.3)" : COLORS.textPrimary} 
+                      />
+                      <Text style={[styles.cardImageTitle, isLocked && styles.cardImageTitleDisabled]}>
+                        {game.name}
+                      </Text>
+                    </LinearGradient>
+
+                    {/* Badge Débloquer en bas à gauche */}
+                    {isLocked && (
+                      <View style={styles.unlockBadge}>
+                        <Icon name="lock-closed" size={12} color="#FFD700" />
+                        <Text style={styles.unlockBadgeText}>Débloquer</Text>
+                      </View>
+                    )}
+                  </View>
 
                   <TouchableOpacity 
                     style={styles.cardHeart}
@@ -455,30 +523,42 @@ export default function JeuxScreen() {
                   </TouchableOpacity>
 
                   <View style={styles.cardContent}>
-                    <Text style={styles.cardDescription}>
+                    <Text style={[styles.cardDescription, isLocked && styles.textDisabled]}>
                       {game.description}
                     </Text>
 
                     <View style={styles.cardMeta}>
                       <View style={styles.cardMetaItem}>
-                        <Icon name="people" size={14} color={COLORS.textSecondary} />
-                        <Text style={styles.cardMetaText}>{game.minPlayers}+ joueurs</Text>
+                        <Icon 
+                          name="people" 
+                          size={14} 
+                          color={isLocked ? "rgba(255,255,255,0.3)" : COLORS.textSecondary} 
+                        />
+                        <Text style={[styles.cardMetaText, isLocked && styles.textDisabled]}>
+                          {game.minPlayers}+ joueurs
+                        </Text>
                       </View>
                       <View style={styles.cardMetaItem}>
-                        <Icon name="pricetag" size={14} color={COLORS.textSecondary} />
-                        <Text style={styles.cardMetaText}>{game.category}</Text>
+                        <Icon 
+                          name="pricetag" 
+                          size={14} 
+                          color={isLocked ? "rgba(255,255,255,0.3)" : COLORS.textSecondary} 
+                        />
+                        <Text style={[styles.cardMetaText, isLocked && styles.textDisabled]}>
+                          {game.category}
+                        </Text>
                       </View>
                     </View>
 
                     <View style={styles.cardFooter}>
                       {game.isPremium ? (
-                        <View style={[styles.badge, styles.badgePremium]}>
+                        <View style={[styles.badgeContainer, styles.badgePremium]}>
                           <Icon name="diamond" size={12} color="#FFD700" />
                           <Text style={styles.badgeTextPremium}>Premium</Text>
                         </View>
                       ) : (
-                        <View style={styles.badge}>
-                          <Text style={styles.badgeText}>Gratuit</Text>
+                        <View style={styles.badgeContainer}>
+                          <Text style={styles.badgeTextFree}>Gratuit</Text>
                         </View>
                       )}
                     </View>
@@ -489,6 +569,30 @@ export default function JeuxScreen() {
           </View>
         )}
       </ScrollView>
+
+      {/* FAB PREMIUM - Flottant en bas à droite */}
+      {!isPremium && (
+        <Animated.View 
+          style={[
+            styles.fab,
+            {
+              transform: [{ scale: fabScale }]
+            }
+          ]}
+        >
+          <TouchableOpacity
+            onPress={navigateToPremium}
+            activeOpacity={0.9}
+          >
+            <LinearGradient
+              colors={["#FFD700", "#FFA500"]}
+              style={styles.fabGradient}
+            >
+              <Icon name="diamond" size={24} color="#1A1625" />
+            </LinearGradient>
+          </TouchableOpacity>
+        </Animated.View>
+      )}
 
       {/* Modal Rejoindre avec code */}
       <Modal
@@ -584,6 +688,24 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.primary,
     alignItems: "center",
     justifyContent: "center",
+    position: "relative",
+  },
+  badgeNotif: {
+    position: "absolute",
+    top: -4,
+    right: -4,
+    backgroundColor: COLORS.error,
+    borderRadius: 10,
+    minWidth: 18,
+    height: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 4,
+  },
+  badgeCount: {
+    color: COLORS.textPrimary,
+    fontSize: 10,
+    fontFamily: "Poppins-Bold",
   },
   backButton: {
     width: 40,
@@ -616,6 +738,45 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
     fontSize: 14,
     fontFamily: "Poppins-SemiBold",
+  },
+  // PREMIUM BANNER
+  premiumBanner: {
+    borderRadius: 16,
+    overflow: "hidden",
+    position: "relative",
+  },
+  premiumBannerGradient: {
+    padding: 16,
+  },
+  premiumBannerContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  premiumBannerText: {
+    flex: 1,
+  },
+  premiumBannerTitle: {
+    fontSize: 14,
+    fontFamily: "Poppins-SemiBold",
+    color: "#1A1625",
+    marginBottom: 2,
+  },
+  premiumBannerSubtitle: {
+    fontSize: 12,
+    fontFamily: "Poppins-Regular",
+    color: "rgba(26, 22, 37, 0.8)",
+  },
+  closeBannerButton: {
+    position: "absolute",
+    top: 8,
+    right: 8,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: "rgba(26, 22, 37, 0.1)",
+    alignItems: "center",
+    justifyContent: "center",
   },
   searchBar: {
     flexDirection: "row",
@@ -702,18 +863,49 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: COLORS.border,
   },
+  cardDisabled: {
+    opacity: 0.6,
+  },
+  cardImageWrapper: {
+    position: "relative",
+    margin: 12,
+  },
   cardImage: {
     height: 140,
     alignItems: "center",
     justifyContent: "center",
     gap: 12,
-    margin: 12,
     borderRadius: 18,
+  },
+  cardImageDisabled: {
+    opacity: 0.5,
+  },
+  unlockBadge: {
+    position: "absolute",
+    bottom: 12,
+    left: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "rgba(0,0,0,0.7)",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "#FFD700",
+  },
+  unlockBadgeText: {
+    fontSize: 12,
+    fontFamily: "Poppins-SemiBold",
+    color: "#FFD700",
   },
   cardImageTitle: {
     fontSize: 22,
     fontFamily: "Poppins-Bold",
     color: COLORS.textPrimary,
+  },
+  cardImageTitleDisabled: {
+    opacity: 0.5,
   },
   cardHeart: {
     position: "absolute",
@@ -725,6 +917,7 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0,0,0,0.35)",
     alignItems: "center",
     justifyContent: "center",
+    zIndex: 10,
   },
   cardContent: {
     paddingHorizontal: 20,
@@ -736,6 +929,9 @@ const styles = StyleSheet.create({
     fontFamily: "Poppins-Regular",
     color: COLORS.textSecondary,
     textAlign: "center",
+  },
+  textDisabled: {
+    opacity: 0.5,
   },
   cardMeta: {
     flexDirection: "row",
@@ -755,7 +951,7 @@ const styles = StyleSheet.create({
   cardFooter: {
     alignItems: "center",
   },
-  badge: {
+  badgeContainer: {
     backgroundColor: "transparent",
     borderWidth: 1,
     borderColor: COLORS.border,
@@ -763,7 +959,7 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: 999,
   },
-  badgeText: {
+  badgeTextFree: {
     fontSize: 12,
     fontFamily: "Poppins-SemiBold",
     color: COLORS.textSecondary,
@@ -778,6 +974,24 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontFamily: "Poppins-SemiBold",
     color: "#FFD700",
+  },
+  // FAB (Floating Action Button)
+  fab: {
+    position: "absolute",
+    bottom: 100,
+    right: 20,
+    shadowColor: "#FFD700",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  fabGradient: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    alignItems: "center",
+    justifyContent: "center",
   },
   // Modal styles
   modalOverlay: {

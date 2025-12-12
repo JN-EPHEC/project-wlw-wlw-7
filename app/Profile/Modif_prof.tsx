@@ -85,7 +85,6 @@ export default function EditProfileScreen() {
 
   const pickImage = async () => {
     try {
-      // Demander la permission
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       
       if (status !== "granted") {
@@ -96,12 +95,11 @@ export default function EditProfileScreen() {
         return;
       }
 
-      // Ouvrir le sélecteur d'image
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
         aspect: [1, 1],
-        quality: 0.5, // Compression pour réduire la taille
+        quality: 0.5,
       });
 
       if (!result.canceled && result.assets[0]) {
@@ -115,7 +113,6 @@ export default function EditProfileScreen() {
 
   const takePhoto = async () => {
     try {
-      // Demander la permission
       const { status } = await ImagePicker.requestCameraPermissionsAsync();
       
       if (status !== "granted") {
@@ -126,7 +123,6 @@ export default function EditProfileScreen() {
         return;
       }
 
-      // Ouvrir la caméra
       const result = await ImagePicker.launchCameraAsync({
         allowsEditing: true,
         aspect: [1, 1],
@@ -148,31 +144,24 @@ export default function EditProfileScreen() {
 
     setUploadingPhoto(true);
     try {
-      // Convertir l'URI en blob
       const response = await fetch(uri);
       const blob = await response.blob();
 
-      // Référence Firebase Storage
       const storage = getStorage();
       const storageRef = ref(storage, `profilePictures/${user.uid}.jpg`);
 
-      // Upload
       await uploadBytes(storageRef, blob);
 
-      // Récupérer l'URL
       const downloadURL = await getDownloadURL(storageRef);
 
-      // Mettre à jour Firebase Auth
       await updateProfile(user, { photoURL: downloadURL });
 
-      // Mettre à jour Firestore
       const userRef = doc(db, "users", user.uid);
       await updateDoc(userRef, { photoURL: downloadURL });
 
       setPhotoURL(downloadURL);
       setSuccess("✅ Photo de profil mise à jour !");
       
-      // Scroll vers le haut pour voir le message
       scrollViewRef.current?.scrollTo({ y: 0, animated: true });
       
       setTimeout(() => setSuccess(""), 3000);
@@ -212,13 +201,21 @@ export default function EditProfileScreen() {
     );
   };
 
+  // NOUVELLE FONCTION : Redirection vers work_in_progress si "Professionnel"
+  const handleAccountTypeChange = (type: AccountType) => {
+    if (type === "pro") {
+      router.push("/work_in_progress");
+    } else {
+      setAccountType(type);
+    }
+  };
+
   const handleSaveProfile = async () => {
     setError("");
     setSuccess("");
 
     if (!username.trim()) {
       setError("Le nom d'utilisateur est obligatoire.");
-      // Scroll vers le haut pour voir l'erreur
       scrollViewRef.current?.scrollTo({ y: 0, animated: true });
       return;
     }
@@ -228,26 +225,21 @@ export default function EditProfileScreen() {
       const user = auth.currentUser;
       if (!user) return;
 
-      // Vérifier si le username a changé
       if (username.trim().toLowerCase() !== user.displayName?.toLowerCase()) {
-        // Vérifier si le nouveau username existe déjà
         const usersRef = collection(db, "users");
         const usernameQuery = query(usersRef, where("username", "==", username.trim().toLowerCase()));
         const querySnapshot = await getDocs(usernameQuery);
         
         if (!querySnapshot.empty) {
           setError("❌ Ce nom d'utilisateur est déjà utilisé.");
-          // Scroll vers le haut pour voir l'erreur
           scrollViewRef.current?.scrollTo({ y: 0, animated: true });
           setSaving(false);
           return;
         }
 
-        // Mettre à jour le displayName dans Firebase Auth
         await updateProfile(user, { displayName: username.trim() });
       }
 
-      // Mettre à jour dans Firestore
       const userRef = doc(db, "users", user.uid);
       await updateDoc(userRef, {
         username: username.trim().toLowerCase(),
@@ -259,14 +251,12 @@ export default function EditProfileScreen() {
 
       setSuccess("✅ Profil mis à jour avec succès !");
       
-      // Scroll vers le haut pour voir le message de succès
       scrollViewRef.current?.scrollTo({ y: 0, animated: true });
       
       setTimeout(() => setSuccess(""), 3000);
     } catch (e: any) {
       console.error("Error updating profile:", e);
       setError("❌ Impossible de mettre à jour le profil.");
-      // Scroll vers le haut pour voir l'erreur
       scrollViewRef.current?.scrollTo({ y: 0, animated: true });
     } finally {
       setSaving(false);
@@ -279,21 +269,18 @@ export default function EditProfileScreen() {
 
     if (!currentPassword || !newPassword || !confirmNewPassword) {
       setError("Tous les champs de mot de passe sont obligatoires.");
-      // Scroll vers le haut pour voir l'erreur
       scrollViewRef.current?.scrollTo({ y: 0, animated: true });
       return;
     }
 
     if (newPassword.length < 6) {
       setError("Le nouveau mot de passe doit contenir au moins 6 caractères.");
-      // Scroll vers le haut pour voir l'erreur
       scrollViewRef.current?.scrollTo({ y: 0, animated: true });
       return;
     }
 
     if (newPassword !== confirmNewPassword) {
       setError("Les nouveaux mots de passe ne correspondent pas.");
-      // Scroll vers le haut pour voir l'erreur
       scrollViewRef.current?.scrollTo({ y: 0, animated: true });
       return;
     }
@@ -303,11 +290,9 @@ export default function EditProfileScreen() {
       const user = auth.currentUser;
       if (!user || !user.email) return;
 
-      // Réauthentifier l'utilisateur
       const credential = EmailAuthProvider.credential(user.email, currentPassword);
       await reauthenticateWithCredential(user, credential);
 
-      // Changer le mot de passe
       await updatePassword(user, newPassword);
 
       setSuccess("✅ Mot de passe modifié avec succès !");
@@ -316,7 +301,6 @@ export default function EditProfileScreen() {
       setConfirmNewPassword("");
       setShowPasswordSection(false);
       
-      // Scroll vers le haut pour voir le message de succès
       scrollViewRef.current?.scrollTo({ y: 0, animated: true });
       
       setTimeout(() => setSuccess(""), 3000);
@@ -327,7 +311,6 @@ export default function EditProfileScreen() {
       } else {
         setError("❌ Impossible de changer le mot de passe.");
       }
-      // Scroll vers le haut pour voir l'erreur
       scrollViewRef.current?.scrollTo({ y: 0, animated: true });
     } finally {
       setSaving(false);
@@ -484,7 +467,7 @@ export default function EditProfileScreen() {
                         styles.accountTypeButton,
                         accountType === "private" && styles.accountTypeButtonActive,
                       ]}
-                      onPress={() => setAccountType("private")}
+                      onPress={() => handleAccountTypeChange("private")}
                       disabled={saving}
                     >
                       <Text
@@ -502,7 +485,7 @@ export default function EditProfileScreen() {
                         styles.accountTypeButton,
                         accountType === "pro" && styles.accountTypeButtonActive,
                       ]}
-                      onPress={() => setAccountType("pro")}
+                      onPress={() => handleAccountTypeChange("pro")}
                       disabled={saving}
                     >
                       <Text

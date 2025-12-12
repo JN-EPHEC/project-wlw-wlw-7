@@ -2,7 +2,6 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React from "react";
 import {
-  Alert,
   ScrollView,
   StyleSheet,
   Text,
@@ -299,7 +298,6 @@ export default function DescriptionJeu() {
   const { userProfile } = useAuth();
   const params = useLocalSearchParams();
   
-  // Récupérer les données du jeu depuis les params
   const gameId = params.gameId as string;
   const gameName = params.gameName as string;
   const gameDescription = params.gameDescription as string;
@@ -310,24 +308,20 @@ export default function DescriptionJeu() {
   const gameIsPremium = params.gameIsPremium === "true";
 
   const isPremium = userProfile?.isPremium || false;
+  const isLocked = gameIsPremium && !isPremium;
   
   const rules = GAME_RULES[gameId] || GAME_RULES["action-verite"];
 
   const handlePlayPress = () => {
-    if (gameIsPremium && !isPremium) {
-      Alert.alert(
-        "Premium requis",
-        `${gameName} est réservé aux membres Premium. Passe à Premium pour débloquer tous les jeux !`,
-        [
-          { text: "Annuler", style: "cancel" },
-          { text: "Découvrir Premium", onPress: () => router.push("./Profile/Abo_choix") }
-        ]
-      );
+    if (isLocked) {
+      // Redirection vers la page d'abonnement
+      router.push("/Profile/Abo_choix");
     } else {
+      // Lancer le jeu
       router.push({
         pathname: "/Game/Invitation",
         params: { 
-          gameType: gameId // "action-verite" ou "qui-suis-je"
+          gameType: gameId
         }
       });
     }
@@ -398,19 +392,23 @@ export default function DescriptionJeu() {
         </View>
       </ScrollView>
 
-      {/* Bouton Jouer fixe en bas */}
+      {/* Bouton Jouer / Débloquer fixe en bas */}
       <View style={styles.bottomContainer}>
         <TouchableOpacity
           style={styles.playButton}
           onPress={handlePlayPress}
         >
           <LinearGradient
-            colors={gameColors as [string, string, ...string[]]}
+            colors={isLocked ? ["#FFD700", "#FFA500"] : gameColors as [string, string, ...string[]]}
             style={styles.playButtonGradient}
           >
-            <Icon name="play" size={24} color={COLORS.textPrimary} />
+            <Icon 
+              name={isLocked ? "lock-closed" : "play"} 
+              size={24} 
+              color={COLORS.textPrimary} 
+            />
             <Text style={styles.playButtonText}>
-              {gameIsPremium && !isPremium ? "Premium requis" : "Jouer maintenant"}
+              {isLocked ? "Débloquer" : "Jouer maintenant"}
             </Text>
           </LinearGradient>
         </TouchableOpacity>
