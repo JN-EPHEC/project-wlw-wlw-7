@@ -4,7 +4,9 @@ import { doc, updateDoc } from "firebase/firestore";
 import React, { useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   KeyboardAvoidingView,
+  Linking,
   Modal,
   Platform,
   ScrollView,
@@ -17,6 +19,15 @@ import {
 import Icon from "react-native-vector-icons/Ionicons";
 import { COLORS } from "../../components/Colors";
 import { auth, db } from "../../firebase_Config";
+
+// ========== LIENS STRIPE MODE TEST (optionnel) ==========
+// Si tu veux activer Stripe, remplace par tes vrais liens
+const STRIPE_PAYMENT_LINKS = {
+  monthly: "https://buy.stripe.com/test_8x214pb2466Vgul9W2eME00", // TON LIEN MENSUEL
+  yearly: "https://buy.stripe.com/test_7sY4gB1ru8f36TLd8eeME01",  // TON LIEN ANNUEL
+};
+const STRIPE_CONFIGURED = true; // Change en true quand tu as configuré Stripe
+// =========================================================
 
 export default function FakePaymentScreen() {
   const router = useRouter();
@@ -31,14 +42,17 @@ export default function FakePaymentScreen() {
   const [showSuccess, setShowSuccess] = useState(false);
 
   const planDetails = {
-    monthly: { price: "3,99€", period: "mois" },
-    annual: { price: "29,99€", period: "an" },
+    monthly: { price: "3,99€", period: "mois", stripePlan: "monthly" },
+    annual: { price: "34,99€", period: "an", stripePlan: "yearly" },
   };
 
-  const handlePayment = async () => {
+  // ========== PAIEMENT FICTIF (ton système actuel) ==========
+  const handleFakePayment = async () => {
+    console.log("💳 Paiement fictif démarré");
+    
     // Validation basique (fake)
     if (!cardNumber || !cardName || !expiryDate || !cvv) {
-      alert("Veuillez remplir tous les champs");
+      Alert.alert("Info", "Veuillez remplir tous les champs");
       return;
     }
 
@@ -65,14 +79,71 @@ export default function FakePaymentScreen() {
       } catch (e) {
         console.error("❌ Error upgrading to premium:", e);
         setProcessing(false);
-        alert("Erreur lors du paiement");
+        Alert.alert("Erreur", "Erreur lors du paiement");
       }
     }, 2000);
   };
 
+  // ========== PAIEMENT STRIPE (optionnel) ==========
+  const handleStripePayment = async () => {
+    console.log("🔵 ========== DÉBUT PAIEMENT STRIPE ==========");
+    console.log("🔵 Bouton Stripe cliqué");
+    console.log("🔵 STRIPE_CONFIGURED:", STRIPE_CONFIGURED);
+    
+    if (!STRIPE_CONFIGURED) {
+      console.log("⚠️ Stripe non configuré - affichage du message");
+      Alert.alert(
+        "Stripe non configuré",
+        "Pour activer les paiements Stripe :\n\n" +
+        "1. Crée un compte sur stripe.com\n" +
+        "2. Crée les produits (mensuel et annuel)\n" +
+        "3. Génère les Payment Links\n" +
+        "4. Remplace les liens dans le code\n" +
+        "5. Change STRIPE_CONFIGURED = true\n\n" +
+        "En attendant, utilise le paiement fictif !",
+        [
+          { text: "OK" }
+        ]
+      );
+      return;
+    }
+
+    console.log("🔵 Plan type reçu:", planType);
+    const stripePlan = planDetails[planType].stripePlan as "monthly" | "yearly";
+    console.log("🔵 Stripe plan converti:", stripePlan);
+    
+    const paymentLink = STRIPE_PAYMENT_LINKS[stripePlan];
+    console.log("🔵 Payment link sélectionné:", paymentLink);
+
+    try {
+      console.log("🔵 Test si l'URL peut être ouverte...");
+      const canOpen = await Linking.canOpenURL(paymentLink);
+      console.log("🔵 Can open URL result:", canOpen);
+      
+      if (canOpen) {
+        console.log("✅ URL peut être ouverte - ouverture directe");
+        console.log("🚀 Tentative d'ouverture de l'URL...");
+        
+        // Ouvrir directement sans Alert
+        await Linking.openURL(paymentLink);
+        console.log("✅ URL ouverte avec succès");
+        
+      } else {
+        console.log("❌ L'URL ne peut PAS être ouverte");
+        Alert.alert("Erreur", "Impossible d'ouvrir Stripe");
+      }
+    } catch (error) {
+      console.error("❌ Erreur Stripe complète:", error);
+      console.error("❌ Type d'erreur:", typeof error);
+      console.error("❌ Message:", error instanceof Error ? error.message : String(error));
+      Alert.alert("Erreur", "Une erreur est survenue: " + (error instanceof Error ? error.message : String(error)));
+    }
+    
+    console.log("🔵 ========== FIN PAIEMENT STRIPE ==========");
+  };
+
   const handleSuccessClose = () => {
     setShowSuccess(false);
-    // Retourner au profil
     router.replace("/(tabs)/Profile");
   };
 
@@ -200,10 +271,10 @@ export default function FakePaymentScreen() {
             </View>
           </View>
 
-          {/* BOUTON PAYER */}
+          {/* BOUTON PAIEMENT FICTIF */}
           <TouchableOpacity
             style={styles.payButtonWrapper}
-            onPress={handlePayment}
+            onPress={handleFakePayment}
             disabled={processing}
           >
             <LinearGradient
@@ -215,17 +286,36 @@ export default function FakePaymentScreen() {
               {processing ? (
                 <ActivityIndicator color={COLORS.textPrimary} />
               ) : (
-                <Text style={styles.payButtonText}>
-                  Payer {planDetails[planType].price}
-                </Text>
+                <>
+                  <Icon name="card" size={20} color={COLORS.textPrimary} />
+                  <Text style={styles.payButtonText}>
+                    Payer {planDetails[planType].price}
+                  </Text>
+                </>
               )}
             </LinearGradient>
           </TouchableOpacity>
 
-          {/* NOTE MVP */}
-          <Text style={styles.mvpNote}>
-            ⚠️ Ceci est un faux système de paiement pour la démo
-          </Text>
+          {/* SÉPARATEUR */}
+          <View style={styles.separator}>
+            <View style={styles.separatorLine} />
+            <Text style={styles.separatorText}>OU</Text>
+            <View style={styles.separatorLine} />
+          </View>
+
+          {/* BOUTON STRIPE */}
+          <TouchableOpacity
+            style={styles.stripeButtonWrapper}
+            onPress={handleStripePayment}
+            disabled={processing}
+          >
+            <View style={styles.stripeButton}>
+              <Icon name="wallet" size={22} color="#A29BFE" style={{ marginRight: 8 }} />
+              <Text style={styles.stripeButtonText}>
+                Payer avec Stripe
+              </Text>
+            </View>
+          </TouchableOpacity>
         </ScrollView>
       </KeyboardAvoidingView>
 
@@ -339,7 +429,7 @@ const styles = StyleSheet.create({
     color: COLORS.textPrimary,
   },
   form: {
-    marginBottom: 32,
+    marginBottom: 24,
   },
   sectionTitle: {
     fontSize: 16,
@@ -395,18 +485,56 @@ const styles = StyleSheet.create({
     width: "100%",
     borderRadius: 999,
     overflow: "hidden",
-    marginBottom: 16,
+    marginBottom: 20,
   },
   payButton: {
+    flexDirection: "row",
     height: 56,
     borderRadius: 999,
     justifyContent: "center",
     alignItems: "center",
+    gap: 8,
   },
   payButtonText: {
     fontSize: 16,
     fontFamily: "Poppins-SemiBold",
     color: COLORS.textPrimary,
+  },
+  separator: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginVertical: 20,
+  },
+  separatorLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: COLORS.border,
+  },
+  separatorText: {
+    marginHorizontal: 16,
+    fontSize: 13,
+    fontFamily: "Poppins-Medium",
+    color: COLORS.textSecondary,
+  },
+  stripeButtonWrapper: {
+    width: "100%",
+    marginBottom: 16,
+  },
+  stripeButton: {
+    flexDirection: "row",
+    height: 56,
+    borderRadius: 999,
+    backgroundColor: COLORS.neutralGray800,
+    borderWidth: 2,
+    borderColor: "#635BFF",
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 8,
+  },
+  stripeButtonText: {
+    fontSize: 16,
+    fontFamily: "Poppins-SemiBold",
+    color: "#635BFF",
   },
   mvpNote: {
     fontSize: 12,
