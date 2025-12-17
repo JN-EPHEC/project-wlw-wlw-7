@@ -273,7 +273,6 @@ export default function CreateGroupScreen() {
         selectedFriends.map(friendId =>
           notifyUser(
             friendId,
-            "group_invite",
             "Nouveau groupe",
             `${creatorName} vous a ajouté au groupe "${groupName}" pour ${selectedActivity.title}`,
             { 

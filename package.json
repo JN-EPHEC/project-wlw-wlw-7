@@ -31,7 +31,7 @@
     "expo-haptics": "~15.0.7",
     "expo-image": "~3.0.8",
     "expo-image-picker": "~17.0.9",
-    "expo-linear-gradient": "~15.0.7",
+    "expo-linear-gradient": "~15.0.8",
     "expo-linking": "~8.0.8",
     "expo-location": "~19.0.8",
     "expo-notifications": "~0.32.15",
@@ -61,6 +61,7 @@
     "@types/react-native-vector-icons": "^6.4.18",
     "eslint": "^9.25.0",
     "eslint-config-expo": "~10.0.0",
+    "expo-module-scripts": "^5.0.8",
     "typescript": "~5.9.2"
   },
   "private": true
