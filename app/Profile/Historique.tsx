@@ -357,7 +357,7 @@ export default function ActivityHistoryScreen() {
       </Text>
       <TouchableOpacity 
         style={styles.exploreButton}
-        onPress={() => router.push("/(tabs)/Jeux")}
+        onPress={() => router.push("/(tabs)/Home")}
       >
         <Text style={styles.exploreButtonText}>Découvrir les jeux</Text>
       </TouchableOpacity>

@@ -1,116 +1,346 @@
+import * as Haptics from "expo-haptics";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
-import React from "react";
 import {
-    ScrollView,
+    addDoc,
+    collection,
+    getDocs,
+    query,
+    where
+} from "firebase/firestore";
+import React, { useState } from "react";
+import {
+    ActivityIndicator,
+    Alert,
+    FlatList,
+    Image,
     StyleSheet,
     Text,
+    TextInput,
     TouchableOpacity,
-    View
+    View,
 } from "react-native";
 import Icon from "react-native-vector-icons/Ionicons";
 import { COLORS } from "../../components/Colors";
+import { auth, db } from "../../firebase_Config";
+import { notifyUser } from "../../service/notificationService";
 
-export default function AddFriendScreen() {
+type SearchResult = {
+  uid: string;
+  displayName: string;
+  username: string;
+  photoURL?: string;
+  requestSent?: boolean;
+};
+
+export default function SearchFriendsScreen() {
   const router = useRouter();
+  const [searchQuery, setSearchQuery] = useState("");
+  const [results, setResults] = useState<SearchResult[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [sendingRequest, setSendingRequest] = useState<string | null>(null);
+  const [hasSearched, setHasSearched] = useState(false);
 
-  const handleBack = () => {
-    router.back();
+  const handleSearch = async () => {
+    if (!searchQuery.trim()) {
+      Alert.alert("❌", "Entrez un nom ou email");
+      return;
+    }
+
+    setLoading(true);
+    setHasSearched(true);
+    try {
+      const user = auth.currentUser;
+      if (!user) return;
+
+      const query_lower = searchQuery.toLowerCase().trim();
+      const usersRef = collection(db, "users");
+      
+      // Recherche par username OU email
+      const usernameQuery = query(usersRef, where("username", "==", query_lower));
+      const emailQuery = query(usersRef, where("email", "==", query_lower));
+
+      const [usernameSnapshot, emailSnapshot] = await Promise.all([
+        getDocs(usernameQuery),
+        getDocs(emailQuery)
+      ]);
+
+      const foundUsers: SearchResult[] = [];
+      const seenUids = new Set<string>();
+
+      // Ajouter résultats username
+      usernameSnapshot.forEach(doc => {
+        if (doc.id !== user.uid && !seenUids.has(doc.id)) {
+          const data = doc.data();
+          foundUsers.push({
+            uid: doc.id,
+            displayName: data.displayName || data.username || "Utilisateur",
+            username: data.username || "",
+            photoURL: data.photoURL,
+            requestSent: false,
+          });
+          seenUids.add(doc.id);
+        }
+      });
+
+      // Ajouter résultats email
+      emailSnapshot.forEach(doc => {
+        if (doc.id !== user.uid && !seenUids.has(doc.id)) {
+          const data = doc.data();
+          foundUsers.push({
+            uid: doc.id,
+            displayName: data.displayName || data.username || "Utilisateur",
+            username: data.username || "",
+            photoURL: data.photoURL,
+            requestSent: false,
+          });
+          seenUids.add(doc.id);
+        }
+      });
+
+      setResults(foundUsers);
+    } catch (error) {
+      console.error("Search error:", error);
+      Alert.alert("❌", "Erreur lors de la recherche");
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleAddFromContacts = () => {
-    router.push("./Profile/Add_contact");
+  const handleSendRequest = async (targetUser: SearchResult) => {
+    const user = auth.currentUser;
+    if (!user) return;
+
+    setSendingRequest(targetUser.uid);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+    try {
+      // Vérifier si demande existe déjà
+      const requestsRef = collection(db, "friendRequests");
+      const existingQuery = query(
+        requestsRef,
+        where("from", "==", user.uid),
+        where("to", "==", targetUser.uid),
+        where("status", "==", "pending")
+      );
+      const existingSnapshot = await getDocs(existingQuery);
+
+      if (!existingSnapshot.empty) {
+        Alert.alert("⚠️", "Vous avez déjà envoyé une demande à cet utilisateur");
+        setSendingRequest(null);
+        return;
+      }
+
+      // Créer la demande
+      await addDoc(collection(db, "friendRequests"), {
+        from: user.uid,
+        to: targetUser.uid,
+        fromUsername: user.displayName || "Utilisateur",
+        status: "pending",
+        createdAt: new Date().toISOString(),
+      });
+
+      // Notification
+      await notifyUser(
+        targetUser.uid,
+        "👋 Nouvelle demande d'ami",
+        `${user.displayName} veut être votre ami`,
+        { type: 'friend_request', fromUserId: user.uid }
+      );
+
+      // Marquer comme envoyé
+      setResults(prev =>
+        prev.map(r =>
+          r.uid === targetUser.uid ? { ...r, requestSent: true } : r
+        )
+      );
+
+      Alert.alert("✅", `Demande envoyée à ${targetUser.displayName}`);
+    } catch (error) {
+      console.error("Send request error:", error);
+      Alert.alert("❌", "Impossible d'envoyer la demande");
+    } finally {
+      setSendingRequest(null);
+    }
   };
 
-  const handleAddByUsername = () => {
-    router.push("./Profile/Add_username");
+  const renderResult = ({ item }: { item: SearchResult }) => (
+    <View style={styles.resultCard}>
+      {/* AVATAR + INFO */}
+      <View style={styles.userInfo}>
+        {item.photoURL ? (
+          <Image source={{ uri: item.photoURL }} style={styles.avatar} />
+        ) : (
+          <LinearGradient
+            colors={[COLORS.titleGradientStart, COLORS.titleGradientEnd]}
+            style={styles.avatar}
+          >
+            <Text style={styles.avatarText}>
+              {item.displayName.charAt(0).toUpperCase()}
+            </Text>
+          </LinearGradient>
+        )}
+
+        <View style={styles.userDetails}>
+          <Text style={styles.userName} numberOfLines={1}>
+            {item.displayName}
+          </Text>
+          <Text style={styles.userUsername} numberOfLines={1}>
+            @{item.username}
+          </Text>
+        </View>
+      </View>
+
+      {/* BOUTON */}
+      {item.requestSent ? (
+        <View style={styles.sentBadge}>
+          <Icon name="checkmark-circle" size={20} color={COLORS.success} />
+          <Text style={styles.sentText}>Envoyé</Text>
+        </View>
+      ) : (
+        <TouchableOpacity
+          style={styles.addButton}
+          onPress={() => handleSendRequest(item)}
+          disabled={sendingRequest === item.uid}
+        >
+          {sendingRequest === item.uid ? (
+            <ActivityIndicator size="small" color={COLORS.textPrimary} />
+          ) : (
+            <LinearGradient
+              colors={[COLORS.titleGradientStart, COLORS.titleGradientEnd]}
+              style={styles.addButtonGradient}
+            >
+              <Icon name="person-add" size={18} color={COLORS.textPrimary} />
+              <Text style={styles.addButtonText}>Ajouter</Text>
+            </LinearGradient>
+          )}
+        </TouchableOpacity>
+      )}
+    </View>
+  );
+
+  const renderEmpty = () => {
+    if (loading) return null;
+    
+    // Si une recherche a été faite mais rien trouvé
+    if (hasSearched && results.length === 0) {
+      return (
+        <View style={styles.emptyContainer}>
+          <LinearGradient
+            colors={['rgba(255, 59, 48, 0.2)', 'rgba(255, 149, 0, 0.2)']}
+            style={styles.emptyIcon}
+          >
+            <Icon name="sad-outline" size={40} color="#FF9500" />
+          </LinearGradient>
+          <Text style={styles.emptyTitle}>Aucun résultat</Text>
+          <Text style={styles.emptySubtext}>
+            On n'a trouvé personne avec "{searchQuery}"
+          </Text>
+          <Text style={[styles.emptySubtext, { marginTop: 8 }]}>
+            Vérifie l'orthographe ou essaye avec l'email exact
+          </Text>
+        </View>
+      );
+    }
+    
+    // État initial (avant toute recherche)
+    return (
+      <View style={styles.emptyContainer}>
+        <LinearGradient
+          colors={[COLORS.titleGradientStart, COLORS.titleGradientEnd]}
+          style={styles.emptyIcon}
+        >
+          <Icon name="search" size={40} color={COLORS.textPrimary} />
+        </LinearGradient>
+        <Text style={styles.emptyTitle}>Rechercher des amis</Text>
+        <Text style={styles.emptySubtext}>
+          Entrez le nom d'utilisateur ou l'email exact pour trouver quelqu'un
+        </Text>
+        
+        <View style={styles.examplesContainer}>
+          <Text style={styles.examplesTitle}>Exemples :</Text>
+          <Text style={styles.exampleItem}>• @alice</Text>
+          <Text style={styles.exampleItem}>• bob@email.com</Text>
+        </View>
+      </View>
+    );
   };
 
   return (
-    <LinearGradient
-      colors={[COLORS.backgroundTop, COLORS.backgroundBottom]}
-      style={styles.container}
-    >
-      <ScrollView contentContainerStyle={styles.content}>
-        {/* HEADER */}
-        <View style={styles.header}>
-          <TouchableOpacity style={styles.backButton} onPress={handleBack}>
-            <Icon name="chevron-back" size={24} color={COLORS.textPrimary} />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Ajouter un ami</Text>
-          <View style={styles.headerPlaceholder} />
+    <View style={styles.container}>
+      <LinearGradient
+        colors={[COLORS.backgroundTop, COLORS.backgroundBottom]}
+        style={StyleSheet.absoluteFill}
+      />
+
+      {/* HEADER */}
+      <View style={styles.header}>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => router.back()}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        >
+          <Icon name="chevron-back" size={24} color={COLORS.textPrimary} />
+        </TouchableOpacity>
+        
+        <Text style={styles.headerTitle}>Ajouter un ami</Text>
+        
+        <View style={{ width: 40 }} />
+      </View>
+
+      {/* BARRE DE RECHERCHE */}
+      <View style={styles.searchSection}>
+        <View style={styles.searchContainer}>
+          <Icon name="search" size={20} color={COLORS.textSecondary} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Nom d'utilisateur ou email"
+            placeholderTextColor={COLORS.textSecondary}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            autoCapitalize="none"
+            autoCorrect={false}
+            returnKeyType="search"
+            onSubmitEditing={handleSearch}
+          />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity onPress={() => setSearchQuery("")}>
+              <Icon name="close-circle" size={20} color={COLORS.textSecondary} />
+            </TouchableOpacity>
+          )}
         </View>
 
-        <View style={styles.card}>
-          <View style={styles.iconHeader}>
-            <LinearGradient
-              colors={[COLORS.titleGradientStart, COLORS.titleGradientEnd]}
-              style={styles.iconGradient}
-            >
-              <Icon name="person-add" size={32} color={COLORS.textPrimary} />
-            </LinearGradient>
-            <Text style={styles.subtitle}>
-              Ajoutez des amis en privé
-            </Text>
-          </View>
-
-          {/* MÉTHODE 1 : CONTACTS */}
-          <TouchableOpacity
-            style={styles.methodCard}
-            onPress={handleAddFromContacts}
-            activeOpacity={0.7}
+        <TouchableOpacity
+          style={styles.searchButton}
+          onPress={handleSearch}
+          disabled={loading}
+        >
+          <LinearGradient
+            colors={[COLORS.titleGradientStart, COLORS.titleGradientEnd]}
+            style={styles.searchButtonGradient}
           >
-            <View style={styles.methodIconContainer}>
-              <LinearGradient
-                colors={[COLORS.titleGradientStart, COLORS.titleGradientEnd]}
-                style={styles.methodIcon}
-              >
-                <Icon name="people" size={24} color={COLORS.textPrimary} />
-              </LinearGradient>
-            </View>
-            
-            <View style={styles.methodContent}>
-              <Text style={styles.methodTitle}>Depuis vos contacts</Text>
-              <Text style={styles.methodDescription}>
-                Trouvez vos amis qui utilisent déjà l'application
-              </Text>
-            </View>
-            
-            <Icon name="chevron-forward" size={20} color={COLORS.textSecondary} />
-          </TouchableOpacity>
+            {loading ? (
+              <ActivityIndicator size="small" color={COLORS.textPrimary} />
+            ) : (
+              <Icon name="search" size={20} color={COLORS.textPrimary} />
+            )}
+          </LinearGradient>
+        </TouchableOpacity>
+      </View>
 
-          {/* MÉTHODE 2 : USERNAME */}
-          <TouchableOpacity
-            style={styles.methodCard}
-            onPress={handleAddByUsername}
-            activeOpacity={0.7}
-          >
-            <View style={styles.methodIconContainer}>
-              <View style={[styles.methodIcon, { backgroundColor: 'rgba(99, 102, 241, 0.1)' }]}>
-                <Icon name="at" size={24} color="#6366F1" />
-              </View>
-            </View>
-            
-            <View style={styles.methodContent}>
-              <Text style={styles.methodTitle}>Par nom d'utilisateur</Text>
-              <Text style={styles.methodDescription}>
-                Ajoutez un ami avec son identifiant exact
-              </Text>
-            </View>
-            
-            <Icon name="chevron-forward" size={20} color={COLORS.textSecondary} />
-          </TouchableOpacity>
-
-          {/* INFO PRIVACY */}
-          <View style={styles.infoSection}>
-            <Icon name="lock-closed" size={16} color={COLORS.success} />
-            <Text style={styles.infoText}>
-              Votre profil reste privé. Les demandes nécessitent votre approbation.
-            </Text>
-          </View>
-        </View>
-      </ScrollView>
-    </LinearGradient>
+      {/* RÉSULTATS */}
+      <FlatList
+        data={results}
+        renderItem={renderResult}
+        keyExtractor={(item) => item.uid}
+        ListEmptyComponent={renderEmpty}
+        contentContainerStyle={[
+          styles.listContent,
+          results.length === 0 && styles.emptyListContent
+        ]}
+        showsVerticalScrollIndicator={false}
+      />
+    </View>
   );
 }
 
@@ -118,16 +348,13 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  content: {
-    paddingHorizontal: 24,
-    paddingTop: 60,
-    paddingBottom: 40,
-  },
   header: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: 32,
+    paddingHorizontal: 20,
+    paddingTop: 60,
+    paddingBottom: 16,
   },
   backButton: {
     width: 40,
@@ -144,84 +371,168 @@ const styles = StyleSheet.create({
     fontFamily: "Poppins-Bold",
     color: COLORS.textPrimary,
   },
-  headerPlaceholder: {
-    width: 40,
+  searchSection: {
+    flexDirection: "row",
+    paddingHorizontal: 20,
+    marginBottom: 20,
+    gap: 10,
   },
-  card: {
+  searchContainer: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
     backgroundColor: COLORS.neutralGray800,
-    borderRadius: 24,
-    padding: 24,
     borderWidth: 1,
     borderColor: COLORS.border,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    gap: 10,
   },
-  iconHeader: {
+  searchInput: {
+    flex: 1,
+    fontSize: 14,
+    fontFamily: "Poppins-Regular",
+    color: COLORS.textPrimary,
+    padding: 0,
+  },
+  searchButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    overflow: "hidden",
+  },
+  searchButtonGradient: {
+    width: "100%",
+    height: "100%",
+    justifyContent: "center",
     alignItems: "center",
-    marginBottom: 32,
   },
-  iconGradient: {
+  listContent: {
+    paddingHorizontal: 20,
+    paddingBottom: 32,
+  },
+  emptyListContent: {
+    flexGrow: 1,
+  },
+  resultCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: COLORS.neutralGray800,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 10,
+  },
+  userInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+  },
+  avatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    marginRight: 12,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  avatarText: {
+    fontSize: 18,
+    fontFamily: "Poppins-Bold",
+    color: COLORS.textPrimary,
+  },
+  userDetails: {
+    flex: 1,
+  },
+  userName: {
+    fontSize: 15,
+    fontFamily: "Poppins-SemiBold",
+    color: COLORS.textPrimary,
+    marginBottom: 2,
+  },
+  userUsername: {
+    fontSize: 13,
+    fontFamily: "Poppins-Regular",
+    color: COLORS.textSecondary,
+  },
+  addButton: {
+    borderRadius: 20,
+    overflow: "hidden",
+  },
+  addButtonGradient: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
+  addButtonText: {
+    fontSize: 14,
+    fontFamily: "Poppins-SemiBold",
+    color: COLORS.textPrimary,
+  },
+  sentBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: 'rgba(52, 199, 89, 0.1)',
+    borderRadius: 16,
+  },
+  sentText: {
+    fontSize: 13,
+    fontFamily: "Poppins-Medium",
+    color: COLORS.success,
+  },
+  emptyContainer: {
+    alignItems: "center",
+    paddingHorizontal: 40,
+    paddingTop: 60,
+  },
+  emptyIcon: {
     width: 80,
     height: 80,
     borderRadius: 40,
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 12,
+    marginBottom: 20,
   },
-  subtitle: {
-    fontSize: 16,
-    fontFamily: "Poppins-Medium",
-    color: COLORS.textPrimary,
-    textAlign: "center",
-  },
-  methodCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: COLORS.backgroundTop,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 12,
-  },
-  methodIconContainer: {
-    marginRight: 12,
-  },
-  methodIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  methodContent: {
-    flex: 1,
-  },
-  methodTitle: {
-    fontSize: 16,
+  emptyTitle: {
+    fontSize: 18,
     fontFamily: "Poppins-SemiBold",
     color: COLORS.textPrimary,
-    marginBottom: 4,
+    marginBottom: 8,
   },
-  methodDescription: {
+  emptySubtext: {
+    fontSize: 14,
+    fontFamily: "Poppins-Regular",
+    color: COLORS.textSecondary,
+    textAlign: "center",
+    lineHeight: 20,
+    marginBottom: 24,
+  },
+  examplesContainer: {
+    alignSelf: "stretch",
+    backgroundColor: COLORS.neutralGray800,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 12,
+    padding: 16,
+  },
+  examplesTitle: {
+    fontSize: 13,
+    fontFamily: "Poppins-SemiBold",
+    color: COLORS.textPrimary,
+    marginBottom: 8,
+  },
+  exampleItem: {
     fontSize: 13,
     fontFamily: "Poppins-Regular",
     color: COLORS.textSecondary,
-    lineHeight: 18,
-  },
-  infoSection: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginTop: 24,
-    paddingTop: 20,
-    borderTopWidth: 1,
-    borderTopColor: COLORS.border,
-    gap: 8,
-  },
-  infoText: {
-    flex: 1,
-    fontSize: 13,
-    fontFamily: "Poppins-Regular",
-    color: COLORS.success,
-    fontStyle: "italic",
-    lineHeight: 18,
+    marginBottom: 4,
   },
 });

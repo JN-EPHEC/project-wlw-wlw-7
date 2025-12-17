@@ -87,12 +87,14 @@ export default function FriendRequestsScreen() {
 
       // 3. Envoyer la notification d'acceptation
       await notifyUser(
-        fromUserId,
-        "friend_accept",
-        "Demande acceptée",
-        `${currentUser.displayName} a accepté votre demande d'ami`,
-        { fromUserId: currentUser.uid }
-      );
+  fromUserId,
+  "✅ Demande acceptée",
+  `${currentUser.displayName} a accepté votre demande d'ami`,
+  { 
+    type: 'friend_request_accepted',
+    fromUserId: currentUser.uid 
+  }
+);
 
       Alert.alert("Succès", `Vous êtes maintenant ami avec ${fromUsername} !`);
       
