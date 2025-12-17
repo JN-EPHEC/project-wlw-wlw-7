@@ -31,6 +31,7 @@ export default function ProfileScreen() {
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [pendingRequestsCount, setPendingRequestsCount] = useState(0);
 
   // Recharger les données à chaque fois qu'on revient sur la page
   useFocusEffect(
@@ -47,7 +48,7 @@ export default function ProfileScreen() {
         setEmail(user.email || "");
         setPhotoURL(user.photoURL || null);
 
-        // Charger le nombre d'amis et le statut premium
+        // Charger les données depuis Firestore
         const userDoc = await getDoc(doc(db, "users", user.uid));
         if (userDoc.exists()) {
           const data = userDoc.data();
@@ -55,11 +56,19 @@ export default function ProfileScreen() {
           setIsPremium(data.isPremium || false);
           setPremiumType(data.premiumType || null);
           
-          // Mettre à jour la photo si elle existe dans Firestore
           if (data.photoURL) {
             setPhotoURL(data.photoURL);
           }
         }
+
+        // Charger le nombre de demandes en attente
+        const requestsQuery = query(
+          collection(db, "friend_requests"),
+          where("toUserId", "==", user.uid),
+          where("status", "==", "pending")
+        );
+        const requestsSnapshot = await getDocs(requestsQuery);
+        setPendingRequestsCount(requestsSnapshot.size);
       }
     } catch (e) {
       console.error("Error loading user data:", e);
@@ -70,9 +79,7 @@ export default function ProfileScreen() {
 
   const handleLogout = async () => {
     try {
-      console.log("▶ Logging out...");
       await signOut(auth);
-      console.log("✅ User logged out");
       router.replace("/login");
     } catch (e: any) {
       console.error("❌ Error logging out:", e);
@@ -81,19 +88,23 @@ export default function ProfileScreen() {
   };
 
   const handleEditProfile = () => {
-    (router as any).push("/Profile/Modif_prof");
+    router.push("/Profile/Modif_prof");
   };
 
   const handleManageFriends = () => {
-    (router as any).push("/Profile/Friends_management");
+    router.push("/Profile/Friends_management");
   };
 
   const handleFriendRequests = () => {
-    (router as any).push("/Profile/Friends_request");
+    router.push("/Profile/Friends_request");
   };
 
-  const handleSearchFriends = () => {
-    (router as any).push("/Profile/Search_friends");
+  const handleAddFriend = () => {
+    router.push("/Profile/Add_amis");
+  };
+
+  const handleActivityHistory = () => {
+    router.push("/Profile/Historique");
   };
 
   const handleCancelSubscription = async () => {
@@ -101,7 +112,6 @@ export default function ProfileScreen() {
       const user = auth.currentUser;
       if (!user) return;
 
-      // Résilier l'abonnement dans Firestore
       const userRef = doc(db, "users", user.uid);
       await updateDoc(userRef, {
         isPremium: false,
@@ -109,14 +119,12 @@ export default function ProfileScreen() {
         premiumCancelledAt: new Date().toISOString(),
       });
 
-      console.log("✅ Subscription cancelled");
-      
       setShowCancelModal(false);
       setIsPremium(false);
       setPremiumType(null);
-      
-      // Recharger les données
       loadUserData();
+      
+      Alert.alert("Succès", "Votre abonnement a été résilié.");
     } catch (e) {
       console.error("❌ Error cancelling subscription:", e);
       Alert.alert("Erreur", "Impossible de résilier l'abonnement.");
@@ -133,14 +141,11 @@ export default function ProfileScreen() {
         return;
       }
 
-      console.log("▶ Début de la suppression du compte...");
-
-      // 1. Supprimer l'utilisateur de la collection "users"
+      // 1. Supprimer le document utilisateur
       const userRef = doc(db, "users", user.uid);
       await deleteDoc(userRef);
-      console.log("✅ Document utilisateur supprimé de Firestore");
 
-      // 2. Supprimer l'utilisateur de toutes les listes d'amis
+      // 2. Retirer l'utilisateur des listes d'amis
       const usersSnapshot = await getDocs(collection(db, "users"));
       const updatePromises: Promise<void>[] = [];
       
@@ -157,10 +162,9 @@ export default function ProfileScreen() {
 
       if (updatePromises.length > 0) {
         await Promise.all(updatePromises);
-        console.log(`✅ Supprimé de ${updatePromises.length} listes d'amis`);
       }
 
-      // 3. Supprimer les demandes d'amis associées
+      // 3. Supprimer les demandes d'amis
       const friendRequestsQuery = query(
         collection(db, "friend_requests"),
         where("fromUserId", "==", user.uid)
@@ -172,7 +176,6 @@ export default function ProfileScreen() {
         deleteRequestPromises.push(deleteDoc(requestDoc.ref));
       });
 
-      // Supprimer aussi les demandes reçues
       const receivedRequestsQuery = query(
         collection(db, "friend_requests"),
         where("toUserId", "==", user.uid)
@@ -185,26 +188,23 @@ export default function ProfileScreen() {
 
       if (deleteRequestPromises.length > 0) {
         await Promise.all(deleteRequestPromises);
-        console.log(`✅ ${deleteRequestPromises.length} demandes d'amis supprimées`);
       }
 
-      // 4. Supprimer le compte d'authentification Firebase
+      // 4. Supprimer le compte d'authentification
       await deleteUser(user);
-      console.log("✅ Compte d'authentification supprimé");
 
       // 5. Déconnexion et redirection
       await signOut(auth);
       
       Alert.alert(
         "Compte supprimé",
-        "Votre compte a été supprimé avec succès. Nous sommes tristes de vous voir partir.",
+        "Votre compte a été supprimé avec succès.",
         [{ text: "OK", onPress: () => router.replace("/login") }]
       );
 
     } catch (error: any) {
       console.error("❌ Erreur lors de la suppression du compte:", error);
       
-      // Si l'erreur est liée à la ré-authentification
       if (error.code === 'auth/requires-recent-login') {
         Alert.alert(
           "Ré-authentification requise",
@@ -234,15 +234,15 @@ export default function ProfileScreen() {
 
   // Fonctions pour les pages légales
   const handlePrivacyPolicy = () => {
-    (router as any).push("/legal/privacy");
+    router.push("/legal/Politiquedeconf");
   };
 
   const handleTermsOfService = () => {
-    (router as any).push("/legal/terms");
+    router.push("/legal/ConditionUtilisation");
   };
 
   const handleTermsOfSale = () => {
-    (router as any).push("/legal/sales");
+    router.push("/legal/CGV");
   };
 
   return (
@@ -250,114 +250,176 @@ export default function ProfileScreen() {
       colors={[COLORS.backgroundTop, COLORS.backgroundBottom]}
       style={styles.container}
     >
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        {/* HEADER avec boutons */}
-        <View style={styles.topBar}>
-          <Text style={styles.headerTitle}>Profil</Text>
-          <View style={styles.headerButtons}>
+      <ScrollView 
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* HEADER */}
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>Mon Profil</Text>
+          <View style={styles.headerActions}>
             <TouchableOpacity
-              style={styles.iconButton}
+              style={styles.headerButton}
               onPress={handleFriendRequests}
             >
-              <Icon name="person-add" size={20} color={COLORS.textPrimary} />
+              <Icon name="mail" size={20} color={COLORS.textPrimary} />
+              {pendingRequestsCount > 0 && (
+                <View style={styles.badge}>
+                  <Text style={styles.badgeText}>
+                    {pendingRequestsCount > 9 ? '9+' : pendingRequestsCount}
+                  </Text>
+                </View>
+              )}
             </TouchableOpacity>
             <TouchableOpacity
-              style={styles.iconButton}
-              onPress={handleSearchFriends}
+              style={styles.headerButton}
+              onPress={handleAddFriend}
             >
-              <Icon name="search" size={20} color={COLORS.textPrimary} />
+              <Icon name="person-add" size={20} color={COLORS.textPrimary} />
             </TouchableOpacity>
           </View>
         </View>
 
         {/* PROFILE CARD */}
         <View style={styles.profileCard}>
-          {/* AVATAR */}
-          <View style={styles.avatarContainer}>
-            {photoURL ? (
-              <Image source={{ uri: photoURL }} style={styles.avatarImage} />
-            ) : (
+          {/* AVATAR SECTION - CENTRÉE */}
+          <View style={styles.avatarSection}>
+            <View style={styles.avatarContainer}>
+              {photoURL ? (
+                <Image source={{ uri: photoURL }} style={styles.avatarImage} />
+              ) : (
+                <LinearGradient
+                  colors={[COLORS.titleGradientStart, COLORS.titleGradientEnd]}
+                  style={styles.avatarPlaceholder}
+                >
+                  <Text style={styles.avatarText}>
+                    {username.charAt(0).toUpperCase()}
+                  </Text>
+                </LinearGradient>
+              )}
+              {isPremium && (
+                <View style={styles.premiumBadge}>
+                  <Icon name="diamond" size={12} color="#FFD700" />
+                </View>
+              )}
+            </View>
+            
+            {/* USER INFOS - EN DESSOUS DE L'AVATAR */}
+            <View style={styles.userInfo}>
+              <Text style={styles.username}>{username}</Text>
+              <Text style={styles.email}>{email}</Text>
+              
+              {/* STATUS BADGE */}
+              <View style={[
+                styles.statusBadge,
+                isPremium ? styles.premiumStatus : styles.freeStatus
+              ]}>
+                <Text style={styles.statusText}>
+                  {isPremium ? (
+                    <>
+                      <Icon name="diamond" size={12} color="#FFD700" />{' '}
+                      Premium {premiumType === "monthly" ? "Mensuel" : "Annuel"}
+                    </>
+                  ) : 'Free'}
+                </Text>
+              </View>
+            </View>
+          </View>
+
+          {/* QUICK ACTIONS */}
+          <View style={styles.quickActions}>
+            <TouchableOpacity 
+              style={styles.quickAction}
+              onPress={handleManageFriends}
+            >
               <LinearGradient
                 colors={[COLORS.titleGradientStart, COLORS.titleGradientEnd]}
-                style={styles.avatar}
+                style={styles.quickActionIcon}
               >
-                <Text style={styles.avatarText}>
-                  {username.charAt(0).toUpperCase()}
-                </Text>
+                <Icon name="people" size={20} color={COLORS.textPrimary} />
               </LinearGradient>
+              <Text style={styles.quickActionText}>Mes amis</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={styles.quickAction}
+              onPress={() => router.push("/Profile/Modif_prof")}
+            >
+              <View style={[styles.quickActionIcon, { backgroundColor: 'rgba(99, 102, 241, 0.1)' }]}>
+                <Icon name="settings" size={20} color="#6366F1" />
+              </View>
+              <Text style={styles.quickActionText}>Paramètres</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={styles.quickAction}
+              onPress={handleActivityHistory}
+            >
+              <View style={[styles.quickActionIcon, { backgroundColor: 'rgba(34, 197, 94, 0.1)' }]}>
+                <Icon name="time" size={20} color="#22C55E" />
+              </View>
+              <Text style={styles.quickActionText}>Historique</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* MAIN ACTIONS */}
+          <View style={styles.mainActions}>
+            <TouchableOpacity 
+              style={styles.mainAction}
+              onPress={handleEditProfile}
+            >
+              <LinearGradient
+                colors={[COLORS.titleGradientStart, COLORS.titleGradientEnd]}
+                style={styles.mainActionGradient}
+              >
+                <Icon name="create" size={20} color={COLORS.textPrimary} />
+                <Text style={styles.mainActionText}>Modifier le profil</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+
+            {!isPremium ? (
+              <TouchableOpacity 
+                style={[styles.mainAction, styles.premiumAction]}
+                onPress={() => router.push("/Profile/Abo_choix")}
+              >
+                <LinearGradient
+                  colors={["#6366F1", "#8B5CF6"]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.mainActionGradient}
+                >
+                  <Icon name="diamond" size={20} color={COLORS.textPrimary} />
+                  <Text style={styles.mainActionText}>Passer en Premium</Text>
+                </LinearGradient>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity 
+                style={[styles.mainAction, styles.cancelAction]}
+                onPress={() => setShowCancelModal(true)}
+              >
+                <View style={styles.mainActionGradient}>
+                  <Icon name="close-circle" size={20} color="#FF3B30" />
+                  <Text style={[styles.mainActionText, { color: '#FF3B30' }]}>
+                    Résilier Premium
+                  </Text>
+                </View>
+              </TouchableOpacity>
             )}
           </View>
 
-          {/* USERNAME */}
-          <Text style={styles.username}>{username}</Text>
-
-          {/* EMAIL */}
-          <Text style={styles.email}>{email}</Text>
-
-          {/* BADGE FREE/PREMIUM */}
-          {isPremium ? (
-            <LinearGradient
-              colors={["#6366F1", "#8B5CF6"]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={styles.badge}
-            >
-              <Icon name="diamond" size={14} color={COLORS.textPrimary} style={{ marginRight: 6 }} />
-              <Text style={styles.badgeTextPremium}>
-                Premium {premiumType === "monthly" ? "Mensuel" : "Annuel"}
-              </Text>
-            </LinearGradient>
-          ) : (
-            <View style={styles.badge}>
-              <Text style={styles.badgeText}>Free</Text>
-            </View>
-          )}
-
-          {/* SECTION MES AMIS */}
-          <View style={styles.friendsSection}>
-            <View style={styles.friendsContent}>
-              <View style={styles.friendsLeft}>
-                <LinearGradient
-                  colors={[COLORS.titleGradientStart, COLORS.titleGradientEnd]}
-                  style={styles.friendsIconGradient}
-                >
-                  <Icon name="people" size={22} color={COLORS.textPrimary} />
-                </LinearGradient>
-                <View style={styles.friendsInfo}>
-                  <Text style={styles.friendsSectionTitle}>Mes amis</Text>
-                  {loadingStats ? (
-                    <ActivityIndicator size="small" color={COLORS.textSecondary} />
-                  ) : (
-                    <Text style={styles.friendsCount}>{friendsCount} ami{friendsCount > 1 ? 's' : ''}</Text>
-                  )}
-                </View>
-              </View>
-              
-              <TouchableOpacity
-                style={styles.manageFriendsButton}
-                onPress={handleManageFriends}
-              >
-                <Text style={styles.manageFriendsText}>Gérer</Text>
-                <Icon name="chevron-forward" size={20} color={COLORS.textPrimary} />
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          {/* SECTION PAGES LÉGALES */}
+          {/* LEGAL SECTION */}
           <View style={styles.legalSection}>
-            <Text style={styles.legalSectionTitle}>Informations légales</Text>
+            <Text style={styles.legalTitle}>Informations légales</Text>
             
             <TouchableOpacity 
               style={styles.legalItem}
               onPress={handlePrivacyPolicy}
             >
               <View style={styles.legalItemLeft}>
-                <View style={styles.legalIcon}>
-                  <Icon name="shield-checkmark-outline" size={20} color={COLORS.textSecondary} />
-                </View>
-                <Text style={styles.legalText}>Politique de confidentialité</Text>
+                <Icon name="shield-checkmark-outline" size={18} color={COLORS.textSecondary} />
+                <Text style={styles.legalText}>Confidentialité</Text>
               </View>
-              <Icon name="chevron-forward" size={20} color={COLORS.textSecondary} />
+              <Icon name="chevron-forward" size={18} color={COLORS.textSecondary} />
             </TouchableOpacity>
             
             <TouchableOpacity 
@@ -365,12 +427,10 @@ export default function ProfileScreen() {
               onPress={handleTermsOfService}
             >
               <View style={styles.legalItemLeft}>
-                <View style={styles.legalIcon}>
-                  <Icon name="document-text-outline" size={20} color={COLORS.textSecondary} />
-                </View>
+                <Icon name="document-text-outline" size={18} color={COLORS.textSecondary} />
                 <Text style={styles.legalText}>Conditions d'utilisation</Text>
               </View>
-              <Icon name="chevron-forward" size={20} color={COLORS.textSecondary} />
+              <Icon name="chevron-forward" size={18} color={COLORS.textSecondary} />
             </TouchableOpacity>
             
             <TouchableOpacity 
@@ -378,77 +438,31 @@ export default function ProfileScreen() {
               onPress={handleTermsOfSale}
             >
               <View style={styles.legalItemLeft}>
-                <View style={styles.legalIcon}>
-                  <Icon name="cart-outline" size={20} color={COLORS.textSecondary} />
-                </View>
+                <Icon name="cart-outline" size={18} color={COLORS.textSecondary} />
                 <Text style={styles.legalText}>Conditions de vente</Text>
               </View>
-              <Icon name="chevron-forward" size={20} color={COLORS.textSecondary} />
+              <Icon name="chevron-forward" size={18} color={COLORS.textSecondary} />
             </TouchableOpacity>
           </View>
 
-          {/* BUTTONS - MODIFIER LE PROFIL EN PREMIER */}
-          <TouchableOpacity 
-            style={styles.buttonWrapper}
-            onPress={handleEditProfile}
-          >
-            <LinearGradient
-              colors={[COLORS.titleGradientStart, COLORS.titleGradientEnd]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={styles.button}
+          {/* ACCOUNT ACTIONS */}
+          <View style={styles.accountActions}>
+            <TouchableOpacity
+              style={styles.logoutButton}
+              onPress={handleLogout}
             >
-              <Text style={styles.buttonText}>Modifier mon profil</Text>
-            </LinearGradient>
-          </TouchableOpacity>
-
-          {/* BOUTON DÉCONNEXION */}
-          <TouchableOpacity
-            style={[styles.buttonWrapper, { marginTop: 12 }]}
-            onPress={handleLogout}
-          >
-            <View style={[styles.button, { backgroundColor: COLORS.error }]}>
-              <Text style={styles.buttonText}>Se déconnecter</Text>
-            </View>
-          </TouchableOpacity>
-
-          {/* BOUTON PASSER EN PREMIUM (seulement si non premium) */}
-          {!isPremium && (
-            <TouchableOpacity 
-              style={[styles.buttonWrapper, { marginTop: 12 }]}
-              onPress={() => (router as any).push("/Profile/Abo_choix")}
-            >
-              <LinearGradient
-                colors={["#6366F1", "#8B5CF6"]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={styles.button}
-              >
-                <Text style={styles.buttonText}>Passer en premium</Text>
-              </LinearGradient>
+              <Icon name="log-out-outline" size={20} color="#FF3B30" />
+              <Text style={styles.logoutText}>Se déconnecter</Text>
             </TouchableOpacity>
-          )}
-
-          {/* BOUTON RÉSILIER ABONNEMENT (seulement si premium) */}
-          {isPremium && (
+            
             <TouchableOpacity 
-              style={styles.cancelButton}
-              onPress={() => setShowCancelModal(true)}
+              style={styles.deleteAccountButton}
+              onPress={() => setShowDeleteModal(true)}
             >
-              <Text style={styles.cancelButtonText}>
-                Voulez-vous résilier votre abonnement ?
-              </Text>
+              <Icon name="trash-outline" size={16} color="#FF3B30" />
+              <Text style={styles.deleteAccountText}>Supprimer mon compte</Text>
             </TouchableOpacity>
-          )}
-
-          {/* BOUTON SUPPRIMER LE COMPTE (très subtil) */}
-          <TouchableOpacity 
-            style={styles.deleteAccountButton}
-            onPress={() => setShowDeleteModal(true)}
-          >
-            <Icon name="trash-outline" size={16} color="#FF3B30" />
-            <Text style={styles.deleteAccountText}>Supprimer mon compte</Text>
-          </TouchableOpacity>
+          </View>
         </View>
       </ScrollView>
 
@@ -461,34 +475,32 @@ export default function ProfileScreen() {
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <View style={styles.sadIcon}>
+            <View style={styles.modalIcon}>
               <Icon name="sad-outline" size={64} color="#FF3B30" />
             </View>
 
-            <Text style={styles.modalTitle}>Vous partez déjà ? 😢</Text>
+            <Text style={styles.modalTitle}>Nous sommes tristes 😢</Text>
             <Text style={styles.modalMessage}>
-              Nous sommes tristes de vous voir partir...
+              Vraiment ? Vous voulez résilier votre abonnement Premium ?
             </Text>
-            <Text style={styles.modalSubtext}>
-              Votre abonnement Premium sera annulé immédiatement. Vous perdrez l'accès à tous les avantages Premium.
-            </Text>
-            <Text style={styles.modalHope}>
-              On a hâte de vous revoir ! 💙
+            
+            <Text style={styles.modalWarning}>
+              Vous perdrez immédiatement l'accès à tous les avantages Premium.
             </Text>
 
             <View style={styles.modalButtons}>
               <TouchableOpacity
-                style={styles.modalButtonCancel}
+                style={styles.modalButtonSecondary}
                 onPress={() => setShowCancelModal(false)}
               >
-                <Text style={styles.modalButtonCancelText}>Rester Premium</Text>
+                <Text style={styles.modalButtonSecondaryText}>Rester Premium</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={styles.modalButtonConfirm}
+                style={styles.modalButtonPrimary}
                 onPress={handleCancelSubscription}
               >
-                <Text style={styles.modalButtonConfirmText}>Résilier</Text>
+                <Text style={styles.modalButtonPrimaryText}>Résilier</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -504,43 +516,43 @@ export default function ProfileScreen() {
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <View style={styles.sadIcon}>
+            <View style={styles.modalIcon}>
               <Icon name="warning-outline" size={64} color="#FF9500" />
             </View>
 
-            <Text style={styles.deleteModalTitle}>Supprimer définitivement votre compte ? ⚠️</Text>
+            <Text style={[styles.modalTitle, { color: '#FF3B30' }]}>
+              Supprimer votre compte ? ⚠️
+            </Text>
             
             <View style={styles.warningBox}>
-              <Icon name="alert-circle" size={24} color="#FF9500" style={styles.warningIcon} />
-              <Text style={styles.warningTitle}>Cette action est irréversible !</Text>
+              <Icon name="alert-circle" size={20} color="#FF9500" />
+              <Text style={styles.warningText}>Cette action est irréversible !</Text>
             </View>
 
-            <Text style={styles.deleteModalSubtext}>
-              La suppression de votre compte entraînera :
+            <Text style={styles.modalMessage}>
+              Toutes vos données seront définitivement supprimées :
             </Text>
-            <Text style={styles.deleteBullet}>• La perte définitive de toutes vos données</Text>
-            <Text style={styles.deleteBullet}>• La suppression de votre profil et historique</Text>
-            <Text style={styles.deleteBullet}>• La suppression de toutes vos relations d'amitié</Text>
-            <Text style={styles.deleteBullet}>• L'annulation de votre abonnement Premium</Text>
-            <Text style={styles.deleteBullet}>• L'impossibilité de récupérer votre compte</Text>
-
-            <Text style={styles.deleteModalMessage}>
-              Êtes-vous absolument sûr de vouloir continuer ?
-            </Text>
+            
+            <View style={styles.warningList}>
+              <Text style={styles.warningItem}>• Votre profil et historique</Text>
+              <Text style={styles.warningItem}>• Toutes vos relations d'amitié</Text>
+              <Text style={styles.warningItem}>• Votre abonnement Premium</Text>
+              <Text style={styles.warningItem}>• Toutes vos activités</Text>
+            </View>
 
             <View style={styles.modalButtons}>
               <TouchableOpacity
-                style={styles.modalButtonCancel}
+                style={styles.modalButtonSecondary}
                 onPress={() => setShowDeleteModal(false)}
                 disabled={isDeleting}
               >
-                <Text style={styles.modalButtonCancelText}>
-                  {isDeleting ? "Annulation..." : "Annuler"}
+                <Text style={styles.modalButtonSecondaryText}>
+                  {isDeleting ? "..." : "Annuler"}
                 </Text>
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={[styles.deleteModalButtonConfirm, isDeleting && styles.deleteButtonDisabled]}
+                style={[styles.modalButtonDanger, isDeleting && styles.buttonDisabled]}
                 onPress={handleDeleteAccount}
                 disabled={isDeleting}
               >
@@ -549,17 +561,11 @@ export default function ProfileScreen() {
                 ) : (
                   <>
                     <Icon name="trash" size={18} color="#FFFFFF" style={{ marginRight: 8 }} />
-                    <Text style={styles.deleteModalButtonConfirmText}>
-                      Supprimer définitivement
-                    </Text>
+                    <Text style={styles.modalButtonDangerText}>Supprimer</Text>
                   </>
                 )}
               </TouchableOpacity>
             </View>
-
-            <Text style={styles.deleteModalFooter}>
-              Cette opération peut prendre quelques secondes.
-            </Text>
           </View>
         </View>
       </Modal>
@@ -572,48 +578,70 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    flexGrow: 1,
-    paddingHorizontal: 24,
+    paddingHorizontal: 20,
     paddingTop: 60,
-    paddingBottom: 100,
+    paddingBottom: 100, // AJOUTÉ pour permettre le scroll
   },
-  topBar: {
+  header: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: 32,
+    marginBottom: 24,
   },
   headerTitle: {
-    fontSize: 32,
+    fontSize: 28,
     fontFamily: "Poppins-Bold",
     color: COLORS.textPrimary,
   },
-  headerButtons: {
+  headerActions: {
     flexDirection: "row",
     gap: 12,
   },
-  iconButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+  headerButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: COLORS.neutralGray800,
     borderWidth: 1,
     borderColor: COLORS.border,
     justifyContent: "center",
     alignItems: "center",
+    position: "relative",
+  },
+  badge: {
+    position: "absolute",
+    top: -4,
+    right: -4,
+    backgroundColor: "#FF3B30",
+    borderRadius: 10,
+    minWidth: 18,
+    height: 18,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 4,
+  },
+  badgeText: {
+    fontSize: 10,
+    fontFamily: "Poppins-Bold",
+    color: "#FFFFFF",
   },
   profileCard: {
     backgroundColor: COLORS.neutralGray800,
     borderRadius: 24,
-    padding: 32,
-    alignItems: "center",
+    padding: 20,
     borderWidth: 1,
     borderColor: COLORS.border,
   },
+  // AVATAR CENTRÉ
+  avatarSection: {
+    alignItems: "center",
+    marginBottom: 24,
+  },
   avatarContainer: {
+    position: "relative",
     marginBottom: 16,
   },
-  avatar: {
+  avatarPlaceholder: {
     width: 100,
     height: 100,
     borderRadius: 50,
@@ -630,134 +658,133 @@ const styles = StyleSheet.create({
     fontFamily: "Poppins-Bold",
     color: COLORS.textPrimary,
   },
+  premiumBadge: {
+    position: "absolute",
+    bottom: 0,
+    right: 0,
+    backgroundColor: COLORS.neutralGray800,
+    borderRadius: 12,
+    width: 28,
+    height: 28,
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 2,
+    borderColor: "#FFD700",
+  },
+  // INFOS USER CENTRÉES
+  userInfo: {
+    alignItems: "center",
+    width: "100%",
+  },
   username: {
     fontSize: 22,
     fontFamily: "Poppins-Bold",
     color: COLORS.textPrimary,
-    marginBottom: 8,
+    marginBottom: 6,
+    textAlign: "center",
   },
   email: {
-    fontSize: 14,
+    fontSize: 15,
     fontFamily: "Poppins-Regular",
     color: COLORS.textSecondary,
-    marginBottom: 16,
+    marginBottom: 12,
+    textAlign: "center",
   },
-  badge: {
-    backgroundColor: COLORS.neutralGray800,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    paddingHorizontal: 20,
-    paddingVertical: 6,
-    borderRadius: 999,
-    marginBottom: 24,
+  statusBadge: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
     flexDirection: "row",
     alignItems: "center",
+    gap: 6,
   },
-  badgeText: {
-    fontSize: 13,
-    fontFamily: "Poppins-SemiBold",
-    color: COLORS.textSecondary,
+  freeStatus: {
+    backgroundColor: "rgba(107, 114, 128, 0.1)",
+    borderWidth: 1,
+    borderColor: COLORS.border,
   },
-  badgeTextPremium: {
+  premiumStatus: {
+    backgroundColor: "rgba(99, 102, 241, 0.1)",
+    borderWidth: 1,
+    borderColor: "#6366F1",
+  },
+  statusText: {
     fontSize: 13,
     fontFamily: "Poppins-SemiBold",
     color: COLORS.textPrimary,
   },
-  friendsSection: {
-    width: "100%",
-    backgroundColor: COLORS.neutralGray800,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    padding: 18,
+  quickActions: {
+    flexDirection: "row",
+    justifyContent: "space-between",
     marginBottom: 24,
   },
-  friendsContent: {
-    flexDirection: "row",
+  quickAction: {
     alignItems: "center",
-    justifyContent: "space-between",
+    width: "30%",
   },
-  friendsLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    flex: 1,
-  },
-  friendsIconGradient: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+  quickActionIcon: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     justifyContent: "center",
     alignItems: "center",
+    marginBottom: 8,
   },
-  friendsInfo: {
-    flex: 1,
-  },
-  friendsSectionTitle: {
-    fontSize: 15,
-    fontFamily: "Poppins-SemiBold",
+  quickActionText: {
+    fontSize: 12,
+    fontFamily: "Poppins-Medium",
     color: COLORS.textPrimary,
-    marginBottom: 2,
+    textAlign: "center",
   },
-  friendsCount: {
-    fontSize: 13,
-    fontFamily: "Poppins-Regular",
-    color: COLORS.textSecondary,
+  mainActions: {
+    gap: 12,
+    marginBottom: 24,
   },
-  manageFriendsButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 999,
-    backgroundColor: COLORS.backgroundTop,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  manageFriendsText: {
-    fontSize: 13,
-    fontFamily: "Poppins-SemiBold",
-    color: COLORS.textPrimary,
-  },
-  buttonWrapper: {
-    width: "100%",
-    borderRadius: 999,
+  mainAction: {
+    borderRadius: 16,
     overflow: "hidden",
   },
-  button: {
-    height: 48,
-    borderRadius: 999,
-    justifyContent: "center",
+  mainActionGradient: {
+    flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    gap: 12,
   },
-  buttonText: {
+  mainActionText: {
     fontSize: 15,
     fontFamily: "Poppins-SemiBold",
     color: COLORS.textPrimary,
   },
-  // Nouveaux styles pour la section légale
+  premiumAction: {
+    borderWidth: 1,
+    borderColor: "#6366F1",
+  },
+  cancelAction: {
+    borderWidth: 1,
+    borderColor: "rgba(255, 59, 48, 0.2)",
+    backgroundColor: "rgba(255, 59, 48, 0.1)",
+  },
   legalSection: {
-    width: "100%",
     backgroundColor: COLORS.neutralGray800,
     borderRadius: 16,
+    padding: 16,
+    marginBottom: 24,
     borderWidth: 1,
     borderColor: COLORS.border,
-    padding: 18,
-    marginTop: 12,
-    marginBottom: 12,
   },
-  legalSectionTitle: {
-    fontSize: 15,
+  legalTitle: {
+    fontSize: 14,
     fontFamily: "Poppins-SemiBold",
     color: COLORS.textPrimary,
-    marginBottom: 16,
+    marginBottom: 12,
   },
   legalItem: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingVertical: 14,
+    paddingVertical: 12,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.border,
   },
@@ -766,103 +793,120 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 12,
   },
-  legalIcon: {
-    width: 32,
-    height: 32,
-    justifyContent: "center",
-    alignItems: "center",
-  },
   legalText: {
     fontSize: 14,
     fontFamily: "Poppins-Regular",
     color: COLORS.textSecondary,
   },
-  cancelButton: {
-    marginTop: 24,
-    paddingVertical: 12,
+  accountActions: {
     alignItems: "center",
+    gap: 16,
   },
-  cancelButtonText: {
-    fontSize: 13,
-    fontFamily: "Poppins-Medium",
-    color: "#FF3B30",
-    textDecorationLine: "underline",
-  },
-  // Styles pour le bouton supprimer le compte
-  deleteAccountButton: {
-    marginTop: 32,
-    paddingVertical: 10,
-    paddingHorizontal: 16,
+  logoutButton: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
     gap: 8,
-    borderRadius: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
     backgroundColor: "rgba(255, 59, 48, 0.1)",
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: "rgba(255, 59, 48, 0.2)",
   },
+  logoutText: {
+    fontSize: 14,
+    fontFamily: "Poppins-SemiBold",
+    color: "#FF3B30",
+  },
+  deleteAccountButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingVertical: 8,
+  },
   deleteAccountText: {
-    fontSize: 13,
+    fontSize: 12,
     fontFamily: "Poppins-Regular",
     color: "#FF3B30",
+    textDecorationLine: "underline",
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.85)",
+    backgroundColor: "rgba(0, 0, 0, 0.8)",
     justifyContent: "center",
     alignItems: "center",
-    padding: 24,
+    padding: 20,
   },
   modalContent: {
     backgroundColor: COLORS.neutralGray800,
     borderRadius: 24,
-    padding: 32,
-    alignItems: "center",
+    padding: 24,
     width: "100%",
     maxWidth: 400,
     borderWidth: 1,
     borderColor: COLORS.border,
+    alignItems: "center",
   },
-  sadIcon: {
-    marginBottom: 24,
+  modalIcon: {
+    marginBottom: 20,
   },
   modalTitle: {
-    fontSize: 24,
+    fontSize: 20,
     fontFamily: "Poppins-Bold",
     color: COLORS.textPrimary,
-    marginBottom: 12,
     textAlign: "center",
+    marginBottom: 12,
   },
   modalMessage: {
-    fontSize: 16,
-    fontFamily: "Poppins-Medium",
+    fontSize: 14,
+    fontFamily: "Poppins-Regular",
     color: COLORS.textPrimary,
     textAlign: "center",
     marginBottom: 16,
-  },
-  modalSubtext: {
-    fontSize: 14,
-    fontFamily: "Poppins-Regular",
-    color: COLORS.textSecondary,
-    textAlign: "center",
-    marginBottom: 12,
     lineHeight: 20,
   },
-  modalHope: {
-    fontSize: 15,
-    fontFamily: "Poppins-SemiBold",
-    color: "#6366F1",
+  modalWarning: {
+    fontSize: 13,
+    fontFamily: "Poppins-Medium",
+    color: "#FF3B30",
     textAlign: "center",
-    marginBottom: 32,
+    marginBottom: 24,
+  },
+  warningBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "rgba(255, 149, 0, 0.1)",
+    borderWidth: 1,
+    borderColor: "#FF9500",
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 20,
+    width: "100%",
+  },
+  warningText: {
+    fontSize: 14,
+    fontFamily: "Poppins-SemiBold",
+    color: "#FF9500",
+    flex: 1,
+  },
+  warningList: {
+    width: "100%",
+    marginBottom: 24,
+  },
+  warningItem: {
+    fontSize: 13,
+    fontFamily: "Poppins-Regular",
+    color: COLORS.textSecondary,
+    marginBottom: 4,
+    paddingLeft: 8,
   },
   modalButtons: {
     flexDirection: "row",
     gap: 12,
     width: "100%",
-    marginTop: 16,
   },
-  modalButtonCancel: {
+  modalButtonSecondary: {
     flex: 1,
     backgroundColor: COLORS.backgroundTop,
     borderRadius: 12,
@@ -871,77 +915,24 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: COLORS.border,
   },
-  modalButtonCancelText: {
+  modalButtonSecondaryText: {
     fontSize: 14,
     fontFamily: "Poppins-SemiBold",
     color: COLORS.textPrimary,
   },
-  modalButtonConfirm: {
+  modalButtonPrimary: {
     flex: 1,
-    backgroundColor: "#FF3B30",
+    backgroundColor: "#6366F1",
     borderRadius: 12,
     paddingVertical: 14,
     alignItems: "center",
   },
-  modalButtonConfirmText: {
+  modalButtonPrimaryText: {
     fontSize: 14,
     fontFamily: "Poppins-SemiBold",
-    color: COLORS.textPrimary,
+    color: "#FFFFFF",
   },
-  // Styles pour la modal de suppression
-  deleteModalTitle: {
-    fontSize: 22,
-    fontFamily: "Poppins-Bold",
-    color: "#FF3B30",
-    marginBottom: 16,
-    textAlign: "center",
-  },
-  warningBox: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "rgba(255, 149, 0, 0.1)",
-    borderWidth: 1,
-    borderColor: "#FF9500",
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 16,
-    width: "100%",
-  },
-  warningIcon: {
-    marginRight: 10,
-  },
-  warningTitle: {
-    fontSize: 15,
-    fontFamily: "Poppins-SemiBold",
-    color: "#FF9500",
-    flex: 1,
-  },
-  deleteModalSubtext: {
-    fontSize: 14,
-    fontFamily: "Poppins-Medium",
-    color: COLORS.textPrimary,
-    textAlign: "left",
-    marginBottom: 8,
-    width: "100%",
-  },
-  deleteBullet: {
-    fontSize: 13,
-    fontFamily: "Poppins-Regular",
-    color: COLORS.textSecondary,
-    marginLeft: 8,
-    marginBottom: 4,
-    lineHeight: 18,
-    width: "100%",
-  },
-  deleteModalMessage: {
-    fontSize: 15,
-    fontFamily: "Poppins-Medium",
-    color: COLORS.textPrimary,
-    textAlign: "center",
-    marginTop: 16,
-    marginBottom: 24,
-  },
-  deleteModalButtonConfirm: {
+  modalButtonDanger: {
     flex: 1,
     backgroundColor: "#FF3B30",
     borderRadius: 12,
@@ -950,20 +941,13 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     flexDirection: "row",
   },
-  deleteButtonDisabled: {
-    backgroundColor: "#FF6B6B",
-  },
-  deleteModalButtonConfirmText: {
+  modalButtonDangerText: {
     fontSize: 14,
     fontFamily: "Poppins-SemiBold",
     color: "#FFFFFF",
   },
-  deleteModalFooter: {
-    fontSize: 12,
-    fontFamily: "Poppins-Regular",
-    color: COLORS.textSecondary,
-    textAlign: "center",
-    marginTop: 16,
-    fontStyle: "italic",
+  buttonDisabled: {
+    backgroundColor: "#FF6B6B",
+    opacity: 0.7,
   },
 });
