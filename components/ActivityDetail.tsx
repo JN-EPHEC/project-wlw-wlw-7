@@ -14,9 +14,9 @@ import {
   View,
 } from "react-native";
 import Icon from "react-native-vector-icons/Ionicons";
-import { COLORS } from "../components/Colors";
-import ProposeActivityModal from "../components/Proposition_activity";
 import { db } from "../firebase_Config";
+import { COLORS } from "./Colors";
+import ProposeActivityModal from "./Proposition_activity";
 
 interface Activity {
   id: string;
@@ -29,9 +29,9 @@ interface Activity {
   image?: string;
   isNew: boolean;
   date: string;
-  website?: string; // Lien vers le site web
-  hours?: string; // Horaires
-  rating?: number; // Note sur 5
+  website?: string;
+  hours?: string;
+  rating?: number;
 }
 
 export default function ActivityDetailScreen() {
@@ -114,12 +114,13 @@ export default function ActivityDetailScreen() {
           <View style={styles.header}>
             <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
               <Icon name="arrow-back" size={24} color={COLORS.textPrimary} />
-            </TouchableOpacity>
-            <Text style={styles.headerTitle}>What2do</Text>
-            <TouchableOpacity style={styles.heartButton}>
-              <Icon name="heart-outline" size={24} color={COLORS.error} />
-            </TouchableOpacity>
-          </View>
+              </TouchableOpacity>
+              <Text style={styles.headerTitle} numberOfLines={1} ellipsizeMode="tail"> {activity.title}
+  </Text>
+  <TouchableOpacity style={styles.heartButton}>
+    <Icon name="heart-outline" size={24} color={COLORS.error} />
+  </TouchableOpacity>
+</View>
 
           {/* IMAGE DE L'ACTIVITÉ */}
           <View style={styles.imageContainer}>
@@ -235,8 +236,8 @@ export default function ActivityDetailScreen() {
           <ProposeActivityModal
             visible={showProposeModal}
             onClose={() => setShowProposeModal(false)}
-            activity={{
-              id: activityId,
+            preSelectedActivity={{
+              id: activity.id,
               title: activity.title,
               description: activity.description,
               image: activity.image,

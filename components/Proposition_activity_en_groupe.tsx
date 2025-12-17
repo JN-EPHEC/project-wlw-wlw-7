@@ -1,91 +1,115 @@
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
-import { addDoc, collection, getDocs } from "firebase/firestore";
+import { addDoc, collection, doc, getDoc, getDocs, query, where } from "firebase/firestore";
 import React, { useEffect, useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    ImageBackground,
-    Modal,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  Modal,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import Icon from "react-native-vector-icons/Ionicons";
-import { COLORS } from "../components/Colors";
 import { auth, db } from "../firebase_Config";
-import { notifyUser } from "../service/notificationService";
+import { COLORS } from "./Colors";
+import CustomDateTimePicker from "./DateTimePicker";
 
-interface Activity {
+interface Group {
   id: string;
-  title: string;
-  description: string;
-  category: string;
-  location: string;
-  image?: string;
-  date: string;
+  name: string;
+  emoji: string;
+  members: string[];
 }
 
 interface ProposeActivityModalProps {
   visible: boolean;
   onClose: () => void;
-  groupId: string;
-  groupMembers: string[];
+  activity: {
+    id: string;
+    title: string;
+    description: string;
+    image?: string;
+    location: string;
+    date: string;
+    category: string;
+  };
 }
 
 export default function ProposeActivityModal({
   visible,
   onClose,
-  groupId,
-  groupMembers,
+  activity,
 }: ProposeActivityModalProps) {
   const router = useRouter();
   const currentUser = auth.currentUser;
 
-  const [activities, setActivities] = useState<Activity[]>([]);
-  const [selectedActivity, setSelectedActivity] = useState<Activity | null>(null);
-  const [searchQuery, setSearchQuery] = useState("");
+  const [groups, setGroups] = useState<Group[]>([]);
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [loading, setLoading] = useState(true);
   const [proposing, setProposing] = useState(false);
 
   useEffect(() => {
-    if (visible) {
-      loadActivities();
+    if (visible && currentUser) {
+      loadGroups();
+      setSelectedDate(null); // Reset date à chaque ouverture
     }
-  }, [visible]);
+  }, [visible, currentUser]);
 
-  const loadActivities = async () => {
+  const loadGroups = async () => {
+    if (!currentUser) return;
+
     setLoading(true);
     try {
-      const activitiesSnapshot = await getDocs(collection(db, "activities"));
-      const activitiesList: Activity[] = activitiesSnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      } as Activity));
+      const groupsQuery = query(
+        collection(db, "groups"),
+        where("members", "array-contains", currentUser.uid)
+      );
+      const querySnapshot = await getDocs(groupsQuery);
 
-      setActivities(activitiesList);
+      const groupsList: Group[] = querySnapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      } as Group));
+
+      setGroups(groupsList);
     } catch (error) {
-      console.error("Error loading activities:", error);
-      Alert.alert("Erreur", "Impossible de charger les activités");
+      console.error("Error loading groups:", error);
+      Alert.alert("Erreur", "Impossible de charger vos groupes");
     } finally {
       setLoading(false);
     }
   };
 
-  const proposeActivity = async () => {
-    if (!currentUser || !selectedActivity) {
-      Alert.alert("Erreur", "Sélectionnez une activité");
+  const proposeToGroup = async (groupId: string) => {
+    if (!currentUser) return;
+
+    if (!selectedDate) {
+      Alert.alert("Erreur", "Veuillez sélectionner une date et une heure");
+      return;
+    }
+
+    // Vérifier que la date est dans le futur
+    if (selectedDate <= new Date()) {
+      Alert.alert("Erreur", "La date doit être dans le futur");
       return;
     }
 
     setProposing(true);
     try {
+      // Récupérer les membres du groupe
+      const groupDoc = await getDoc(doc(db, "groups", groupId));
+      if (!groupDoc.exists()) {
+        Alert.alert("Erreur", "Groupe introuvable");
+        return;
+      }
+
+      const groupMembers = groupDoc.data().members;
+
       // Créer l'activité de groupe avec deadline automatique
-      const activityDate = new Date(selectedActivity.date);
-      const deadline = new Date(activityDate.getTime() - 60 * 60 * 1000); // 1h avant
+      const deadline = new Date(selectedDate.getTime() - 60 * 60 * 1000); // 1h avant
 
       const participants: any = {};
       groupMembers.forEach((memberId: string) => {
@@ -98,43 +122,31 @@ export default function ProposeActivityModal({
 
       await addDoc(collection(db, "groupActivities"), {
         groupId,
-        activityId: selectedActivity.id,
-        activityTitle: selectedActivity.title,
-        activityDescription: selectedActivity.description,
-        activityImage: selectedActivity.image || "",
-        activityLocation: selectedActivity.location,
-        activityDate: selectedActivity.date,
-        activityCategory: selectedActivity.category,
+        activityId: activity.id,
+        activityTitle: activity.title,
+        activityDescription: activity.description,
+        activityImage: activity.image || "",
+        activityLocation: activity.location,
+        activityDate: selectedDate.toISOString(), // Date personnalisée
+        activityCategory: activity.category,
         deadline: deadline.toISOString(),
         proposedBy: currentUser.uid,
         proposedAt: new Date().toISOString(),
         participants,
       });
 
-      // Envoyer les notifications aux autres membres
-      const proposerName = currentUser.displayName || "Un membre";
-      const otherMembers = groupMembers.filter(id => id !== currentUser.uid);
-
-      Promise.all(
-        otherMembers.map(memberId =>
-          notifyUser(
-            memberId,
-            "activity_proposed",
-            "Nouvelle activité proposée",
-            `${proposerName} propose ${selectedActivity.title}`,
-            {
-              fromUserId: currentUser.uid,
-              groupId,
-              activityId: selectedActivity.id,
-            }
-          ).catch(err => console.error("Notification error:", err))
-        )
-      ).catch(err => console.error("Notifications error:", err));
-
-      Alert.alert("Succès", `Activité "${selectedActivity.title}" proposée ! 🎉`);
-      onClose();
-      setSelectedActivity(null);
-      setSearchQuery("");
+      Alert.alert("Succès", `Activité proposée au groupe ! 🎉`, [
+        {
+          text: "Voir le groupe",
+          onPress: () => {
+            onClose();
+            router.push(`/Groupe/${groupId}`);
+          },
+        },
+        { text: "OK", onPress: onClose },
+      ]);
+      
+      setSelectedDate(null);
     } catch (error) {
       console.error("Error proposing activity:", error);
       Alert.alert("Erreur", "Impossible de proposer l'activité");
@@ -143,20 +155,23 @@ export default function ProposeActivityModal({
     }
   };
 
-  const filteredActivities = activities.filter(activity =>
-    activity.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    activity.category.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const createNewGroup = () => {
+    onClose();
+    router.push("/Groupe/Crea_groupe");
+  };
 
   return (
     <Modal visible={visible} animationType="slide" transparent={false}>
-      <LinearGradient colors={[COLORS.backgroundTop, COLORS.backgroundBottom]} style={styles.container}>
+      <LinearGradient
+        colors={[COLORS.backgroundTop, COLORS.backgroundBottom]}
+        style={styles.container}
+      >
         {/* HEADER */}
         <View style={styles.header}>
           <TouchableOpacity style={styles.closeButton} onPress={onClose}>
             <Icon name="close" size={24} color={COLORS.textPrimary} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Proposer une activité</Text>
+          <Text style={styles.headerTitle}>Proposer à un groupe</Text>
           <View style={{ width: 40 }} />
         </View>
 
@@ -166,105 +181,98 @@ export default function ProposeActivityModal({
             <Text style={styles.loadingText}>Chargement...</Text>
           </View>
         ) : (
-          <>
-            {/* BARRE DE RECHERCHE */}
-            <View style={styles.searchContainer}>
-              <View style={styles.searchBar}>
-                <Icon name="search" size={18} color={COLORS.textSecondary} />
-                <TextInput
-                  placeholder="Rechercher une activité..."
-                  placeholderTextColor={COLORS.textSecondary}
-                  style={styles.searchInput}
-                  value={searchQuery}
-                  onChangeText={setSearchQuery}
-                />
+          <ScrollView contentContainerStyle={styles.scrollContent}>
+            {/* ACTIVITÉ SÉLECTIONNÉE */}
+            <View style={styles.activityPreview}>
+              <Text style={styles.activityPreviewTitle}>Activité sélectionnée :</Text>
+              <View style={styles.activityCard}>
+                <Text style={styles.activityTitle}>{activity.title}</Text>
+                <Text style={styles.activityCategory}>{activity.category}</Text>
+                <View style={styles.activityLocation}>
+                  <Icon name="location" size={14} color={COLORS.textSecondary} />
+                  <Text style={styles.activityLocationText}>{activity.location}</Text>
+                </View>
               </View>
             </View>
 
-            {/* LISTE DES ACTIVITÉS */}
-            <ScrollView contentContainerStyle={styles.scrollContent}>
-              <View style={styles.activitiesList}>
-                {filteredActivities.map((activity) => (
-                  <TouchableOpacity
-                    key={activity.id}
-                    style={[
-                      styles.activityCard,
-                      selectedActivity?.id === activity.id && styles.activityCardSelected
-                    ]}
-                    onPress={() => setSelectedActivity(activity)}
-                  >
-                    {activity.image ? (
-                      <ImageBackground
-                        source={{ uri: activity.image }}
-                        style={styles.activityImage}
-                        imageStyle={{ borderRadius: 12 }}
-                      >
-                        <View style={styles.activityOverlay} />
-                      </ImageBackground>
-                    ) : (
-                      <LinearGradient
-                        colors={["#7C3AED", "#5B21B6"]}
-                        style={styles.activityImage}
-                      />
-                    )}
-                    
-                    <View style={styles.activityInfo}>
-                      <Text style={styles.activityTitle}>{activity.title}</Text>
-                      <View style={styles.activityMeta}>
-                        <View style={styles.categoryBadge}>
-                          <Text style={styles.categoryText}>{activity.category}</Text>
-                        </View>
-                      </View>
-                      <View style={styles.activityLocation}>
-                        <Icon name="location" size={12} color={COLORS.textSecondary} />
-                        <Text style={styles.activityLocationText}>{activity.location}</Text>
-                      </View>
-                    </View>
+            {/* DATE ET HEURE - EN HAUT */}
+            <View style={styles.dateSection}>
+              <CustomDateTimePicker
+                selectedDate={selectedDate}
+                onDateChange={setSelectedDate}
+                label="Quand voulez-vous faire cette activité ?"
+                minimumDate={new Date()}
+              />
+            </View>
 
-                    {selectedActivity?.id === activity.id && (
-                      <View style={styles.selectedBadge}>
-                        <Icon name="checkmark-circle" size={28} color={COLORS.secondary} />
-                      </View>
-                    )}
-                  </TouchableOpacity>
-                ))}
+            {/* BOUTON CRÉER UN NOUVEAU GROUPE */}
+            <TouchableOpacity
+              style={styles.createGroupButton}
+              onPress={createNewGroup}
+            >
+              <LinearGradient
+                colors={[COLORS.titleGradientStart, COLORS.titleGradientEnd]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.createGroupGradient}
+              >
+                <Icon name="add-circle-outline" size={20} color="#FFFFFF" />
+                <Text style={styles.createGroupText}>Créer un nouveau groupe</Text>
+              </LinearGradient>
+            </TouchableOpacity>
 
-                {filteredActivities.length === 0 && (
-                  <View style={styles.emptyContainer}>
-                    <Icon name="search-outline" size={48} color={COLORS.textSecondary} />
-                    <Text style={styles.emptyText}>Aucune activité trouvée</Text>
+            {/* LISTE DES GROUPES */}
+            {groups.length === 0 ? (
+              <View style={styles.emptyContainer}>
+                <Icon name="people-outline" size={48} color={COLORS.textSecondary} />
+                <Text style={styles.emptyText}>Vous n'avez pas encore de groupes</Text>
+                <Text style={styles.emptySubtext}>
+                  Créez un groupe pour proposer cette activité !
+                </Text>
+              </View>
+            ) : (
+              <>
+                <Text style={styles.sectionTitle}>Choisir un groupe :</Text>
+                <View style={styles.groupsList}>
+                  {groups.map((group) => (
+                    <TouchableOpacity
+                      key={group.id}
+                      style={[
+                        styles.groupCard,
+                        !selectedDate && styles.groupCardDisabled
+                      ]}
+                      onPress={() => proposeToGroup(group.id)}
+                      disabled={!selectedDate || proposing}
+                    >
+                      <View style={styles.groupEmoji}>
+                        <Text style={styles.groupEmojiText}>{group.emoji}</Text>
+                      </View>
+                      <View style={styles.groupInfo}>
+                        <Text style={styles.groupName}>{group.name}</Text>
+                        <Text style={styles.groupMembers}>
+                          {group.members.length} membre{group.members.length > 1 ? "s" : ""}
+                        </Text>
+                      </View>
+                      {proposing ? (
+                        <ActivityIndicator size="small" color={COLORS.secondary} />
+                      ) : (
+                        <Icon name="chevron-forward" size={20} color={COLORS.textSecondary} />
+                      )}
+                    </TouchableOpacity>
+                  ))}
+                </View>
+                
+                {!selectedDate && (
+                  <View style={styles.hintContainer}>
+                    <Icon name="information-circle-outline" size={20} color={COLORS.secondary} />
+                    <Text style={styles.hintText}>
+                      Sélectionnez d'abord une date et une heure
+                    </Text>
                   </View>
                 )}
-              </View>
-            </ScrollView>
-
-            {/* BOUTON PROPOSER */}
-            <View style={styles.footer}>
-              <TouchableOpacity
-                style={styles.proposeButtonWrapper}
-                onPress={proposeActivity}
-                disabled={!selectedActivity || proposing}
-              >
-                <LinearGradient
-                  colors={[COLORS.titleGradientStart, COLORS.titleGradientEnd]}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                  style={[
-                    styles.proposeButton,
-                    (!selectedActivity || proposing) && styles.proposeButtonDisabled
-                  ]}
-                >
-                  {proposing ? (
-                    <ActivityIndicator color="#FFFFFF" />
-                  ) : (
-                    <Text style={styles.proposeButtonText}>
-                      Proposer cette activité
-                    </Text>
-                  )}
-                </LinearGradient>
-              </TouchableOpacity>
-            </View>
-          </>
+              </>
+            )}
+          </ScrollView>
         )}
       </LinearGradient>
     </Modal>
@@ -308,81 +316,36 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: COLORS.textSecondary,
   },
-  searchContainer: {
+  scrollContent: {
     paddingHorizontal: 24,
-    marginBottom: 16,
+    paddingBottom: 40,
   },
-  searchBar: {
-    flexDirection: "row",
-    alignItems: "center",
+  activityPreview: {
+    marginBottom: 24,
+  },
+  activityPreviewTitle: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: COLORS.textSecondary,
+    marginBottom: 12,
+  },
+  activityCard: {
     backgroundColor: COLORS.neutralGray800,
     borderRadius: 16,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    gap: 10,
+    padding: 16,
     borderWidth: 1,
     borderColor: COLORS.border,
   },
-  searchInput: {
-    flex: 1,
-    color: COLORS.textPrimary,
-    fontSize: 14,
-  },
-  scrollContent: {
-    paddingHorizontal: 24,
-    paddingBottom: 120,
-  },
-  activitiesList: {
-    gap: 12,
-  },
-  activityCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: COLORS.neutralGray800,
-    borderRadius: 16,
-    padding: 12,
-    borderWidth: 2,
-    borderColor: COLORS.border,
-    gap: 12,
-  },
-  activityCardSelected: {
-    borderColor: COLORS.secondary,
-    backgroundColor: COLORS.primary,
-  },
-  activityImage: {
-    width: 80,
-    height: 80,
-    borderRadius: 12,
-    overflow: "hidden",
-  },
-  activityOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0,0,0,0.2)",
-  },
-  activityInfo: {
-    flex: 1,
-  },
   activityTitle: {
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: "700",
     color: COLORS.textPrimary,
-    marginBottom: 6,
+    marginBottom: 4,
   },
-  activityMeta: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 6,
-  },
-  categoryBadge: {
-    backgroundColor: COLORS.primary,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-  },
-  categoryText: {
-    fontSize: 10,
-    fontWeight: "600",
-    color: COLORS.textPrimary,
+  activityCategory: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+    marginBottom: 8,
   },
   activityLocation: {
     flexDirection: "row",
@@ -390,49 +353,109 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   activityLocationText: {
-    fontSize: 11,
+    fontSize: 12,
     color: COLORS.textSecondary,
   },
-  selectedBadge: {
-    position: "absolute",
-    top: 12,
-    right: 12,
+  dateSection: {
+    marginBottom: 24,
+    paddingBottom: 24,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
+  createGroupButton: {
+    borderRadius: 999,
+    overflow: "hidden",
+    marginBottom: 32,
+  },
+  createGroupGradient: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingVertical: 14,
+  },
+  createGroupText: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#FFFFFF",
   },
   emptyContainer: {
     alignItems: "center",
     paddingVertical: 60,
   },
   emptyText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: COLORS.textPrimary,
+    marginTop: 16,
+    textAlign: "center",
+  },
+  emptySubtext: {
     fontSize: 14,
     color: COLORS.textSecondary,
-    marginTop: 12,
+    marginTop: 8,
+    textAlign: "center",
   },
-  footer: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    paddingHorizontal: 24,
-    paddingVertical: 20,
-    backgroundColor: COLORS.backgroundBottom,
-    borderTopWidth: 1,
-    borderTopColor: COLORS.border,
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: COLORS.textPrimary,
+    marginBottom: 16,
   },
-  proposeButtonWrapper: {
-    borderRadius: 999,
-    overflow: "hidden",
+  groupsList: {
+    gap: 12,
   },
-  proposeButton: {
-    height: 52,
+  groupCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: COLORS.neutralGray800,
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    gap: 12,
+  },
+  groupCardDisabled: {
+    opacity: 0.5,
+  },
+  groupEmoji: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: COLORS.primary,
     justifyContent: "center",
     alignItems: "center",
   },
-  proposeButtonDisabled: {
-    opacity: 0.5,
+  groupEmojiText: {
+    fontSize: 24,
   },
-  proposeButtonText: {
+  groupInfo: {
+    flex: 1,
+  },
+  groupName: {
     fontSize: 16,
-    color: "#FFFFFF",
     fontWeight: "700",
+    color: COLORS.textPrimary,
+    marginBottom: 4,
+  },
+  groupMembers: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+  },
+  hintContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginTop: 16,
+    padding: 12,
+    backgroundColor: "rgba(124, 58, 237, 0.1)",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(124, 58, 237, 0.3)",
+  },
+  hintText: {
+    flex: 1,
+    fontSize: 13,
+    color: COLORS.textPrimary,
   },
 });
