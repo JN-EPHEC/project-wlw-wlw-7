@@ -18,6 +18,7 @@ import {
 } from "react-native";
 import { useAuth } from "../Auth_context";
 import { COLORS } from "../components/Colors";
+import Logo from "../components/Logo";
 import { auth, db } from "../firebase_Config";
 
 // ==================== VALIDATION MOT DE PASSE ====================
@@ -442,11 +443,8 @@ export default function RegisterScreen() {
           keyboardShouldPersistTaps="handled"
         >
           <View style={styles.logoContainer}>
-            <Text style={styles.logoText}>
-              <Text style={styles.logoWhat}>What</Text>
-              <Text style={styles.logo2Do}>2do</Text>
-            </Text>
-          </View>
+            <Logo size="large" /> 
+            </View>
 
           {error ? (
             <View style={styles.errorContainer}>

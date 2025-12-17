@@ -16,6 +16,7 @@ import {
   View,
 } from "react-native";
 import { COLORS } from "../components/Colors";
+import Logo from "../components/Logo"; // 👈 IMPORT
 import { auth } from "../firebase_Config";
 
 export default function LoginScreen() {
@@ -136,10 +137,7 @@ export default function LoginScreen() {
           keyboardShouldPersistTaps="handled"
         >
           <View style={styles.logoContainer}>
-            <Text style={styles.logoText}>
-              <Text style={styles.logoWhat}>What</Text>
-              <Text style={styles.logo2Do}>2do</Text>
-            </Text>
+            <Logo size="large" />
           </View>
 
           {error ? (
@@ -239,16 +237,6 @@ const styles = StyleSheet.create({
   logoContainer: {
     marginBottom: 40,
     alignItems: "center",
-  },
-  logoText: {
-    fontSize: 34,
-    fontFamily: "Poppins-Bold",
-  },
-  logoWhat: {
-    color: COLORS.titleGradientStart,
-  },
-  logo2Do: {
-    color: COLORS.titleGradientEnd,
   },
   errorContainer: {
     backgroundColor: "rgba(255, 59, 48, 0.1)",

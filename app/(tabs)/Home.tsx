@@ -16,6 +16,7 @@ import {
 } from "react-native";
 import Icon from "react-native-vector-icons/Ionicons";
 import { COLORS } from "../../components/Colors";
+import Logo from "../../components/Logo";
 import { auth, db } from "../../firebase_Config";
 import { generateActivities } from "../../service/generateActivities";
 import {
@@ -268,7 +269,7 @@ export default function HomeScreen() {
         colors={[COLORS.backgroundTop, COLORS.backgroundBottom]}
         style={styles.background}
       >
-        {/* HEADER STICKY - Reste toujours visible */}
+        {/* HEADER STICKY */}
         <View style={styles.stickyHeader}>
           {showFavorites ? (
             <View style={styles.header}>
@@ -285,29 +286,25 @@ export default function HomeScreen() {
               <View style={{ width: 40 }} />
             </View>
           ) : (
-            <View>
-              <View style={styles.header}>
-                <View style={styles.titleContainer}>
-                  <Text style={[styles.title, styles.titleGradientStart]}>What</Text>
-                  <Text style={[styles.title, styles.titleGradientEnd]}>2do</Text>
-                </View>
-                
-                <TouchableOpacity 
-                  style={styles.iconButton}
-                  onPress={() => setShowFavorites(true)}
-                >
-                  <Icon name="heart-outline" size={18} color={COLORS.secondary} />
-                </TouchableOpacity>
-              </View>
+            <View style={styles.header}>
+              <Logo size="medium" />
               
-              {userLocation && locationGranted && (
-                <View style={styles.locationBadgeContainer}>
-                  <View style={styles.locationBadge}>
-                    <Icon name="location" size={16} color="#6366F1" />
-                    <Text style={styles.locationText}>{userLocation.city}</Text>
-                  </View>
-                </View>
-              )}
+              <TouchableOpacity 
+                style={styles.iconButton}
+                onPress={() => setShowFavorites(true)}
+              >
+                <Icon name="heart-outline" size={18} color={COLORS.secondary} />
+              </TouchableOpacity>
+            </View>
+          )}
+          
+          {/* LOCATION BADGE */}
+          {!showFavorites && userLocation && locationGranted && (
+            <View style={styles.locationBadgeContainer}>
+              <View style={styles.locationBadge}>
+                <Icon name="location" size={16} color="#6366F1" />
+                <Text style={styles.locationText}>{userLocation.city}</Text>
+              </View>
             </View>
           )}
 
@@ -367,6 +364,7 @@ export default function HomeScreen() {
                   Gratuit
                 </Text>
               </TouchableOpacity>
+              
               <TouchableOpacity 
                 style={[styles.chip, activeFilter === "new" && styles.chipActive]}
                 onPress={() => setActiveFilter(activeFilter === "new" ? "all" : "new")}
@@ -569,22 +567,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-  },
-  titleContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-  },
-  title: {
-    fontSize: 32,
-    fontWeight: "800",
-    fontFamily: "Poppins-Bold",
-  },
-  titleGradientStart: {
-    color: COLORS.titleGradientStart,
-  },
-  titleGradientEnd: {
-    color: COLORS.titleGradientEnd,
   },
   locationBadgeContainer: {
     marginTop: 12,
