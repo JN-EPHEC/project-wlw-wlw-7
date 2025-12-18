@@ -1,6 +1,6 @@
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
-import { addDoc, collection, getDocs, query, where } from "firebase/firestore";
+import { addDoc, collection, doc, getDoc, getDocs, query, where } from "firebase/firestore";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -78,6 +78,7 @@ export default function ProposeActivityModal({
     }
   }, [visible, preSelectedActivity]);
 
+  // 🔧 FONCTION CORRIGÉE pour charger les amis depuis users.friends
   const loadData = async () => {
     if (!currentUser) return;
     
@@ -105,36 +106,39 @@ export default function ProposeActivityModal({
       } as Group));
       setGroups(groupsList);
 
-      // Charger les amis
-      const friendshipsQuery = query(
-        collection(db, "friendships"),
-        where("users", "array-contains", currentUser.uid),
-        where("status", "==", "accepted")
-      );
-      const friendshipsSnapshot = await getDocs(friendshipsQuery);
+      // 🔧 NOUVELLE MÉTHODE : Charger les amis depuis le champ friends de l'user
+      const userDoc = await getDoc(doc(db, "users", currentUser.uid));
       
-      const friendIds = new Set<string>();
-      friendshipsSnapshot.forEach(doc => {
-        const users = doc.data().users;
-        const friendId = users.find((id: string) => id !== currentUser.uid);
-        if (friendId) friendIds.add(friendId);
-      });
+      if (userDoc.exists()) {
+        const userData = userDoc.data();
+        const friendIds: string[] = userData.friends || [];
+        
+        console.log("🔍 Friend IDs trouvés:", friendIds);
 
-      // Récupérer les infos des amis
-      const friendsList: Friend[] = [];
-      for (const friendId of friendIds) {
-        const userQuery = query(collection(db, "users"), where("uid", "==", friendId));
-        const userDoc = await getDocs(userQuery);
-        if (!userDoc.empty) {
-          const userData = userDoc.docs[0].data();
-          friendsList.push({
-            id: friendId,
-            displayName: userData.displayName || "Utilisateur",
-            photoURL: userData.photoURL,
-          });
+        // Récupérer les infos de chaque ami
+        const friendsList: Friend[] = [];
+        
+        for (const friendId of friendIds) {
+          try {
+            const friendDoc = await getDoc(doc(db, "users", friendId));
+            if (friendDoc.exists()) {
+              const friendData = friendDoc.data();
+              friendsList.push({
+                id: friendId,
+                displayName: friendData.displayName || friendData.username || "Utilisateur",
+                photoURL: friendData.photoURL || null,
+              });
+            }
+          } catch (error) {
+            console.error(`Erreur lors du chargement de l'ami ${friendId}:`, error);
+          }
         }
+        
+        console.log("✅ Amis chargés:", friendsList.length, "ami(s)");
+        setFriends(friendsList);
+      } else {
+        console.log("⚠️ Document user introuvable");
       }
-      setFriends(friendsList);
 
     } catch (error) {
       console.error("Error loading data:", error);
@@ -186,7 +190,6 @@ export default function ProposeActivityModal({
       let targetGroupId = selectedGroup;
       let targetGroupMembers: string[] = [];
 
-      // Si nouveau groupe, le créer
       if (recipientType === 'new') {
         targetGroupMembers = [currentUser.uid, ...selectedFriends];
         const groupName = `${selectedActivity.title} - ${new Date(selectedDate).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}`;
@@ -203,15 +206,13 @@ export default function ProposeActivityModal({
         
         targetGroupId = groupRef.id;
       } else {
-        // Récupérer les membres du groupe existant
         const selectedGroupData = groups.find(g => g.id === selectedGroup);
         if (selectedGroupData) {
           targetGroupMembers = selectedGroupData.members;
         }
       }
 
-      // Créer l'activité de groupe
-      const deadline = new Date(selectedDate.getTime() - 60 * 60 * 1000); // 1h avant
+      const deadline = new Date(selectedDate.getTime() - 60 * 60 * 1000);
 
       const participants: any = {};
       targetGroupMembers.forEach((memberId: string) => {
@@ -237,11 +238,9 @@ export default function ProposeActivityModal({
         participants,
       });
 
-      // Envoyer les notifications
       const proposerName = currentUser.displayName || "Un ami";
       const otherMembers = targetGroupMembers.filter(id => id !== currentUser.uid);
       
-      // Correction : notifyUser prend probablement 4 arguments, pas 5
       for (const memberId of otherMembers) {
         try {
           await notifyUser(
@@ -307,14 +306,10 @@ export default function ProposeActivityModal({
           >
             <View style={styles.activityInfo}>
               <Text style={styles.activityTitle}>{activity.title}</Text>
-              <View style={styles.activityMeta}>
-                <View style={styles.categoryBadge}>
-                  <Text style={styles.categoryText}>{activity.category}</Text>
-                </View>
-              </View>
-              <View style={styles.activityLocation}>
-                <Icon name="location" size={12} color={COLORS.textSecondary} />
-                <Text style={styles.activityLocationText}>{activity.location}</Text>
+              <View style={styles.activityMetaRow}>
+                <Text style={styles.activityCategory}>{activity.category}</Text>
+                <Text style={styles.activityMetaDivider}>•</Text>
+                <Text style={styles.activityLocationInline}>{activity.location}</Text>
               </View>
             </View>
 
@@ -333,12 +328,16 @@ export default function ProposeActivityModal({
     <ScrollView contentContainerStyle={styles.scrollContent}>
       <View style={styles.activityPreview}>
         <Text style={styles.stepTitle}>Quand voulez-vous faire cette activité ?</Text>
-        <View style={styles.activityCard}>
+        <View style={styles.activityCardPreview}>
           <Text style={styles.activityTitle}>{selectedActivity?.title}</Text>
-          <Text style={styles.activityCategory}>{selectedActivity?.category}</Text>
-          <View style={styles.activityLocation}>
-            <Icon name="location" size={12} color={COLORS.textSecondary} />
-            <Text style={styles.activityLocationText}>{selectedActivity?.location}</Text>
+          <View style={styles.activityMetaRow}>
+            <Text style={styles.activityCategory}>
+              {selectedActivity?.category}
+            </Text>
+            <Text style={styles.activityMetaDivider}>•</Text>
+            <Text style={styles.activityLocationInline}>
+              {selectedActivity?.location}
+            </Text>
           </View>
         </View>
       </View>
@@ -358,10 +357,10 @@ export default function ProposeActivityModal({
     <ScrollView contentContainerStyle={styles.scrollContent}>
       <View style={styles.activityPreview}>
         <Text style={styles.stepTitle}>Avec qui ?</Text>
-        <View style={styles.activityCard}>
+        <View style={styles.activityCardPreview}>
           <Text style={styles.activityTitle}>{selectedActivity?.title}</Text>
           <View style={styles.activityMeta}>
-            <Icon name="calendar" size={14} color={COLORS.textSecondary} />
+            <Icon name="calendar" size={14} color="#A78BFA" />
             <Text style={styles.dateText}>
               {selectedDate?.toLocaleDateString('fr-FR', {
                 weekday: 'short',
@@ -375,7 +374,6 @@ export default function ProposeActivityModal({
         </View>
       </View>
 
-      {/* CHOIX DU TYPE */}
       {!recipientType && (
         <View style={styles.typeSelection}>
           <TouchableOpacity
@@ -408,7 +406,6 @@ export default function ProposeActivityModal({
         </View>
       )}
 
-      {/* SÉLECTION D'AMIS (nouveau groupe) */}
       {recipientType === 'new' && (
         <>
           <View style={styles.sectionHeader}>
@@ -461,7 +458,6 @@ export default function ProposeActivityModal({
         </>
       )}
 
-      {/* SÉLECTION DE GROUPE EXISTANT */}
       {recipientType === 'existing' && (
         <>
           <View style={styles.sectionHeader}>
@@ -525,7 +521,6 @@ export default function ProposeActivityModal({
   return (
     <Modal visible={visible} animationType="slide" transparent={false}>
       <LinearGradient colors={[COLORS.backgroundTop, COLORS.backgroundBottom]} style={styles.container}>
-        {/* HEADER */}
         <View style={styles.header}>
           {step !== (preSelectedActivity ? 'date' : 'activity') && (
             <TouchableOpacity 
@@ -551,7 +546,6 @@ export default function ProposeActivityModal({
           <View style={{ width: 40 }} />
         </View>
 
-        {/* STEPS INDICATOR */}
         <View style={styles.stepsContainer}>
           {!preSelectedActivity && (
             <>
@@ -575,7 +569,6 @@ export default function ProposeActivityModal({
             {step === 'date' && renderDateStep()}
             {step === 'recipient' && renderRecipientStep()}
 
-            {/* FOOTER BUTTON */}
             <View style={styles.footer}>
               <TouchableOpacity
                 style={styles.nextButtonWrapper}
@@ -646,7 +639,8 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 20,
     fontWeight: "700",
-    color: COLORS.textPrimary,
+    color: "#FFFFFF",
+    fontFamily: "Poppins-Bold",
   },
   stepsContainer: {
     flexDirection: "row",
@@ -715,6 +709,13 @@ const styles = StyleSheet.create({
     borderColor: COLORS.secondary,
     backgroundColor: COLORS.primary,
   },
+  activityCardPreview: {
+    backgroundColor: COLORS.neutralGray800,
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 2,
+    borderColor: COLORS.border,
+  },
   activityInfo: {
     flex: 1,
   },
@@ -728,35 +729,31 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    marginBottom: 6,
+    marginTop: 8,
   },
-  categoryBadge: {
-    backgroundColor: COLORS.primary,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-  },
-  categoryText: {
-    fontSize: 10,
-    fontWeight: "600",
-    color: COLORS.textPrimary,
-  },
-  activityCategory: {
-    fontSize: 12,
-    color: COLORS.textSecondary,
-  },
-  activityLocation: {
+  activityMetaRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
+    gap: 6,
   },
-  activityLocationText: {
-    fontSize: 11,
-    color: COLORS.textSecondary,
+  activityCategory: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#A78BFA",
+  },
+  activityMetaDivider: {
+    fontSize: 13,
+    color: "#A78BFA",
+  },
+  activityLocationInline: {
+    fontSize: 13,
+    fontWeight: "500",
+    color: "#A78BFA",
   },
   dateText: {
     fontSize: 12,
-    color: COLORS.textSecondary,
+    color: "#A78BFA",
+    fontWeight: "600",
   },
   selectedBadge: {
     marginLeft: 12,
