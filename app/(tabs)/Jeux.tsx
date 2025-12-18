@@ -238,6 +238,7 @@ export default function JeuxScreen() {
     setFilteredGames(filtered);
   };
 
+  // 🔧 FIX 1 : Retirer le 3ème argument (displayName)
   const handleJoinWithCode = async () => {
     if (!user) {
       Alert.alert("Erreur", "Tu dois être connecté pour rejoindre une partie");
@@ -256,16 +257,24 @@ export default function JeuxScreen() {
 
     setLoading(true);
     try {
+      // 🔧 Seulement 2 arguments : gameCode et userId
       const joinedGameId = await joinGame(
         gameCode.trim().toUpperCase(),
-        user.uid,
-        userProfile.displayName
+        user.uid
       );
 
       if (joinedGameId) {
         setShowJoinModal(false);
         setGameCode("");
-        router.push(`/Game/Invitation?gameId=${joinedGameId}&mode=waiting`);
+        
+        // 🔧 FIX 2 : Utiliser un objet avec pathname et params
+        router.push({
+          pathname: "/Game/Invitation",
+          params: { 
+            gameId: joinedGameId,
+            mode: "waiting"
+          }
+        });
       } else {
         Alert.alert("Erreur", "Partie introuvable ou déjà commencée");
       }
@@ -277,7 +286,7 @@ export default function JeuxScreen() {
     }
   };
 
-  // 🔥 NOUVELLE FONCTION : Gérer le clic sur une carte de jeu
+  // 🔥 Gérer le clic sur une carte de jeu
   const handleGamePress = (game: Game) => {
     // 🔒 Si le jeu est premium ET que l'utilisateur n'est PAS premium
     if (game.isPremium && !isPremium) {

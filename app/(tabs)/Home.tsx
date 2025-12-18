@@ -18,9 +18,11 @@ import Icon from "react-native-vector-icons/Ionicons";
 import { COLORS } from "../../components/Colors";
 import Logo from "../../components/Logo";
 import { auth, db } from "../../firebase_Config";
+import { addGPSToActivities } from "../../service/addGPSToActivities";
 import { generateActivities } from "../../service/generateActivities";
 import { generateMoreActivities } from "../../service/generateMoreActivities";
 import {
+  calculateDistance,
   checkLocationPermission,
   LocationData,
   requestLocationPermission,
@@ -41,6 +43,8 @@ interface Activity {
   date: string;
   distance?: number;
   personalScore?: number;
+  latitude?: number;
+  longitude?: number;
 }
 
 export default function HomeScreen() {
@@ -99,6 +103,27 @@ export default function HomeScreen() {
     }
   };
 
+  const handleAddGPSToActivities = async () => {
+    setGenerating(true);
+    try {
+      const result = await addGPSToActivities();
+      if (result.success) {
+        Alert.alert(
+          "GPS ajouté ! 🌍", 
+          `${result.updated} activités mises à jour\n${result.skipped} déjà à jour`
+        );
+        await loadActivities();
+      } else {
+        Alert.alert("Erreur", "Impossible d'ajouter les coordonnées GPS");
+      }
+    } catch (error) {
+      console.error("Error adding GPS:", error);
+      Alert.alert("Erreur", "Une erreur est survenue");
+    } finally {
+      setGenerating(false);
+    }
+  };
+
   useEffect(() => {
     loadActivities();
     loadFavorites();
@@ -109,7 +134,7 @@ export default function HomeScreen() {
     if (!showPersonalized) {
       applyFilters();
     }
-  }, [activities, searchQuery, activeFilter, showFavorites, favorites]);
+  }, [activities, searchQuery, activeFilter, showFavorites, favorites, userLocation]);
 
   // Vérifier si la permission de localisation existe déjà
   const checkExistingLocationPermission = async () => {
@@ -259,34 +284,36 @@ export default function HomeScreen() {
         filtered = filtered.filter(activity =>
           activity.category.toLowerCase() === category.toLowerCase()
         );
-      } else if (activeFilter === "near" && userLocation) {
-        const brusselsCommunes = [
-          "auderghem", "berchem-sainte-agathe", "bruxelles", "etterbeek",
-          "evere", "forest", "ganshoren", "ixelles", "jette", "koekelberg",
-          "molenbeek", "molenbeek-saint-jean", "saint-gilles", "saint-josse",
-          "saint-josse-ten-noode", "schaerbeek", "uccle", "watermael-boitsfort",
-          "woluwe-saint-lambert", "woluwe-saint-pierre", "anderlecht"
-        ];
-
-        const userCity = userLocation.city?.toLowerCase() || "";
+      } 
+      // 🌍 FILTRE GPS "PRÈS DE MOI"
+      else if (activeFilter === "near" && userLocation) {
+        console.log("📍 Filtre 'Près de moi' activé");
+        console.log(`👤 Position utilisateur: ${userLocation.latitude}, ${userLocation.longitude}`);
         
-        const isInBrussels = brusselsCommunes.some(commune => 
-          userCity.includes(commune) || commune.includes(userCity)
-        );
-
-        if (isInBrussels) {
-          filtered = filtered.filter(activity => {
-            const activityLocation = activity.location.toLowerCase();
-            return activityLocation.includes("bruxelles") || 
-                   activityLocation.includes("brussels") ||
-                   brusselsCommunes.some(commune => activityLocation.includes(commune));
-          });
-        } else {
-          filtered = filtered.filter(activity =>
-            activity.location.toLowerCase().includes(userCity)
-          );
-        }
-      } else if (activeFilter === "free") {
+        // Calculer la distance pour chaque activité
+        const activitiesWithDistance = filtered.map(activity => {
+          let distance = 999; // Distance par défaut si pas de coordonnées
+          
+          if (activity.latitude && activity.longitude && userLocation.latitude && userLocation.longitude) {
+            distance = calculateDistance(
+              userLocation.latitude,
+              userLocation.longitude,
+              activity.latitude,
+              activity.longitude
+            );
+          }
+          
+          return { ...activity, distance };
+        });
+        
+        // Filtrer : garder seulement les activités à moins de 15km
+        filtered = activitiesWithDistance
+          .filter(activity => activity.distance <= 15)
+          .sort((a, b) => a.distance - b.distance); // Trier par distance croissante
+        
+        console.log(`✅ ${filtered.length} activités à moins de 15km trouvées`);
+      } 
+      else if (activeFilter === "free") {
         filtered = filtered.filter(activity => activity.price === "Gratuit");
       } else if (activeFilter === "new") {
         filtered = filtered.filter(activity => activity.isNew);
@@ -623,7 +650,7 @@ export default function HomeScreen() {
           contentContainerStyle={styles.contentContainer}
           showsVerticalScrollIndicator={false}
         >
-          {/* BOUTONS GÉNÉRATION ACTIVITÉS */}
+          {/* BOUTON GÉNÉRER ACTIVITÉS */}
           {activities.length === 0 && !loading && !showFavorites && (
             <TouchableOpacity 
               style={styles.generateButton}
@@ -664,6 +691,29 @@ export default function HomeScreen() {
               </LinearGradient>
             </TouchableOpacity>
           )}
+
+          {/* 🌍 BOUTON AJOUTER GPS AUX ACTIVITÉS */}
+          {activities.length > 0 && !loading && !showFavorites && (
+             activities.some(act => !act.latitude || !act.longitude) && ( // ⬅️ NOUVEAU CHECK
+
+            <TouchableOpacity 
+              style={[styles.generateButton, { marginBottom: 16 }]}
+              onPress={handleAddGPSToActivities}
+              disabled={generating}
+            >
+              <LinearGradient
+                colors={["#6366F1", "#8B5CF6"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.generateButtonGradient}
+              >
+                <Icon name="location" size={20} color={COLORS.textPrimary} />
+                <Text style={styles.generateButtonText}>
+                  {generating ? "Ajout GPS..." : "🌍 Ajouter GPS aux activités"}
+                </Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          ))}
 
           {/* LISTE DES ACTIVITÉS */}
           {filteredActivities.length === 0 ? (
@@ -769,7 +819,8 @@ export default function HomeScreen() {
                         <View style={styles.cardMetaItem}>
                           <Icon name="location" size={14} color={COLORS.textSecondary} />
                           <Text style={styles.cardMetaText} numberOfLines={1}>
-                            {activity.distance 
+                            {/* 🌍 ÉTAPE 5 : AFFICHAGE DE LA DISTANCE */}
+                            {activity.distance !== undefined && activity.distance < 999
                               ? `${activity.distance.toFixed(1)} km`
                               : activity.location
                             }

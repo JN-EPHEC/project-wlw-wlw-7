@@ -141,15 +141,9 @@ export async function getPersonalizedActivities(): Promise<PersonalScoredActivit
     activitiesSnapshot.forEach((activityDoc) => {
       const data = activityDoc.data();
       
-      // Récupérer ou estimer les coordonnées de l'activité
-      let activityLat = data.latitude;
-      let activityLng = data.longitude;
-      
-      if (!activityLat || !activityLng) {
-        const estimated = estimateLocationCoordinates(data.location || "");
-        activityLat = estimated?.lat;
-        activityLng = estimated?.lng;
-      }
+      // Utiliser les coordonnées GPS de l'activité
+      const activityLat = data.latitude;
+      const activityLng = data.longitude;
       
       // Calculer le score
       const scoring = calculatePersonalScore(
