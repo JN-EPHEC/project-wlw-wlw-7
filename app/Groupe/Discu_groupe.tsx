@@ -45,12 +45,10 @@ interface User {
 }
 
 const REACTIONS = [
-  { id: "fire", emoji: "🔥", label: "Trop Cool" },
-  { id: "hot", emoji: "🔥", label: "Je suis chaud" },
-  { id: "late", emoji: "⏰", label: "Je serai en retard" },
+  { id: "fire", emoji: "🔥", label: "Chaud" },
+  { id: "late", emoji: "⏰", label: "En retard" },
   { id: "thinking", emoji: "🤔", label: "Je réfléchis" },
-  { id: "unavailable", emoji: "😐", label: "Pas dispo" },
-  { id: "maybe", emoji: "❓", label: "Peut-être" },
+  { id: "maybe", emoji: "🤷", label: "Peut-être" },
 ];
 
 export default function GroupDiscussionScreen() {
@@ -78,13 +76,11 @@ export default function GroupDiscussionScreen() {
         return;
       }
 
-      // Prendre la dernière activité proposée
       const latestDoc = snapshot.docs[snapshot.docs.length - 1];
       const activityData = { id: latestDoc.id, ...latestDoc.data() } as GroupActivity;
       
       setGroupActivity(activityData);
 
-      // Charger les infos des participants
       const participantIds = Object.keys(activityData.participants);
       const usersData: { [key: string]: User } = {};
 
@@ -126,7 +122,6 @@ export default function GroupDiscussionScreen() {
       const activityRef = doc(db, "groupActivities", groupActivity.id);
       const currentReaction = groupActivity.participants[currentUser.uid]?.reaction;
       
-      // Toggle: si même réaction, la retirer
       const newReaction = currentReaction === reactionId ? null : reactionId;
 
       await updateDoc(activityRef, {
@@ -152,16 +147,31 @@ export default function GroupDiscussionScreen() {
 
   const formatDeadline = (deadline: string) => {
     const deadlineDate = new Date(deadline);
-    const hours = deadlineDate.getHours().toString().padStart(2, "0");
-    const minutes = deadlineDate.getMinutes().toString().padStart(2, "0");
-    return `${hours}h${minutes}`;
+    const now = new Date();
+    const diffMs = deadlineDate.getTime() - now.getTime();
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+    const diffMinutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+    
+    if (diffHours > 24) {
+      return `${Math.floor(diffHours / 24)}j restants`;
+    } else if (diffHours > 0) {
+      return `${diffHours}h restantes`;
+    } else if (diffMinutes > 0) {
+      return `${diffMinutes}min restantes`;
+    } else {
+      return "Expiré";
+    }
   };
 
   const formatActivityDate = (date: string) => {
     const activityDate = new Date(date);
-    const hours = activityDate.getHours().toString().padStart(2, "0");
-    const minutes = activityDate.getMinutes().toString().padStart(2, "0");
-    return `${hours}h${minutes}`;
+    return activityDate.toLocaleDateString('fr-FR', {
+      weekday: 'short',
+      day: 'numeric',
+      month: 'short',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
   };
 
   const getVoteCount = (vote: "coming" | "not_coming") => {
@@ -197,7 +207,7 @@ export default function GroupDiscussionScreen() {
 
         <View style={styles.emptyContainer}>
           <Icon name="calendar-outline" size={64} color={COLORS.textSecondary} />
-          <Text style={styles.emptyText}>Aucune activité proposée pour le moment</Text>
+          <Text style={styles.emptyText}>Aucune activité proposée</Text>
           <Text style={styles.emptySubtext}>Proposez une activité pour commencer !</Text>
         </View>
       </LinearGradient>
@@ -207,9 +217,13 @@ export default function GroupDiscussionScreen() {
   const myVote = groupActivity.participants[currentUser?.uid || ""]?.vote;
   const myReaction = groupActivity.participants[currentUser?.uid || ""]?.reaction;
   const participantCount = Object.keys(groupActivity.participants).length;
+  const comingCount = getVoteCount("coming");
+  const notComingCount = getVoteCount("not_coming");
+  const pendingCount = participantCount - comingCount - notComingCount;
 
   return (
     <LinearGradient colors={[COLORS.backgroundTop, COLORS.backgroundBottom]} style={styles.container}>
+      {/* HEADER */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
           <Icon name="chevron-back" size={24} color={COLORS.textPrimary} />
@@ -222,70 +236,132 @@ export default function GroupDiscussionScreen() {
         contentContainerStyle={styles.scrollContent}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.secondary} />}
       >
-        {/* CARTE ACTIVITÉ */}
+        {/* 🎯 CARTE ACTIVITÉ AMÉLIORÉE */}
         <View style={styles.activityCard}>
-          <LinearGradient
-            colors={["rgba(99, 102, 241, 0.2)", "rgba(139, 92, 246, 0.2)"]}
-            style={styles.activityCardGradient}
-          >
-            {/* EN-TÊTE */}
-            <View style={styles.activityHeader}>
-              <Text style={styles.activityTitle}>{groupActivity.activityTitle} {groupActivity.activityCategory}</Text>
-              <View style={styles.deadlineBadge}>
-                <Icon name="time-outline" size={12} color={COLORS.textPrimary} />
-                <Text style={styles.deadlineText}>
-                  Vote avant {formatDeadline(groupActivity.deadline)} • {participantCount} participant{participantCount > 1 ? "s" : ""}
-                </Text>
+          {/* IMAGE EN BACKGROUND */}
+          {groupActivity.activityImage ? (
+            <ImageBackground 
+              source={{ uri: groupActivity.activityImage }} 
+              style={styles.activityImageBackground}
+              imageStyle={{ borderRadius: 20 }}
+            >
+              <LinearGradient
+                colors={["rgba(0,0,0,0.6)", "rgba(0,0,0,0.85)"]}
+                style={styles.activityOverlay}
+              >
+                {/* TITRE + CATÉGORIE */}
+                <View style={styles.activityHeaderContent}>
+                  <Text style={styles.activityTitle}>{groupActivity.activityTitle}</Text>
+                  <View style={styles.categoryBadge}>
+                    <Text style={styles.categoryText}>{groupActivity.activityCategory}</Text>
+                  </View>
+                </View>
+
+                {/* STATS RAPIDES */}
+                <View style={styles.quickStats}>
+                  <View style={styles.statItem}>
+                    <Icon name="checkmark-circle" size={16} color="#10B981" />
+                    <Text style={styles.statText}>{comingCount}</Text>
+                  </View>
+                  <View style={styles.statDivider} />
+                  <View style={styles.statItem}>
+                    <Icon name="close-circle" size={16} color="#EF4444" />
+                    <Text style={styles.statText}>{notComingCount}</Text>
+                  </View>
+                  <View style={styles.statDivider} />
+                  <View style={styles.statItem}>
+                    <Icon name="time-outline" size={16} color="#FCD34D" />
+                    <Text style={styles.statText}>{pendingCount}</Text>
+                  </View>
+                </View>
+              </LinearGradient>
+            </ImageBackground>
+          ) : (
+            <LinearGradient
+              colors={["#7C3AED", "#5B21B6"]}
+              style={styles.activityImageBackground}
+            >
+              <View style={styles.activityHeaderContent}>
+                <Text style={styles.activityTitle}>{groupActivity.activityTitle}</Text>
+                <View style={styles.categoryBadge}>
+                  <Text style={styles.categoryText}>{groupActivity.activityCategory}</Text>
+                </View>
               </View>
+            </LinearGradient>
+          )}
+
+          {/* INFOS ACTIVITÉ */}
+          <View style={styles.activityInfoSection}>
+            {/* DATE & LIEU */}
+            <View style={styles.infoRow}>
+              <Icon name="calendar" size={18} color="#A78BFA" />
+              <Text style={styles.infoText}>{formatActivityDate(groupActivity.activityDate)}</Text>
             </View>
 
-            {/* IMAGE ACTIVITÉ */}
-            {groupActivity.activityImage ? (
-              <ImageBackground source={{ uri: groupActivity.activityImage }} style={styles.activityImage} imageStyle={{ borderRadius: 12 }}>
-                <View style={styles.activityImageOverlay} />
-                <Text style={styles.activityImageTitle}>{groupActivity.activityTitle}</Text>
-              </ImageBackground>
-            ) : null}
+            <TouchableOpacity style={styles.infoRow} onPress={openInMaps}>
+              <Icon name="location" size={18} color="#EF4444" />
+              <Text style={styles.infoText}>{groupActivity.activityLocation}</Text>
+              <Icon name="chevron-forward" size={16} color={COLORS.textSecondary} />
+            </TouchableOpacity>
+
+            {/* DEADLINE */}
+            <View style={styles.deadlineCard}>
+              <Icon name="time-outline" size={16} color="#FCD34D" />
+              <Text style={styles.deadlineText}>
+                Vote avant : {formatDeadline(groupActivity.deadline)}
+              </Text>
+            </View>
 
             {/* BOUTONS DE VOTE */}
             <View style={styles.voteButtonsContainer}>
               <TouchableOpacity
-                style={[styles.voteButton, styles.voteButtonComing, myVote === "coming" && styles.voteButtonActive]}
+                style={[
+                  styles.voteButton,
+                  styles.voteButtonComing,
+                  myVote === "coming" && styles.voteButtonComingActive
+                ]}
                 onPress={() => handleVote("coming")}
               >
-                <Icon name="checkmark-circle" size={20} color={myVote === "coming" ? "#FFFFFF" : "#10B981"} />
-                <Text style={[styles.voteButtonText, myVote === "coming" && styles.voteButtonTextActive]}>
-                  Je viens ({getVoteCount("coming")})
+                <Icon 
+                  name={myVote === "coming" ? "checkmark-circle" : "checkmark-circle-outline"} 
+                  size={22} 
+                  color={myVote === "coming" ? "#FFFFFF" : "#10B981"} 
+                />
+                <Text style={[
+                  styles.voteButtonText,
+                  myVote === "coming" && styles.voteButtonTextActive
+                ]}>
+                  Je viens
                 </Text>
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={[styles.voteButton, styles.voteButtonNotComing, myVote === "not_coming" && styles.voteButtonActive]}
+                style={[
+                  styles.voteButton,
+                  styles.voteButtonNotComing,
+                  myVote === "not_coming" && styles.voteButtonNotComingActive
+                ]}
                 onPress={() => handleVote("not_coming")}
               >
-                <Icon name="close-circle" size={20} color={myVote === "not_coming" ? "#FFFFFF" : "#EF4444"} />
-                <Text style={[styles.voteButtonText, myVote === "not_coming" && styles.voteButtonTextActive]}>
-                  Je ne viens pas ({getVoteCount("not_coming")})
+                <Icon 
+                  name={myVote === "not_coming" ? "close-circle" : "close-circle-outline"} 
+                  size={22} 
+                  color={myVote === "not_coming" ? "#FFFFFF" : "#EF4444"} 
+                />
+                <Text style={[
+                  styles.voteButtonText,
+                  myVote === "not_coming" && styles.voteButtonTextActive
+                ]}>
+                  Je ne viens pas
                 </Text>
               </TouchableOpacity>
             </View>
-
-            {/* LOCALISATION */}
-            <TouchableOpacity style={styles.locationContainer} onPress={openInMaps}>
-              <Icon name="location" size={16} color="#EF4444" />
-              <Text style={styles.locationText}>
-                Rendez-vous à {groupActivity.activityLocation} à {formatActivityDate(groupActivity.activityDate)}
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.mapsLink} onPress={openInMaps}>
-              <Text style={styles.mapsLinkText}>[Ouvrir dans Google Maps]</Text>
-            </TouchableOpacity>
-          </LinearGradient>
+          </View>
         </View>
 
-        {/* RÉACTIONS À LA PROPOSITION */}
+        {/* 😊 RÉACTIONS COMPACTES */}
         <View style={styles.reactionsSection}>
-          <Text style={styles.sectionTitle}>Réagis à la proposition :</Text>
+          <Text style={styles.sectionTitle}>💬 Réagis rapidement</Text>
           <View style={styles.reactionsGrid}>
             {REACTIONS.map((reaction) => {
               const count = getReactionCount(reaction.id);
@@ -294,14 +370,22 @@ export default function GroupDiscussionScreen() {
               return (
                 <TouchableOpacity
                   key={reaction.id}
-                  style={[styles.reactionButton, isActive && styles.reactionButtonActive]}
+                  style={[
+                    styles.reactionButton,
+                    isActive && styles.reactionButtonActive
+                  ]}
                   onPress={() => handleReaction(reaction.id)}
                 >
                   <Text style={styles.reactionEmoji}>{reaction.emoji}</Text>
-                  <Text style={[styles.reactionLabel, isActive && styles.reactionLabelActive]}>{reaction.label}</Text>
+                  <Text style={[
+                    styles.reactionLabel,
+                    isActive && styles.reactionLabelActive
+                  ]}>
+                    {reaction.label}
+                  </Text>
                   {count > 0 && (
-                    <View style={styles.reactionBadge}>
-                      <Text style={styles.reactionBadgeText}>{count}</Text>
+                    <View style={styles.reactionCount}>
+                      <Text style={styles.reactionCountText}>{count}</Text>
                     </View>
                   )}
                 </TouchableOpacity>
@@ -310,9 +394,12 @@ export default function GroupDiscussionScreen() {
           </View>
         </View>
 
-        {/* LISTE DES PARTICIPANTS */}
+        {/* 👥 PARTICIPANTS AMÉLIORÉS */}
         <View style={styles.participantsSection}>
-          <Text style={styles.sectionTitle}>Participants :</Text>
+          <Text style={styles.sectionTitle}>
+            👥 Participants ({participantCount})
+          </Text>
+          
           {Object.entries(groupActivity.participants).map(([userId, participant]) => {
             const user = users[userId];
             if (!user) return null;
@@ -322,34 +409,38 @@ export default function GroupDiscussionScreen() {
             return (
               <View key={userId} style={styles.participantCard}>
                 <View style={styles.participantAvatar}>
-                  <Text style={styles.participantAvatarText}>{user.username.charAt(0).toUpperCase()}</Text>
+                  <Text style={styles.participantAvatarText}>
+                    {user.username.charAt(0).toUpperCase()}
+                  </Text>
                 </View>
+                
                 <View style={styles.participantInfo}>
                   <Text style={styles.participantName}>{user.displayName}</Text>
+                  
                   <View style={styles.participantStatus}>
                     {participant.vote === "coming" && (
-                      <>
-                        <Icon name="checkmark-circle" size={14} color="#10B981" />
-                        <Text style={[styles.participantStatusText, { color: "#10B981" }]}>Vient</Text>
-                      </>
+                      <View style={styles.statusBadgeGreen}>
+                        <Icon name="checkmark" size={12} color="#FFFFFF" />
+                        <Text style={styles.statusBadgeText}>Vient</Text>
+                      </View>
                     )}
                     {participant.vote === "not_coming" && (
-                      <>
-                        <Icon name="close-circle" size={14} color="#EF4444" />
-                        <Text style={[styles.participantStatusText, { color: "#EF4444" }]}>Ne vient pas</Text>
-                      </>
+                      <View style={styles.statusBadgeRed}>
+                        <Icon name="close" size={12} color="#FFFFFF" />
+                        <Text style={styles.statusBadgeText}>Absent</Text>
+                      </View>
                     )}
                     {participant.vote === "pending" && (
-                      <>
-                        <Icon name="help-circle" size={14} color={COLORS.textSecondary} />
-                        <Text style={[styles.participantStatusText, { color: COLORS.textSecondary }]}>En attente</Text>
-                      </>
+                      <View style={styles.statusBadgeGray}>
+                        <Icon name="time" size={12} color="#FFFFFF" />
+                        <Text style={styles.statusBadgeText}>En attente</Text>
+                      </View>
                     )}
+                    
                     {userReaction && (
-                      <>
-                        <Text style={styles.reactionDot}>•</Text>
-                        <Text style={styles.participantReaction}>{userReaction.emoji} {userReaction.label}</Text>
-                      </>
+                      <Text style={styles.participantReaction}>
+                        {userReaction.emoji}
+                      </Text>
                     )}
                   </View>
                 </View>
@@ -393,7 +484,7 @@ const styles = StyleSheet.create({
     color: COLORS.textPrimary,
   },
   scrollContent: {
-    paddingHorizontal: 24,
+    paddingHorizontal: 20,
     paddingBottom: 100,
   },
   emptyContainer: {
@@ -407,63 +498,111 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: COLORS.textPrimary,
     marginTop: 16,
-    textAlign: "center",
   },
   emptySubtext: {
     fontSize: 14,
     color: COLORS.textSecondary,
     marginTop: 8,
-    textAlign: "center",
   },
+
+  // 🎯 CARTE ACTIVITÉ
   activityCard: {
     borderRadius: 20,
     overflow: "hidden",
     marginBottom: 24,
+    backgroundColor: COLORS.neutralGray800,
+    borderWidth: 1,
+    borderColor: COLORS.border,
   },
-  activityCardGradient: {
+  activityImageBackground: {
+    width: "100%",
+    height: 200,
+  },
+  activityOverlay: {
+    flex: 1,
     padding: 20,
+    justifyContent: "space-between",
   },
-  activityHeader: {
-    marginBottom: 16,
+  activityHeaderContent: {
+    gap: 8,
   },
   activityTitle: {
-    fontSize: 22,
-    fontWeight: "700",
-    color: COLORS.textPrimary,
-    marginBottom: 8,
+    fontSize: 24,
+    fontWeight: "800",
+    color: "#FFFFFF",
   },
-  deadlineBadge: {
+  categoryBadge: {
+    alignSelf: "flex-start",
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+  },
+  categoryText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#FFFFFF",
+  },
+  quickStats: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(0, 0, 0, 0.4)",
+    padding: 12,
+    borderRadius: 12,
+    gap: 12,
+  },
+  statItem: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
   },
-  deadlineText: {
-    fontSize: 12,
-    color: COLORS.textSecondary,
-  },
-  activityImage: {
-    width: "100%",
-    height: 160,
-    borderRadius: 12,
-    marginBottom: 16,
-    justifyContent: "flex-end",
-    padding: 12,
-  },
-  activityImageOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0, 0, 0, 0.3)",
-    borderRadius: 12,
-  },
-  activityImageTitle: {
-    fontSize: 24,
-    fontWeight: "800",
+  statText: {
+    fontSize: 14,
+    fontWeight: "700",
     color: "#FFFFFF",
-    zIndex: 1,
   },
+  statDivider: {
+    width: 1,
+    height: 16,
+    backgroundColor: "rgba(255, 255, 255, 0.3)",
+  },
+
+  // INFOS SECTION
+  activityInfoSection: {
+    padding: 20,
+    gap: 16,
+  },
+  infoRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  infoText: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: "600",
+    color: COLORS.textPrimary,
+  },
+  deadlineCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "rgba(252, 211, 77, 0.15)",
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(252, 211, 77, 0.3)",
+  },
+  deadlineText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#FCD34D",
+  },
+
+  // BOUTONS DE VOTE
   voteButtonsContainer: {
     flexDirection: "row",
     gap: 12,
-    marginBottom: 16,
   },
   voteButton: {
     flex: 1,
@@ -471,7 +610,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
-    paddingVertical: 12,
+    paddingVertical: 14,
     borderRadius: 12,
     borderWidth: 2,
   },
@@ -479,41 +618,28 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(16, 185, 129, 0.1)",
     borderColor: "#10B981",
   },
+  voteButtonComingActive: {
+    backgroundColor: "#10B981",
+    borderColor: "#10B981",
+  },
   voteButtonNotComing: {
     backgroundColor: "rgba(239, 68, 68, 0.1)",
     borderColor: "#EF4444",
   },
-  voteButtonActive: {
-    backgroundColor: COLORS.secondary,
-    borderColor: COLORS.secondary,
+  voteButtonNotComingActive: {
+    backgroundColor: "#EF4444",
+    borderColor: "#EF4444",
   },
   voteButtonText: {
-    fontSize: 14,
-    fontWeight: "600",
+    fontSize: 15,
+    fontWeight: "700",
     color: COLORS.textPrimary,
   },
   voteButtonTextActive: {
     color: "#FFFFFF",
   },
-  locationContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    marginBottom: 4,
-  },
-  locationText: {
-    fontSize: 13,
-    color: COLORS.textPrimary,
-    flex: 1,
-  },
-  mapsLink: {
-    alignSelf: "flex-start",
-  },
-  mapsLinkText: {
-    fontSize: 13,
-    color: "#6366F1",
-    fontWeight: "600",
-  },
+
+  // RÉACTIONS
   reactionsSection: {
     marginBottom: 24,
   },
@@ -544,28 +670,30 @@ const styles = StyleSheet.create({
     borderColor: COLORS.secondary,
   },
   reactionEmoji: {
-    fontSize: 16,
+    fontSize: 18,
   },
   reactionLabel: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: "600",
     color: COLORS.textSecondary,
   },
   reactionLabelActive: {
     color: COLORS.textPrimary,
   },
-  reactionBadge: {
+  reactionCount: {
     backgroundColor: COLORS.secondary,
-    paddingHorizontal: 6,
+    paddingHorizontal: 7,
     paddingVertical: 2,
     borderRadius: 999,
     marginLeft: 4,
   },
-  reactionBadgeText: {
-    fontSize: 10,
+  reactionCountText: {
+    fontSize: 11,
     fontWeight: "700",
     color: "#FFFFFF",
   },
+
+  // PARTICIPANTS
   participantsSection: {
     marginBottom: 24,
   },
@@ -575,49 +703,71 @@ const styles = StyleSheet.create({
     gap: 12,
     backgroundColor: COLORS.neutralGray800,
     borderRadius: 12,
-    padding: 12,
+    padding: 14,
     marginBottom: 10,
     borderWidth: 1,
     borderColor: COLORS.border,
   },
   participantAvatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     backgroundColor: COLORS.primary,
     justifyContent: "center",
     alignItems: "center",
   },
   participantAvatarText: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: "700",
     color: COLORS.textPrimary,
   },
   participantInfo: {
     flex: 1,
+    gap: 6,
   },
   participantName: {
     fontSize: 15,
     fontWeight: "600",
     color: COLORS.textPrimary,
-    marginBottom: 4,
   },
   participantStatus: {
     flexDirection: "row",
     alignItems: "center",
+    gap: 8,
+  },
+  statusBadgeGreen: {
+    flexDirection: "row",
+    alignItems: "center",
     gap: 4,
-    flexWrap: "wrap",
+    backgroundColor: "#10B981",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 999,
   },
-  participantStatusText: {
-    fontSize: 12,
-    fontWeight: "500",
+  statusBadgeRed: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "#EF4444",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 999,
   },
-  reactionDot: {
-    fontSize: 12,
-    color: COLORS.textSecondary,
+  statusBadgeGray: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: COLORS.textSecondary,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 999,
+  },
+  statusBadgeText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#FFFFFF",
   },
   participantReaction: {
-    fontSize: 12,
-    color: COLORS.textSecondary,
+    fontSize: 16,
   },
 });

@@ -238,6 +238,7 @@ export default function JeuxScreen() {
     setFilteredGames(filtered);
   };
 
+  // 🔧 FIX 1 : Retirer le 3ème argument (displayName)
   const handleJoinWithCode = async () => {
     if (!user) {
       Alert.alert("Erreur", "Tu dois être connecté pour rejoindre une partie");
@@ -256,16 +257,24 @@ export default function JeuxScreen() {
 
     setLoading(true);
     try {
+      // 🔧 Seulement 2 arguments : gameCode et userId
       const joinedGameId = await joinGame(
         gameCode.trim().toUpperCase(),
-        user.uid,
-        userProfile.displayName
+        user.uid
       );
 
       if (joinedGameId) {
         setShowJoinModal(false);
         setGameCode("");
-        router.push(`/Game/Invitation?gameId=${joinedGameId}&mode=waiting`);
+        
+        // 🔧 FIX 2 : Utiliser un objet avec pathname et params
+        router.push({
+          pathname: "/Game/Invitation",
+          params: { 
+            gameId: joinedGameId,
+            mode: "waiting"
+          }
+        });
       } else {
         Alert.alert("Erreur", "Partie introuvable ou déjà commencée");
       }
@@ -277,7 +286,25 @@ export default function JeuxScreen() {
     }
   };
 
+  // 🔥 Gérer le clic sur une carte de jeu
   const handleGamePress = (game: Game) => {
+    // 🔒 Si le jeu est premium ET que l'utilisateur n'est PAS premium
+    if (game.isPremium && !isPremium) {
+      Alert.alert(
+        "🔒 Jeu Premium",
+        `${game.name} est un jeu exclusif premium.\n\nPasse à Premium pour débloquer tous les jeux !`,
+        [
+          { text: "Plus tard", style: "cancel" },
+          { 
+            text: "Voir Premium", 
+            onPress: () => router.push("/Profile/Abo_choix")
+          }
+        ]
+      );
+      return;
+    }
+
+    // ✅ Si gratuit OU si premium et user premium → Naviguer normalement
     router.push({
       pathname: "/Game/Description_jeu",
       params: { 
@@ -343,7 +370,7 @@ export default function JeuxScreen() {
           </View>
         )}
 
-        {/* BANNER PREMIUM - Affiché uniquement si non premium et banner non fermé */}
+        {/* BANNER PREMIUM */}
         {!isPremium && showBanner && !showFavorites && (
           <TouchableOpacity 
             style={styles.premiumBanner}
@@ -499,11 +526,11 @@ export default function JeuxScreen() {
                       </Text>
                     </LinearGradient>
 
-                    {/* Badge Débloquer en bas à gauche */}
+                    {/* Badge Verrouillé */}
                     {isLocked && (
                       <View style={styles.unlockBadge}>
                         <Icon name="lock-closed" size={12} color="#FFD700" />
-                        <Text style={styles.unlockBadgeText}>Débloquer</Text>
+                        <Text style={styles.unlockBadgeText}>Bientôt disponible</Text>
                       </View>
                     )}
                   </View>
@@ -570,7 +597,7 @@ export default function JeuxScreen() {
         )}
       </ScrollView>
 
-      {/* FAB PREMIUM - Flottant en bas à droite */}
+      {/* FAB PREMIUM */}
       {!isPremium && (
         <Animated.View 
           style={[
@@ -739,7 +766,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontFamily: "Poppins-SemiBold",
   },
-  // PREMIUM BANNER
   premiumBanner: {
     borderRadius: 16,
     overflow: "hidden",
@@ -864,7 +890,7 @@ const styles = StyleSheet.create({
     borderColor: COLORS.border,
   },
   cardDisabled: {
-    opacity: 0.6,
+    opacity: 0.7,
   },
   cardImageWrapper: {
     position: "relative",
@@ -895,7 +921,7 @@ const styles = StyleSheet.create({
     borderColor: "#FFD700",
   },
   unlockBadgeText: {
-    fontSize: 12,
+    fontSize: 11,
     fontFamily: "Poppins-SemiBold",
     color: "#FFD700",
   },
@@ -975,7 +1001,6 @@ const styles = StyleSheet.create({
     fontFamily: "Poppins-SemiBold",
     color: "#FFD700",
   },
-  // FAB (Floating Action Button)
   fab: {
     position: "absolute",
     bottom: 100,
@@ -993,7 +1018,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  // Modal styles
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0, 0, 0, 0.7)",

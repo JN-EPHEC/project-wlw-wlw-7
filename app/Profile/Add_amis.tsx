@@ -2,23 +2,23 @@ import * as Haptics from "expo-haptics";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import {
-    addDoc,
-    collection,
-    getDocs,
-    query,
-    where
+  addDoc,
+  collection,
+  getDocs,
+  query,
+  where
 } from "firebase/firestore";
 import React, { useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    FlatList,
-    Image,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  Image,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import Icon from "react-native-vector-icons/Ionicons";
 import { COLORS } from "../../components/Colors";
@@ -107,6 +107,7 @@ export default function SearchFriendsScreen() {
     }
   };
 
+  // ✅ FONCTION CORRIGÉE
   const handleSendRequest = async (targetUser: SearchResult) => {
     const user = auth.currentUser;
     if (!user) return;
@@ -115,12 +116,12 @@ export default function SearchFriendsScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
     try {
-      // Vérifier si demande existe déjà
+      // Vérifier si demande existe déjà - ✅ CORRIGÉ
       const requestsRef = collection(db, "friendRequests");
       const existingQuery = query(
         requestsRef,
-        where("from", "==", user.uid),
-        where("to", "==", targetUser.uid),
+        where("fromUserId", "==", user.uid),        // ✅ fromUserId au lieu de from
+        where("toUserId", "==", targetUser.uid),    // ✅ toUserId au lieu de to
         where("status", "==", "pending")
       );
       const existingSnapshot = await getDocs(existingQuery);
@@ -131,10 +132,10 @@ export default function SearchFriendsScreen() {
         return;
       }
 
-      // Créer la demande
+      // Créer la demande - ✅ CORRIGÉ
       await addDoc(collection(db, "friendRequests"), {
-        from: user.uid,
-        to: targetUser.uid,
+        fromUserId: user.uid,                      // ✅ fromUserId au lieu de from
+        toUserId: targetUser.uid,                  // ✅ toUserId au lieu de to
         fromUsername: user.displayName || "Utilisateur",
         status: "pending",
         createdAt: new Date().toISOString(),

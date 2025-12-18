@@ -1,3 +1,4 @@
+import DateTimePicker from "@react-native-community/datetimepicker";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { addDoc, collection, doc, getDoc, getDocs, query, where } from "firebase/firestore";
@@ -56,6 +57,11 @@ export default function CreateGroupScreen() {
   const [activities, setActivities] = useState<Activity[]>([]);
   const [selectedActivity, setSelectedActivity] = useState<Activity | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  
+  // ✅ NOUVEAU: Date et heure personnalisées
+  const [customDate, setCustomDate] = useState(new Date());
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showTimePicker, setShowTimePicker] = useState(false);
   
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
@@ -180,6 +186,25 @@ export default function CreateGroupScreen() {
     }
   };
 
+  // ✅ NOUVEAU: Gérer le changement de date
+  const onDateChange = (event: any, selectedDate?: Date) => {
+    setShowDatePicker(false);
+    if (selectedDate) {
+      setCustomDate(selectedDate);
+    }
+  };
+
+  // ✅ NOUVEAU: Gérer le changement d'heure
+  const onTimeChange = (event: any, selectedTime?: Date) => {
+    setShowTimePicker(false);
+    if (selectedTime) {
+      const newDate = new Date(customDate);
+      newDate.setHours(selectedTime.getHours());
+      newDate.setMinutes(selectedTime.getMinutes());
+      setCustomDate(newDate);
+    }
+  };
+
   const createGroup = async () => {
     const currentUser = auth.currentUser;
     if (!currentUser) return;
@@ -238,9 +263,8 @@ export default function CreateGroupScreen() {
       const groupDoc = await addDoc(groupsRef, groupData);
       console.log("✅ Group created:", groupDoc.id);
 
-      // Créer l'activité de groupe avec deadline automatique
-      const activityDate = new Date(selectedActivity.date);
-      const deadline = new Date(activityDate.getTime() - 60 * 60 * 1000); // 1h avant
+      // ✅ MODIFIÉ: Utiliser la date personnalisée au lieu de selectedActivity.date
+      const deadline = new Date(customDate.getTime() - 60 * 60 * 1000); // 1h avant
 
       const participants: any = {};
       allMembers.forEach((memberId: string) => {
@@ -258,7 +282,7 @@ export default function CreateGroupScreen() {
         activityDescription: selectedActivity.description,
         activityImage: selectedActivity.image || "",
         activityLocation: selectedActivity.location,
-        activityDate: selectedActivity.date,
+        activityDate: customDate.toISOString(), // ✅ Date personnalisée
         activityCategory: selectedActivity.category,
         deadline: deadline.toISOString(),
         proposedBy: currentUser.uid,
@@ -268,13 +292,19 @@ export default function CreateGroupScreen() {
 
       // Envoyer les notifications
       const creatorName = currentUser.displayName || "Un utilisateur";
+      const formattedDate = customDate.toLocaleDateString('fr-FR', {
+        day: 'numeric',
+        month: 'long',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
       
       Promise.all(
         selectedFriends.map(friendId =>
           notifyUser(
             friendId,
             "Nouveau groupe",
-            `${creatorName} vous a ajouté au groupe "${groupName}" pour ${selectedActivity.title}`,
+            `${creatorName} vous a ajouté au groupe "${groupName}" pour ${selectedActivity.title} le ${formattedDate}`,
             { 
               fromUserId: currentUser.uid,
               groupId: groupDoc.id,
@@ -467,21 +497,87 @@ export default function CreateGroupScreen() {
                 </View>
               </View>
 
+              {/* ✅ NOUVEAU: Sélection date et heure */}
               {selectedActivity && (
-                <View style={styles.selectedActivityBanner}>
-                  <Icon name="checkmark-circle" size={24} color={COLORS.secondary} />
-                  <View style={styles.selectedActivityInfo}>
-                    <Text style={styles.selectedActivityText}>
-                      Activité sélectionnée
-                    </Text>
-                    <Text style={styles.selectedActivityTitle}>
-                      {selectedActivity.title}
-                    </Text>
+                <>
+                  <View style={styles.selectedActivityBanner}>
+                    <Icon name="checkmark-circle" size={24} color={COLORS.secondary} />
+                    <View style={styles.selectedActivityInfo}>
+                      <Text style={styles.selectedActivityText}>
+                        Activité sélectionnée
+                      </Text>
+                      <Text style={styles.selectedActivityTitle}>
+                        {selectedActivity.title}
+                      </Text>
+                    </View>
+                    <TouchableOpacity onPress={() => setSelectedActivity(null)}>
+                      <Icon name="close-circle" size={24} color={COLORS.textSecondary} />
+                    </TouchableOpacity>
                   </View>
-                  <TouchableOpacity onPress={() => setSelectedActivity(null)}>
-                    <Icon name="close-circle" size={24} color={COLORS.textSecondary} />
-                  </TouchableOpacity>
-                </View>
+
+                  {/* ✅ DATE ET HEURE */}
+                  <View style={styles.section}>
+                    <Text style={styles.sectionTitle}>📅 Date et heure de l'activité</Text>
+                    
+                    <View style={styles.dateTimeContainer}>
+                      {/* Bouton Date */}
+                      <TouchableOpacity
+                        style={styles.dateTimeButton}
+                        onPress={() => setShowDatePicker(true)}
+                      >
+                        <Icon name="calendar" size={20} color={COLORS.secondary} />
+                        <View style={styles.dateTimeInfo}>
+                          <Text style={styles.dateTimeLabel}>Date</Text>
+                          <Text style={styles.dateTimeValue}>
+                            {customDate.toLocaleDateString('fr-FR', {
+                              day: 'numeric',
+                              month: 'long',
+                              year: 'numeric'
+                            })}
+                          </Text>
+                        </View>
+                      </TouchableOpacity>
+
+                      {/* Bouton Heure */}
+                      <TouchableOpacity
+                        style={styles.dateTimeButton}
+                        onPress={() => setShowTimePicker(true)}
+                      >
+                        <Icon name="time" size={20} color={COLORS.secondary} />
+                        <View style={styles.dateTimeInfo}>
+                          <Text style={styles.dateTimeLabel}>Heure</Text>
+                          <Text style={styles.dateTimeValue}>
+                            {customDate.toLocaleTimeString('fr-FR', {
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })}
+                          </Text>
+                        </View>
+                      </TouchableOpacity>
+                    </View>
+
+                    {/* Date Pickers */}
+                    {showDatePicker && (
+                      <DateTimePicker
+                        value={customDate}
+                        mode="date"
+                        display={Platform.OS === "ios" ? "spinner" : "default"}
+                        onChange={onDateChange}
+                        minimumDate={new Date()}
+                      />
+                    )}
+
+                    {showTimePicker && (
+                      <DateTimePicker
+                        value={customDate}
+                        mode="time"
+                        display={Platform.OS === "ios" ? "spinner" : "default"}
+                        onChange={onTimeChange}
+                        is24Hour={true}
+                      />
+                    )}
+                  </View>
+                </>
               )}
 
               <View style={styles.activitiesList}>
@@ -830,6 +926,36 @@ const styles = StyleSheet.create({
     fontFamily: "Poppins-SemiBold",
     color: COLORS.textPrimary,
     marginTop: 2,
+  },
+  // ✅ NOUVEAUX STYLES: Date et heure
+  dateTimeContainer: {
+    flexDirection: "row",
+    gap: 12,
+  },
+  dateTimeButton: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: COLORS.neutralGray800,
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    gap: 12,
+  },
+  dateTimeInfo: {
+    flex: 1,
+  },
+  dateTimeLabel: {
+    fontSize: 12,
+    fontFamily: "Poppins-Regular",
+    color: COLORS.textSecondary,
+    marginBottom: 4,
+  },
+  dateTimeValue: {
+    fontSize: 14,
+    fontFamily: "Poppins-SemiBold",
+    color: COLORS.textPrimary,
   },
   activitiesList: {
     gap: 12,

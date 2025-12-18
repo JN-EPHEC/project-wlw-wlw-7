@@ -7,6 +7,7 @@ export interface LocationData {
   longitude: number;
   city: string | null;
   country: string | null;
+  timestamp?: number;
 }
 
 /**
@@ -38,27 +39,21 @@ export const requestLocationPermission = async (): Promise<{
     const { latitude, longitude } = location.coords;
     console.log("📍 User location:", latitude, longitude);
 
-    // Géocodage inverse pour obtenir la ville
-    let city: string | null = null;
-    let country: string | null = null;
+    // 🔧 FIX : Pas de reverse geocoding pour éviter la limite d'API
+    // On met "Bruxelles" par défaut (ça n'affecte pas le calcul de distance GPS)
+    const locationData: LocationData = {
+      latitude,
+      longitude,
+      city: "Bruxelles",
+      country: "Belgique",
+      timestamp: Date.now(),
+    };
 
-    try {
-      const [address] = await Location.reverseGeocodeAsync({
-        latitude,
-        longitude,
-      });
-
-      city = address.city || address.subregion || null;
-      country = address.country || null;
-
-      console.log("🏙️ User city:", city, country);
-    } catch (e) {
-      console.error("❌ Error reverse geocoding:", e);
-    }
+    console.log("🏙️ User location set to:", locationData.city);
 
     return {
       granted: true,
-      location: { latitude, longitude, city, country },
+      location: locationData,
     };
   } catch (error) {
     console.error("❌ Error requesting location:", error);

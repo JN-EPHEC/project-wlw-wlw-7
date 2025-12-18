@@ -61,9 +61,9 @@ export default function ProfileScreen() {
           }
         }
 
-        // Charger le nombre de demandes en attente
+        // ✅ CORRIGÉ : friendRequests au lieu de friend_requests
         const requestsQuery = query(
-          collection(db, "friend_requests"),
+          collection(db, "friendRequests"),
           where("toUserId", "==", user.uid),
           where("status", "==", "pending")
         );
@@ -103,9 +103,7 @@ export default function ProfileScreen() {
     router.push("/Profile/Add_amis");
   };
 
-  const handleActivityHistory = () => {
-    router.push("/Profile/Historique");
-  };
+
 
   const handleCancelSubscription = async () => {
     try {
@@ -131,7 +129,7 @@ export default function ProfileScreen() {
     }
   };
 
-  // Fonction pour supprimer le compte
+  // ✅ FONCTION CORRIGÉE pour supprimer le compte - GÈRE LES DOCUMENTS MANQUANTS
   const handleDeleteAccount = async () => {
     try {
       setIsDeleting(true);
@@ -141,59 +139,132 @@ export default function ProfileScreen() {
         return;
       }
 
-      // 1. Supprimer le document utilisateur
+      // 1. Récupérer les données de l'utilisateur pour avoir sa liste d'amis
       const userRef = doc(db, "users", user.uid);
-      await deleteDoc(userRef);
+      const userDoc = await getDoc(userRef);
+      
+      let friendsList: string[] = [];
+      
+      // ✅ Si le document n'existe pas, on continue quand même
+      if (userDoc.exists()) {
+        const userData = userDoc.data();
+        friendsList = userData.friends || [];
+      } else {
+        console.log("⚠️ Document utilisateur introuvable, on continue la suppression");
+      }
 
-      // 2. Retirer l'utilisateur des listes d'amis
-      const usersSnapshot = await getDocs(collection(db, "users"));
+      // 2. Retirer l'utilisateur des listes d'amis de ses amis uniquement
       const updatePromises: Promise<void>[] = [];
       
-      usersSnapshot.forEach((otherUserDoc) => {
-        const otherUserData = otherUserDoc.data();
-        if (otherUserData.friends && otherUserData.friends.includes(user.uid)) {
-          const updatedFriends = otherUserData.friends.filter(
-            (friendId: string) => friendId !== user.uid
-          );
-          const otherUserRef = doc(db, "users", otherUserDoc.id);
-          updatePromises.push(updateDoc(otherUserRef, { friends: updatedFriends }));
+      for (const friendId of friendsList) {
+        try {
+          const friendRef = doc(db, "users", friendId);
+          const friendDoc = await getDoc(friendRef);
+          
+          if (friendDoc.exists()) {
+            const friendData = friendDoc.data();
+            const updatedFriends = (friendData.friends || []).filter(
+              (id: string) => id !== user.uid
+            );
+            updatePromises.push(updateDoc(friendRef, { friends: updatedFriends }));
+          }
+        } catch (error) {
+          console.error(`Erreur pour l'ami ${friendId}:`, error);
+          // Continue même si un ami pose problème
         }
-      });
+      }
 
       if (updatePromises.length > 0) {
         await Promise.all(updatePromises);
       }
 
-      // 3. Supprimer les demandes d'amis
-      const friendRequestsQuery = query(
-        collection(db, "friend_requests"),
-        where("fromUserId", "==", user.uid)
-      );
-      const friendRequestsSnapshot = await getDocs(friendRequestsQuery);
-      const deleteRequestPromises: Promise<void>[] = [];
-      
-      friendRequestsSnapshot.forEach((requestDoc) => {
-        deleteRequestPromises.push(deleteDoc(requestDoc.ref));
-      });
+      // 3. Supprimer les demandes d'amis envoyées
+      try {
+        const sentRequestsQuery = query(
+          collection(db, "friendRequests"),
+          where("fromUserId", "==", user.uid)
+        );
+        const sentRequestsSnapshot = await getDocs(sentRequestsQuery);
+        const deleteSentPromises: Promise<void>[] = [];
+        
+        sentRequestsSnapshot.forEach((requestDoc) => {
+          deleteSentPromises.push(deleteDoc(requestDoc.ref));
+        });
 
-      const receivedRequestsQuery = query(
-        collection(db, "friend_requests"),
-        where("toUserId", "==", user.uid)
-      );
-      const receivedRequestsSnapshot = await getDocs(receivedRequestsQuery);
-      
-      receivedRequestsSnapshot.forEach((requestDoc) => {
-        deleteRequestPromises.push(deleteDoc(requestDoc.ref));
-      });
+        // 4. Supprimer les demandes d'amis reçues
+        const receivedRequestsQuery = query(
+          collection(db, "friendRequests"),
+          where("toUserId", "==", user.uid)
+        );
+        const receivedRequestsSnapshot = await getDocs(receivedRequestsQuery);
+        
+        receivedRequestsSnapshot.forEach((requestDoc) => {
+          deleteSentPromises.push(deleteDoc(requestDoc.ref));
+        });
 
-      if (deleteRequestPromises.length > 0) {
-        await Promise.all(deleteRequestPromises);
+        if (deleteSentPromises.length > 0) {
+          await Promise.all(deleteSentPromises);
+        }
+      } catch (error) {
+        console.log("Pas de demandes d'amis à supprimer");
       }
 
-      // 4. Supprimer le compte d'authentification
+      // 5. Supprimer les notifications de l'utilisateur
+      try {
+        const notificationsQuery = query(
+          collection(db, "notifications"),
+          where("toUserId", "==", user.uid)
+        );
+        const notificationsSnapshot = await getDocs(notificationsQuery);
+        const deleteNotifPromises: Promise<void>[] = [];
+        
+        notificationsSnapshot.forEach((notifDoc) => {
+          deleteNotifPromises.push(deleteDoc(notifDoc.ref));
+        });
+
+        if (deleteNotifPromises.length > 0) {
+          await Promise.all(deleteNotifPromises);
+        }
+      } catch (error) {
+        console.log("Pas de notifications à supprimer");
+      }
+
+      // 6. Supprimer les favoris de l'utilisateur
+      try {
+        await deleteDoc(doc(db, "userFavorites", user.uid));
+      } catch (error) {
+        console.log("Pas de favoris à supprimer");
+      }
+
+      try {
+        await deleteDoc(doc(db, "userFavoriteGames", user.uid));
+      } catch (error) {
+        console.log("Pas de jeux favoris à supprimer");
+      }
+
+      try {
+        await deleteDoc(doc(db, "userFavoriteGroups", user.uid));
+      } catch (error) {
+        console.log("Pas de groupes favoris à supprimer");
+      }
+
+      try {
+        await deleteDoc(doc(db, "userPinnedGroups", user.uid));
+      } catch (error) {
+        console.log("Pas de groupes épinglés à supprimer");
+      }
+
+      // 7. Supprimer le document utilisateur (même s'il n'existe pas)
+      try {
+        await deleteDoc(userRef);
+      } catch (error) {
+        console.log("Document utilisateur déjà supprimé ou inexistant");
+      }
+
+      // 8. Supprimer le compte d'authentification
       await deleteUser(user);
 
-      // 5. Déconnexion et redirection
+      // 9. Déconnexion et redirection
       await signOut(auth);
       
       Alert.alert(
@@ -223,7 +294,7 @@ export default function ProfileScreen() {
       } else {
         Alert.alert(
           "Erreur",
-          "Une erreur est survenue lors de la suppression du compte. Veuillez réessayer."
+          `Une erreur est survenue: ${error.message || "Veuillez réessayer."}`
         );
       }
     } finally {
@@ -351,15 +422,7 @@ export default function ProfileScreen() {
               <Text style={styles.quickActionText}>Paramètres</Text>
             </TouchableOpacity>
             
-            <TouchableOpacity 
-              style={styles.quickAction}
-              onPress={handleActivityHistory}
-            >
-              <View style={[styles.quickActionIcon, { backgroundColor: 'rgba(34, 197, 94, 0.1)' }]}>
-                <Icon name="time" size={20} color="#22C55E" />
-              </View>
-              <Text style={styles.quickActionText}>Historique</Text>
-            </TouchableOpacity>
+           
           </View>
 
           {/* MAIN ACTIONS */}
@@ -580,7 +643,7 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: 20,
     paddingTop: 60,
-    paddingBottom: 100, // AJOUTÉ pour permettre le scroll
+    paddingBottom: 100,
   },
   header: {
     flexDirection: "row",
@@ -632,7 +695,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: COLORS.border,
   },
-  // AVATAR CENTRÉ
   avatarSection: {
     alignItems: "center",
     marginBottom: 24,
@@ -671,7 +733,6 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: "#FFD700",
   },
-  // INFOS USER CENTRÉES
   userInfo: {
     alignItems: "center",
     width: "100%",

@@ -42,7 +42,7 @@ export default function FriendRequestsScreen() {
       const requestsRef = collection(db, "friendRequests");
       const q = query(
         requestsRef,
-        where("to", "==", currentUser.uid),
+        where("toUserId", "==", currentUser.uid),  // ✅ CORRIGÉ
         where("status", "==", "pending")
       );
 
@@ -87,14 +87,14 @@ export default function FriendRequestsScreen() {
 
       // 3. Envoyer la notification d'acceptation
       await notifyUser(
-  fromUserId,
-  "✅ Demande acceptée",
-  `${currentUser.displayName} a accepté votre demande d'ami`,
-  { 
-    type: 'friend_request_accepted',
-    fromUserId: currentUser.uid 
-  }
-);
+        fromUserId,
+        "✅ Demande acceptée",
+        `${currentUser.displayName} a accepté votre demande d'ami`,
+        { 
+          type: 'friend_request_accepted',
+          fromUserId: currentUser.uid 
+        }
+      );
 
       Alert.alert("Succès", `Vous êtes maintenant ami avec ${fromUsername} !`);
       
@@ -175,7 +175,7 @@ export default function FriendRequestsScreen() {
                 <View style={styles.actions}>
                   <TouchableOpacity
                     style={styles.acceptButton}
-                    onPress={() => acceptRequest(request.id, request.from, request.fromUsername)}
+                    onPress={() => acceptRequest(request.id, request.fromUserId, request.fromUsername)}
                   >
                     <Icon name="checkmark" size={20} color={COLORS.textPrimary} />
                   </TouchableOpacity>
