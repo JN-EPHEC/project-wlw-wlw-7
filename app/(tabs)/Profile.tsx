@@ -103,9 +103,7 @@ export default function ProfileScreen() {
     router.push("/Profile/Add_amis");
   };
 
-  const handleActivityHistory = () => {
-    router.push("/Profile/Historique");
-  };
+
 
   const handleCancelSubscription = async () => {
     try {
@@ -424,15 +422,7 @@ export default function ProfileScreen() {
               <Text style={styles.quickActionText}>Paramètres</Text>
             </TouchableOpacity>
             
-            <TouchableOpacity 
-              style={styles.quickAction}
-              onPress={handleActivityHistory}
-            >
-              <View style={[styles.quickActionIcon, { backgroundColor: 'rgba(34, 197, 94, 0.1)' }]}>
-                <Icon name="time" size={20} color="#22C55E" />
-              </View>
-              <Text style={styles.quickActionText}>Historique</Text>
-            </TouchableOpacity>
+           
           </View>
 
           {/* MAIN ACTIONS */}
