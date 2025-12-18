@@ -1,14 +1,18 @@
+import * as Haptics from "expo-haptics";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { arrayRemove, arrayUnion, doc, getDoc, updateDoc } from "firebase/firestore";
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
-    ActivityIndicator,
-    FlatList,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  Image,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import Icon from "react-native-vector-icons/Ionicons";
 import { COLORS } from "../../components/Colors";
@@ -19,7 +23,7 @@ type Friend = {
   uid: string;
   displayName: string;
   username: string;
-  email: string;
+  photoURL?: string;
 };
 
 type ModalState = {
@@ -31,9 +35,9 @@ type ModalState = {
 export default function ManageFriendsScreen() {
   const router = useRouter();
   const [friends, setFriends] = useState<Friend[]>([]);
-  const [blockedUsers, setBlockedUsers] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
   const [modalState, setModalState] = useState<ModalState>({
     visible: false,
     type: null,
@@ -44,182 +48,218 @@ export default function ManageFriendsScreen() {
     loadFriends();
   }, []);
 
-  const loadFriends = async () => {
+  const loadFriends = useCallback(async () => {
     try {
       const user = auth.currentUser;
       if (!user) return;
 
-      // Charger les amis et les utilisateurs bloqués
       const userDoc = await getDoc(doc(db, "users", user.uid));
       if (!userDoc.exists()) return;
 
       const userData = userDoc.data();
       const friendIds = userData.friends || [];
-      setBlockedUsers(userData.blockedUsers || []);
 
-      // Charger les détails de chaque ami
-      const friendsData: Friend[] = [];
-      for (const friendId of friendIds) {
-        const friendDoc = await getDoc(doc(db, "users", friendId));
-        if (friendDoc.exists()) {
+      const friendsPromises = friendIds.map((friendId: string) =>
+        getDoc(doc(db, "users", friendId))
+      );
+      const friendsDocs = await Promise.all(friendsPromises);
+
+      const friendsData: Friend[] = friendsDocs
+        .filter(friendDoc => friendDoc.exists())
+        .map(friendDoc => {
           const data = friendDoc.data();
-          friendsData.push({
-            uid: friendId,
-            displayName: data.displayName || data.username,
-            username: data.username,
-            email: data.email,
-          });
-        }
-      }
+          return {
+            uid: friendDoc.id,
+            displayName: data.displayName || data.username || "Utilisateur",
+            username: data.username || data.email?.split('@')[0] || "user",
+            photoURL: data.photoURL,
+          };
+        });
 
+      friendsData.sort((a, b) => a.displayName.localeCompare(b.displayName));
       setFriends(friendsData);
     } catch (e) {
       console.error("Error loading friends:", e);
-      window.alert("Erreur: Impossible de charger la liste d'amis.");
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, []);
 
-  const handleRefresh = () => {
+  const handleRefresh = useCallback(() => {
     setRefreshing(true);
     loadFriends();
-  };
+  }, [loadFriends]);
 
-  const handleRemoveFriend = (friend: Friend) => {
-    console.log("🔵 Opening remove modal for:", friend.displayName);
+  const filteredFriends = useMemo(() => {
+    if (!searchQuery.trim()) return friends;
+    
+    const query = searchQuery.toLowerCase();
+    return friends.filter(friend => 
+      friend.displayName.toLowerCase().includes(query) ||
+      friend.username.toLowerCase().includes(query)
+    );
+  }, [friends, searchQuery]);
+
+  const handleViewProfile = useCallback((friend: Friend) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    router.push({
+      pathname: "/Profile/Friend_profile",
+      params: { friendId: friend.uid }
+    } as any);
+  }, [router]);
+
+  const handleRemoveFriend = useCallback((friend: Friend) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setModalState({
       visible: true,
       type: "remove",
       friend: friend,
     });
-  };
+  }, []);
 
-  const confirmRemoveFriend = async () => {
+  const confirmRemoveFriend = useCallback(async () => {
     const friend = modalState.friend;
     if (!friend) return;
 
-    console.log("🔴 User confirmed removal");
     try {
       const user = auth.currentUser;
-      if (!user) {
-        console.log("❌ No user authenticated");
-        return;
-      }
+      if (!user) return;
 
-      console.log("▶ Removing friend from current user...");
-      await updateDoc(doc(db, "users", user.uid), {
-        friends: arrayRemove(friend.uid),
-      });
-      console.log("✅ Friend removed from current user");
+      await Promise.all([
+        updateDoc(doc(db, "users", user.uid), {
+          friends: arrayRemove(friend.uid),
+        }),
+        updateDoc(doc(db, "users", friend.uid), {
+          friends: arrayRemove(user.uid),
+        })
+      ]);
 
-      console.log("▶ Removing current user from friend's list...");
-      await updateDoc(doc(db, "users", friend.uid), {
-        friends: arrayRemove(user.uid),
-      });
-      console.log("✅ Current user removed from friend's list");
-
-      setFriends((prev) => prev.filter((f) => f.uid !== friend.uid));
-      window.alert(`✅ ${friend.displayName} a été retiré de vos amis.`);
-    } catch (e: any) {
-      console.error("❌ Error removing friend:", e);
-      console.error("❌ Error code:", e.code);
-      console.error("❌ Error message:", e.message);
-      window.alert("❌ Impossible de retirer cet ami: " + e.message);
+      setFriends(prev => prev.filter(f => f.uid !== friend.uid));
+      Alert.alert("✅", `${friend.displayName} a été retiré de vos amis.`);
+    } catch (e) {
+      console.error("Error removing friend:", e);
+      Alert.alert("❌", "Impossible de retirer cet ami.");
+    } finally {
+      setModalState({ visible: false, type: null, friend: null });
     }
-  };
+  }, [modalState.friend]);
 
-  const handleBlockUser = (friend: Friend) => {
-    console.log("🔵 Opening block modal for:", friend.displayName);
+  const handleBlockUser = useCallback((friend: Friend) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
     setModalState({
       visible: true,
       type: "block",
       friend: friend,
     });
-  };
+  }, []);
 
-  const confirmBlockUser = async () => {
+  const confirmBlockUser = useCallback(async () => {
     const friend = modalState.friend;
     if (!friend) return;
 
-    console.log("🔴 User confirmed blocking");
     try {
       const user = auth.currentUser;
-      if (!user) {
-        console.log("❌ No user authenticated");
-        return;
-      }
+      if (!user) return;
 
-      console.log("▶ Adding to blocked users and removing from friends...");
-      await updateDoc(doc(db, "users", user.uid), {
-        blockedUsers: arrayUnion(friend.uid),
-        friends: arrayRemove(friend.uid),
-      });
-      console.log("✅ User blocked and removed from friends");
+      await Promise.all([
+        updateDoc(doc(db, "users", user.uid), {
+          blockedUsers: arrayUnion(friend.uid),
+          friends: arrayRemove(friend.uid),
+        }),
+        updateDoc(doc(db, "users", friend.uid), {
+          friends: arrayRemove(user.uid),
+        })
+      ]);
 
-      console.log("▶ Removing current user from friend's list...");
-      await updateDoc(doc(db, "users", friend.uid), {
-        friends: arrayRemove(user.uid),
-      });
-      console.log("✅ Current user removed from friend's list");
-
-      setFriends((prev) => prev.filter((f) => f.uid !== friend.uid));
-      setBlockedUsers((prev) => [...prev, friend.uid]);
-      window.alert(`✅ ${friend.displayName} a été bloqué.`);
-    } catch (e: any) {
-      console.error("❌ Error blocking user:", e);
-      console.error("❌ Error code:", e.code);
-      console.error("❌ Error message:", e.message);
-      window.alert("❌ Impossible de bloquer cet utilisateur: " + e.message);
+      setFriends(prev => prev.filter(f => f.uid !== friend.uid));
+      Alert.alert("✅", `${friend.displayName} a été bloqué.`);
+    } catch (e) {
+      console.error("Error blocking user:", e);
+      Alert.alert("❌", "Impossible de bloquer cet utilisateur.");
+    } finally {
+      setModalState({ visible: false, type: null, friend: null });
     }
-  };
+  }, [modalState.friend]);
 
-  const renderFriend = ({ item }: { item: Friend }) => (
-    <View style={styles.friendCard}>
+  const renderFriend = useCallback(({ item }: { item: Friend }) => (
+    <TouchableOpacity 
+      style={styles.friendCard}
+      onPress={() => handleViewProfile(item)}
+      activeOpacity={0.7}
+    >
+      {/* AVATAR + INFO */}
       <View style={styles.friendInfo}>
-        <LinearGradient
-          colors={[COLORS.titleGradientStart, COLORS.titleGradientEnd]}
-          style={styles.avatar}
-        >
-          <Text style={styles.avatarText}>
-            {item.displayName.charAt(0).toUpperCase()}
-          </Text>
-        </LinearGradient>
+        {item.photoURL ? (
+          <Image source={{ uri: item.photoURL }} style={styles.avatar} />
+        ) : (
+          <LinearGradient
+            colors={[COLORS.titleGradientStart, COLORS.titleGradientEnd]}
+            style={styles.avatar}
+          >
+            <Text style={styles.avatarText}>
+              {item.displayName.charAt(0).toUpperCase()}
+            </Text>
+          </LinearGradient>
+        )}
 
         <View style={styles.friendDetails}>
-          <Text style={styles.friendName}>{item.displayName}</Text>
-          <Text style={styles.friendUsername}>@{item.username}</Text>
+          <Text style={styles.friendName} numberOfLines={1}>
+            {item.displayName}
+          </Text>
+          <Text style={styles.friendUsername} numberOfLines={1}>
+            @{item.username}
+          </Text>
         </View>
       </View>
 
+      {/* ACTIONS */}
       <View style={styles.friendActions}>
         <TouchableOpacity
           style={styles.actionButton}
-          onPress={() => handleRemoveFriend(item)}
+          onPress={(e) => {
+            e.stopPropagation();
+            handleRemoveFriend(item);
+          }}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >
-          <Icon name="person-remove" size={20} color={COLORS.error} />
+          <Icon name="person-remove-outline" size={20} color="#FF3B30" />
         </TouchableOpacity>
 
         <TouchableOpacity
           style={styles.actionButton}
-          onPress={() => handleBlockUser(item)}
+          onPress={(e) => {
+            e.stopPropagation();
+            handleBlockUser(item);
+          }}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >
-          <Icon name="ban" size={20} color={COLORS.error} />
+          <Icon name="ban-outline" size={20} color="#FF3B30" />
         </TouchableOpacity>
       </View>
-    </View>
-  );
+    </TouchableOpacity>
+  ), [handleViewProfile, handleRemoveFriend, handleBlockUser]);
 
-  const renderEmpty = () => (
+  const renderEmpty = useCallback(() => (
     <View style={styles.emptyContainer}>
-      <Icon name="people-outline" size={64} color={COLORS.textSecondary} />
-      <Text style={styles.emptyText}>Aucun ami pour le moment</Text>
+      <LinearGradient
+        colors={[COLORS.titleGradientStart, COLORS.titleGradientEnd]}
+        style={styles.emptyIconContainer}
+      >
+        <Icon name="people-outline" size={48} color={COLORS.textPrimary} />
+      </LinearGradient>
+      <Text style={styles.emptyTitle}>
+        {searchQuery ? "Aucun résultat" : "Aucun ami"}
+      </Text>
       <Text style={styles.emptySubtext}>
-        Ajoutez des amis pour partager vos activités !
+        {searchQuery 
+          ? "Essayez une autre recherche" 
+          : "Ajoutez des amis depuis l'onglet Profil"}
       </Text>
     </View>
-  );
+  ), [searchQuery]);
+
+  const keyExtractor = useCallback((item: Friend) => item.uid, []);
 
   if (loading) {
     return (
@@ -228,77 +268,88 @@ export default function ManageFriendsScreen() {
         style={styles.loadingContainer}
       >
         <ActivityIndicator size="large" color={COLORS.primary} />
+        <Text style={styles.loadingText}>Chargement...</Text>
       </LinearGradient>
     );
   }
 
   return (
-    <LinearGradient
-      colors={[COLORS.backgroundTop, COLORS.backgroundBottom]}
-      style={styles.container}
-    >
+    <View style={styles.container}>
+      <LinearGradient
+        colors={[COLORS.backgroundTop, COLORS.backgroundBottom]}
+        style={StyleSheet.absoluteFill}
+      />
+      
       {/* HEADER */}
       <View style={styles.header}>
         <TouchableOpacity
           style={styles.backButton}
-          onPress={() => (router as any).push("/Profile")}
+          onPress={() => router.back()}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >
           <Icon name="chevron-back" size={24} color={COLORS.textPrimary} />
         </TouchableOpacity>
+        
         <Text style={styles.headerTitle}>Gérer mes amis</Text>
+        
         <View style={{ width: 40 }} />
       </View>
 
-      {/* STATS */}
-      <View style={styles.statsContainer}>
-        <View style={styles.statCard}>
-          <Text style={styles.statNumber}>{friends.length}</Text>
-          <Text style={styles.statLabel}>Amis</Text>
+      {/* COMPTEUR + RECHERCHE */}
+      <View style={styles.topSection}>
+        <View style={styles.countCard}>
+          <Text style={styles.countNumber}>{friends.length}</Text>
+          <Text style={styles.countLabel}>amis</Text>
         </View>
-        <View style={styles.statCard}>
-          <Text style={styles.statNumber}>{blockedUsers.length}</Text>
-          <Text style={styles.statLabel}>Bloqués</Text>
+
+        <View style={styles.searchContainer}>
+          <Icon name="search" size={18} color={COLORS.textSecondary} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Rechercher..."
+            placeholderTextColor={COLORS.textSecondary}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity onPress={() => setSearchQuery("")}>
+              <Icon name="close-circle" size={18} color={COLORS.textSecondary} />
+            </TouchableOpacity>
+          )}
         </View>
       </View>
 
-      {/* LISTE DES AMIS */}
+      {/* LISTE */}
       <FlatList
-        data={friends}
+        data={filteredFriends}
         renderItem={renderFriend}
-        keyExtractor={(item) => item.uid}
+        keyExtractor={keyExtractor}
         ListEmptyComponent={renderEmpty}
-        contentContainerStyle={styles.listContent}
+        contentContainerStyle={[
+          styles.listContent,
+          filteredFriends.length === 0 && styles.emptyListContent
+        ]}
         refreshing={refreshing}
         onRefresh={handleRefresh}
+        showsVerticalScrollIndicator={false}
+        initialNumToRender={15}
+        maxToRenderPerBatch={10}
       />
 
-      {/* BOUTON VOIR LES BLOQUÉS */}
-      {blockedUsers.length > 0 && (
-        <TouchableOpacity
-          style={styles.blockedButtonWrapper}
-          onPress={() => (router as any).push("/Profile/Blocked_users")}
-        >
-          <View style={styles.blockedButton}>
-            <Icon name="ban" size={20} color={COLORS.error} />
-            <Text style={styles.blockedButtonText}>
-              Voir les utilisateurs bloqués ({blockedUsers.length})
-            </Text>
-          </View>
-        </TouchableOpacity>
-      )}
-
-      {/* MODAL DE CONFIRMATION */}
+      {/* MODAL */}
       <ConfirmModal
         visible={modalState.visible}
         title={
           modalState.type === "remove"
-            ? "Retirer cet ami"
-            : "Bloquer cet utilisateur"
+            ? "Retirer cet ami ?"
+            : "Bloquer cet utilisateur ?"
         }
         message={
           modalState.type === "remove"
-            ? `Voulez-vous retirer ${modalState.friend?.displayName} de vos amis ?`
-            : `Voulez-vous bloquer ${modalState.friend?.displayName} ?\n\nCette personne sera retirée de vos amis et ne pourra plus vous envoyer de demandes.`
+            ? `${modalState.friend?.displayName} sera retiré de vos amis.`
+            : `${modalState.friend?.displayName} sera bloqué et retiré de vos amis.`
         }
         confirmText={modalState.type === "remove" ? "Retirer" : "Bloquer"}
         cancelText="Annuler"
@@ -312,7 +363,7 @@ export default function ManageFriendsScreen() {
           setModalState({ visible: false, type: null, friend: null })
         }
       />
-    </LinearGradient>
+    </View>
   );
 }
 
@@ -324,14 +375,20 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
+    gap: 16,
+  },
+  loadingText: {
+    fontSize: 15,
+    fontFamily: "Poppins-Regular",
+    color: COLORS.textSecondary,
   },
   header: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 24,
+    paddingHorizontal: 20,
     paddingTop: 60,
-    paddingBottom: 20,
+    paddingBottom: 16,
   },
   backButton: {
     width: 40,
@@ -348,35 +405,56 @@ const styles = StyleSheet.create({
     fontFamily: "Poppins-Bold",
     color: COLORS.textPrimary,
   },
-  statsContainer: {
-    flexDirection: "row",
-    gap: 12,
-    paddingHorizontal: 24,
+  topSection: {
+    paddingHorizontal: 20,
     marginBottom: 20,
+    gap: 12,
   },
-  statCard: {
-    flex: 1,
+  countCard: {
     backgroundColor: COLORS.neutralGray800,
     borderWidth: 1,
     borderColor: COLORS.border,
-    borderRadius: 16,
+    borderRadius: 12,
     padding: 16,
+    flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
   },
-  statNumber: {
+  countNumber: {
     fontSize: 24,
     fontFamily: "Poppins-Bold",
-    color: COLORS.textPrimary,
-    marginBottom: 4,
+    color: COLORS.primary,
   },
-  statLabel: {
-    fontSize: 13,
+  countLabel: {
+    fontSize: 16,
     fontFamily: "Poppins-Regular",
     color: COLORS.textSecondary,
   },
+  searchContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: COLORS.neutralGray800,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    gap: 10,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 14,
+    fontFamily: "Poppins-Regular",
+    color: COLORS.textPrimary,
+    padding: 0,
+  },
   listContent: {
-    paddingHorizontal: 24,
-    paddingBottom: 100,
+    paddingHorizontal: 20,
+    paddingBottom: 32,
+  },
+  emptyListContent: {
+    flexGrow: 1,
   },
   friendCard: {
     flexDirection: "row",
@@ -385,9 +463,9 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.neutralGray800,
     borderWidth: 1,
     borderColor: COLORS.border,
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 12,
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 10,
   },
   friendInfo: {
     flexDirection: "row",
@@ -395,15 +473,15 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   avatar: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    marginRight: 12,
     justifyContent: "center",
     alignItems: "center",
-    marginRight: 12,
   },
   avatarText: {
-    fontSize: 20,
+    fontSize: 18,
     fontFamily: "Poppins-Bold",
     color: COLORS.textPrimary,
   },
@@ -411,7 +489,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   friendName: {
-    fontSize: 16,
+    fontSize: 15,
     fontFamily: "Poppins-SemiBold",
     color: COLORS.textPrimary,
     marginBottom: 2,
@@ -423,59 +501,42 @@ const styles = StyleSheet.create({
   },
   friendActions: {
     flexDirection: "row",
-    gap: 8,
+    gap: 6,
   },
   actionButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: COLORS.neutralGray800,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255, 59, 48, 0.1)',
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: 'rgba(255, 59, 48, 0.3)',
     justifyContent: "center",
     alignItems: "center",
   },
   emptyContainer: {
-    flex: 1,
+    alignItems: "center",
+    paddingHorizontal: 40,
+    paddingTop: 80,
+  },
+  emptyIconContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
     justifyContent: "center",
     alignItems: "center",
-    paddingTop: 100,
+    marginBottom: 20,
   },
-  emptyText: {
+  emptyTitle: {
     fontSize: 18,
     fontFamily: "Poppins-SemiBold",
     color: COLORS.textPrimary,
-    marginTop: 16,
-    marginBottom: 8,
+    marginBottom: 6,
   },
   emptySubtext: {
     fontSize: 14,
     fontFamily: "Poppins-Regular",
     color: COLORS.textSecondary,
     textAlign: "center",
-  },
-  blockedButtonWrapper: {
-    position: "absolute",
-    bottom: 24,
-    left: 24,
-    right: 24,
-    borderRadius: 999,
-    overflow: "hidden",
-  },
-  blockedButton: {
-    height: 52,
-    borderRadius: 999,
-    backgroundColor: COLORS.neutralGray800,
-    borderWidth: 1,
-    borderColor: COLORS.error,
-    flexDirection: "row",
-    justifyContent: "center",
-    alignItems: "center",
-    gap: 8,
-  },
-  blockedButtonText: {
-    fontSize: 15,
-    fontFamily: "Poppins-SemiBold",
-    color: COLORS.error,
+    lineHeight: 20,
   },
 });

@@ -3,13 +3,13 @@ import { useRouter } from "expo-router";
 import { addDoc, collection, getDocs, query, where } from "firebase/firestore";
 import React, { useState } from "react";
 import {
-    Alert,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  Alert,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import Icon from "react-native-vector-icons/Ionicons";
 import { COLORS } from "../../components/Colors";
@@ -97,13 +97,13 @@ export default function SearchFriendsScreen() {
         createdAt: new Date().toISOString(),
       });
 
-      // Envoyer la notification
+      // Envoyer la notification - CORRIGÉ ICI
       await notifyUser(
         toUserId,
         "friend_request",
         "Nouvelle demande d'ami",
-        `${currentUser.displayName} vous a envoyé une demande d'ami`,
-        { fromUserId: currentUser.uid }
+        `${currentUser.displayName || "Utilisateur"} vous a envoyé une demande d'ami`
+        // Le 5ème argument a été supprimé car notifyUser n'accepte que 4 arguments
       );
 
       Alert.alert("Succès", "Demande d'ami envoyée !");
@@ -121,7 +121,10 @@ export default function SearchFriendsScreen() {
       colors={[COLORS.backgroundTop, COLORS.backgroundBottom]}
       style={styles.container}
     >
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      <ScrollView 
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
         {/* HEADER */}
         <View style={styles.header}>
           <TouchableOpacity
@@ -145,9 +148,13 @@ export default function SearchFriendsScreen() {
             onChangeText={setSearchQuery}
             autoCapitalize="none"
             onSubmitEditing={handleSearch}
+            returnKeyType="search"
           />
           {searchQuery.length > 0 && (
-            <TouchableOpacity onPress={() => setSearchQuery("")}>
+            <TouchableOpacity 
+              onPress={() => setSearchQuery("")}
+              style={styles.clearButton}
+            >
               <Icon name="close-circle" size={20} color={COLORS.textSecondary} />
             </TouchableOpacity>
           )}
@@ -181,18 +188,18 @@ export default function SearchFriendsScreen() {
                 <View style={styles.userInfo}>
                   <View style={styles.avatar}>
                     <Text style={styles.avatarText}>
-                      {user.username?.charAt(0).toUpperCase() || "U"}
+                      {user.username?.charAt(0).toUpperCase() || user.email?.charAt(0).toUpperCase() || "U"}
                     </Text>
                   </View>
                   <View>
-                    <Text style={styles.username}>{user.username}</Text>
+                    <Text style={styles.username}>{user.username || "Utilisateur"}</Text>
                     <Text style={styles.email}>{user.email}</Text>
                   </View>
                 </View>
 
                 <TouchableOpacity
                   style={styles.addButton}
-                  onPress={() => sendFriendRequest(user.id, user.username)}
+                  onPress={() => sendFriendRequest(user.id, user.username || "Utilisateur")}
                 >
                   <Icon name="person-add" size={20} color={COLORS.textPrimary} />
                 </TouchableOpacity>
@@ -206,7 +213,9 @@ export default function SearchFriendsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
+  container: { 
+    flex: 1 
+  },
   scrollContent: {
     flexGrow: 1,
     paddingHorizontal: 24,
@@ -252,6 +261,9 @@ const styles = StyleSheet.create({
     flex: 1,
     color: COLORS.textPrimary,
     fontSize: 14,
+  },
+  clearButton: {
+    padding: 4,
   },
   searchButtonWrapper: {
     borderRadius: 999,

@@ -2,11 +2,11 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import React from "react";
 import {
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import Icon from "react-native-vector-icons/Ionicons";
 import { COLORS } from "../../components/Colors";
@@ -115,8 +115,8 @@ export default function SubscriptionScreen() {
           </View>
 
           <View style={styles.priceContainer}>
-            <Text style={styles.planPrice}>29,99€/an</Text>
-            <Text style={styles.planSavings}>Économise 25%</Text>
+            <Text style={styles.planPrice}>34,99€/an</Text>
+            <Text style={styles.planSavings}>Économise 27%</Text>
           </View>
 
           <TouchableOpacity 

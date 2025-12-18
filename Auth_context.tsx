@@ -3,6 +3,7 @@ import { doc, onSnapshot } from "firebase/firestore";
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { listenAuthChanges, logout, signIn, signUp } from "./Auth_service";
 import { db } from "./firebase_Config";
+import { registerForPushNotificationsAsync, savePushToken } from "./service/notificationService";
 
 // Interface pour le profil utilisateur
 interface UserProfile {
@@ -10,6 +11,8 @@ interface UserProfile {
   isPremium: boolean;
   email?: string;
   photoURL?: string;
+  expoPushToken?: string;
+  notificationsEnabled?: boolean;
   // Ajoute d'autres champs si nécessaire
 }
 
@@ -41,6 +44,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return unsubscribe;
   }, []); 
 
+  // 👇 NOUVEAU : Setup des notifications après connexion
+  useEffect(() => {
+    const setupNotifications = async () => {
+      if (user && !isRegistering) {
+        console.log("🔔 Configuration des notifications pour:", user.uid);
+        
+        try {
+          const token = await registerForPushNotificationsAsync();
+          
+          if (token) {
+            console.log("✅ Token obtenu:", token);
+            await savePushToken(user.uid, token);
+          } else {
+            console.log("⚠️ Aucun token obtenu (permissions refusées ou émulateur)");
+          }
+        } catch (error) {
+          console.error("❌ Erreur setup notifications:", error);
+        }
+      }
+    };
+
+    setupNotifications();
+  }, [user, isRegistering]);
+
   // Écouter les changements du profil utilisateur dans Firestore
   useEffect(() => {
     if (!user) {
@@ -60,6 +87,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             isPremium: data.isPremium || false,
             email: data.email || user.email || "",
             photoURL: data.photoURL || user.photoURL || "",
+            expoPushToken: data.expoPushToken || "",
+            notificationsEnabled: data.notificationsEnabled || false,
           });
         } else {
           // Si le document n'existe pas, créer un profil par défaut
@@ -68,6 +97,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             isPremium: false,
             email: user.email || "",
             photoURL: user.photoURL || "",
+            expoPushToken: "",
+            notificationsEnabled: false,
           });
         }
       },
@@ -79,6 +110,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           isPremium: false,
           email: user.email || "",
           photoURL: user.photoURL || "",
+          expoPushToken: "",
+          notificationsEnabled: false,
         });
       }
     );

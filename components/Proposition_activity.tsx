@@ -1,10 +1,11 @@
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
-import { collection, doc, getDoc, getDocs, query, where } from "firebase/firestore";
+import { addDoc, collection, getDocs, query, where } from "firebase/firestore";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Image,
   Modal,
   ScrollView,
   StyleSheet,
@@ -13,8 +14,16 @@ import {
   View,
 } from "react-native";
 import Icon from "react-native-vector-icons/Ionicons";
+import { COLORS } from "../components/Colors";
+import CustomDateTimePicker from "../components/DateTimePicker";
 import { auth, db } from "../firebase_Config";
-import { COLORS } from "./Colors";
+import { notifyUser } from "../service/notificationService";
+
+interface Friend {
+  id: string;
+  displayName: string;
+  photoURL?: string;
+}
 
 interface Group {
   id: string;
@@ -23,81 +32,189 @@ interface Group {
   members: string[];
 }
 
+interface Activity {
+  id: string;
+  title: string;
+  description: string;
+  category: string;
+  location: string;
+  image?: string;
+  date: string;
+}
+
 interface ProposeActivityModalProps {
   visible: boolean;
   onClose: () => void;
-  activity: {
-    id: string;
-    title: string;
-    description: string;
-    image?: string;
-    location: string;
-    date: string;
-    category: string;
-  };
+  preSelectedActivity?: Activity | null;
 }
 
 export default function ProposeActivityModal({
   visible,
   onClose,
-  activity,
+  preSelectedActivity = null,
 }: ProposeActivityModalProps) {
   const router = useRouter();
   const currentUser = auth.currentUser;
 
+  const [activities, setActivities] = useState<Activity[]>([]);
+  const [friends, setFriends] = useState<Friend[]>([]);
   const [groups, setGroups] = useState<Group[]>([]);
+  const [selectedActivity, setSelectedActivity] = useState<Activity | null>(preSelectedActivity);
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [selectedFriends, setSelectedFriends] = useState<string[]>([]);
+  const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
+  const [recipientType, setRecipientType] = useState<'new' | 'existing' | null>(null);
+  const [step, setStep] = useState<'activity' | 'date' | 'recipient'>(preSelectedActivity ? 'date' : 'activity');
   const [loading, setLoading] = useState(true);
+  const [proposing, setProposing] = useState(false);
 
   useEffect(() => {
-    if (visible && currentUser) {
-      loadGroups();
+    if (visible) {
+      loadData();
+      if (preSelectedActivity) {
+        setSelectedActivity(preSelectedActivity);
+        setStep('date');
+      }
     }
-  }, [visible, currentUser]);
+  }, [visible, preSelectedActivity]);
 
-  const loadGroups = async () => {
+  const loadData = async () => {
     if (!currentUser) return;
-
+    
     setLoading(true);
     try {
+      // Charger les activités seulement si pas d'activité pré-sélectionnée
+      if (!preSelectedActivity) {
+        const activitiesSnapshot = await getDocs(collection(db, "activities"));
+        const activitiesList: Activity[] = activitiesSnapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        } as Activity));
+        setActivities(activitiesList);
+      }
+
+      // Charger les groupes existants
       const groupsQuery = query(
         collection(db, "groups"),
         where("members", "array-contains", currentUser.uid)
       );
-      const querySnapshot = await getDocs(groupsQuery);
-
-      const groupsList: Group[] = querySnapshot.docs.map((doc) => ({
+      const groupsSnapshot = await getDocs(groupsQuery);
+      const groupsList: Group[] = groupsSnapshot.docs.map(doc => ({
         id: doc.id,
-        ...doc.data(),
+        ...doc.data()
       } as Group));
-
       setGroups(groupsList);
+
+      // Charger les amis
+      const friendshipsQuery = query(
+        collection(db, "friendships"),
+        where("users", "array-contains", currentUser.uid),
+        where("status", "==", "accepted")
+      );
+      const friendshipsSnapshot = await getDocs(friendshipsQuery);
+      
+      const friendIds = new Set<string>();
+      friendshipsSnapshot.forEach(doc => {
+        const users = doc.data().users;
+        const friendId = users.find((id: string) => id !== currentUser.uid);
+        if (friendId) friendIds.add(friendId);
+      });
+
+      // Récupérer les infos des amis
+      const friendsList: Friend[] = [];
+      for (const friendId of friendIds) {
+        const userQuery = query(collection(db, "users"), where("uid", "==", friendId));
+        const userDoc = await getDocs(userQuery);
+        if (!userDoc.empty) {
+          const userData = userDoc.docs[0].data();
+          friendsList.push({
+            id: friendId,
+            displayName: userData.displayName || "Utilisateur",
+            photoURL: userData.photoURL,
+          });
+        }
+      }
+      setFriends(friendsList);
+
     } catch (error) {
-      console.error("Error loading groups:", error);
-      Alert.alert("Erreur", "Impossible de charger vos groupes");
+      console.error("Error loading data:", error);
+      Alert.alert("Erreur", "Impossible de charger les données");
     } finally {
       setLoading(false);
     }
   };
 
-  const proposeToGroup = async (groupId: string) => {
-    if (!currentUser) return;
+  const toggleFriend = (friendId: string) => {
+    setSelectedFriends(prev =>
+      prev.includes(friendId)
+        ? prev.filter(id => id !== friendId)
+        : [...prev, friendId]
+    );
+  };
 
+  const handleNext = () => {
+    if (step === 'activity' && selectedActivity) {
+      setStep('date');
+    } else if (step === 'date' && selectedDate) {
+      setStep('recipient');
+    }
+  };
+
+  const handlePropose = async () => {
+    if (!currentUser || !selectedActivity || !selectedDate) {
+      Alert.alert("Erreur", "Données manquantes");
+      return;
+    }
+
+    if (recipientType === 'new' && selectedFriends.length === 0) {
+      Alert.alert("Erreur", "Veuillez sélectionner au moins un ami");
+      return;
+    }
+
+    if (recipientType === 'existing' && !selectedGroup) {
+      Alert.alert("Erreur", "Veuillez sélectionner un groupe");
+      return;
+    }
+
+    if (selectedDate <= new Date()) {
+      Alert.alert("Erreur", "La date doit être dans le futur");
+      return;
+    }
+
+    setProposing(true);
     try {
-      // Récupérer les membres du groupe
-      const groupDoc = await getDoc(doc(db, "groups", groupId));
-      if (!groupDoc.exists()) {
-        Alert.alert("Erreur", "Groupe introuvable");
-        return;
+      let targetGroupId = selectedGroup;
+      let targetGroupMembers: string[] = [];
+
+      // Si nouveau groupe, le créer
+      if (recipientType === 'new') {
+        targetGroupMembers = [currentUser.uid, ...selectedFriends];
+        const groupName = `${selectedActivity.title} - ${new Date(selectedDate).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}`;
+        
+        const groupRef = await addDoc(collection(db, "groups"), {
+          name: groupName,
+          emoji: "🎉",
+          members: targetGroupMembers,
+          createdBy: currentUser.uid,
+          createdAt: new Date().toISOString(),
+          memberCount: targetGroupMembers.length,
+          isAutoGenerated: true,
+        });
+        
+        targetGroupId = groupRef.id;
+      } else {
+        // Récupérer les membres du groupe existant
+        const selectedGroupData = groups.find(g => g.id === selectedGroup);
+        if (selectedGroupData) {
+          targetGroupMembers = selectedGroupData.members;
+        }
       }
 
-      const groupMembers = groupDoc.data().members;
-
-      // Créer l'activité de groupe avec deadline automatique
-      const activityDate = new Date(activity.date);
-      const deadline = new Date(activityDate.getTime() - 60 * 60 * 1000); // 1h avant
+      // Créer l'activité de groupe
+      const deadline = new Date(selectedDate.getTime() - 60 * 60 * 1000); // 1h avant
 
       const participants: any = {};
-      groupMembers.forEach((memberId: string) => {
+      targetGroupMembers.forEach((memberId: string) => {
         participants[memberId] = {
           vote: memberId === currentUser.uid ? "coming" : "pending",
           reaction: null,
@@ -105,56 +222,346 @@ export default function ProposeActivityModal({
         };
       });
 
-      const { addDoc } = await import("firebase/firestore");
       await addDoc(collection(db, "groupActivities"), {
-        groupId,
-        activityId: activity.id,
-        activityTitle: activity.title,
-        activityDescription: activity.description,
-        activityImage: activity.image || "",
-        activityLocation: activity.location,
-        activityDate: activity.date,
-        activityCategory: activity.category,
+        groupId: targetGroupId,
+        activityId: selectedActivity.id,
+        activityTitle: selectedActivity.title,
+        activityDescription: selectedActivity.description,
+        activityImage: selectedActivity.image || "",
+        activityLocation: selectedActivity.location,
+        activityDate: selectedDate.toISOString(),
+        activityCategory: selectedActivity.category,
         deadline: deadline.toISOString(),
         proposedBy: currentUser.uid,
         proposedAt: new Date().toISOString(),
         participants,
       });
 
-      Alert.alert("Succès", `Activité proposée au groupe ! 🎉`, [
+      // Envoyer les notifications
+      const proposerName = currentUser.displayName || "Un ami";
+      const otherMembers = targetGroupMembers.filter(id => id !== currentUser.uid);
+      
+      // Correction : notifyUser prend probablement 4 arguments, pas 5
+      for (const memberId of otherMembers) {
+        try {
+          await notifyUser(
+            memberId,
+            "activity_proposed",
+            `${proposerName} propose ${selectedActivity.title}`,
+            {
+              fromUserId: currentUser.uid,
+              groupId: targetGroupId,
+              activityId: selectedActivity.id,
+            }
+          );
+        } catch (err) {
+          console.error("Notification error:", err);
+        }
+      }
+
+      Alert.alert("Succès", `Activité "${selectedActivity.title}" proposée ! 🎉`, [
         {
           text: "Voir le groupe",
           onPress: () => {
             onClose();
-            router.push(`/Groupe/${groupId}`);
+            router.push(`/Groupe/${targetGroupId}`);
           },
         },
-        { text: "OK", onPress: onClose },
+        { 
+          text: "OK", 
+          onPress: () => {
+            onClose();
+            resetState();
+          }
+        },
       ]);
     } catch (error) {
       console.error("Error proposing activity:", error);
-      Alert.alert("Erreur", "Impossible de proposer l'activité");
+      Alert.alert("Erreur", "Impossible de proposer l'activité. Vérifiez vos permissions Firestore.");
+    } finally {
+      setProposing(false);
     }
   };
 
-  const createNewGroup = () => {
-    onClose();
-    router.push("/Groupe/Crea_groupe");
+  const resetState = () => {
+    setStep(preSelectedActivity ? 'date' : 'activity');
+    setSelectedActivity(preSelectedActivity);
+    setSelectedDate(null);
+    setSelectedFriends([]);
+    setSelectedGroup(null);
+    setRecipientType(null);
+  };
+
+  const renderActivityStep = () => (
+    <ScrollView contentContainerStyle={styles.scrollContent}>
+      <Text style={styles.stepTitle}>Sélectionnez une activité</Text>
+      <View style={styles.activitiesList}>
+        {activities.map((activity) => (
+          <TouchableOpacity
+            key={activity.id}
+            style={[
+              styles.activityCard,
+              selectedActivity?.id === activity.id && styles.activityCardSelected
+            ]}
+            onPress={() => setSelectedActivity(activity)}
+          >
+            <View style={styles.activityInfo}>
+              <Text style={styles.activityTitle}>{activity.title}</Text>
+              <View style={styles.activityMeta}>
+                <View style={styles.categoryBadge}>
+                  <Text style={styles.categoryText}>{activity.category}</Text>
+                </View>
+              </View>
+              <View style={styles.activityLocation}>
+                <Icon name="location" size={12} color={COLORS.textSecondary} />
+                <Text style={styles.activityLocationText}>{activity.location}</Text>
+              </View>
+            </View>
+
+            {selectedActivity?.id === activity.id && (
+              <View style={styles.selectedBadge}>
+                <Icon name="checkmark-circle" size={28} color={COLORS.secondary} />
+              </View>
+            )}
+          </TouchableOpacity>
+        ))}
+      </View>
+    </ScrollView>
+  );
+
+  const renderDateStep = () => (
+    <ScrollView contentContainerStyle={styles.scrollContent}>
+      <View style={styles.activityPreview}>
+        <Text style={styles.stepTitle}>Quand voulez-vous faire cette activité ?</Text>
+        <View style={styles.activityCard}>
+          <Text style={styles.activityTitle}>{selectedActivity?.title}</Text>
+          <Text style={styles.activityCategory}>{selectedActivity?.category}</Text>
+          <View style={styles.activityLocation}>
+            <Icon name="location" size={12} color={COLORS.textSecondary} />
+            <Text style={styles.activityLocationText}>{selectedActivity?.location}</Text>
+          </View>
+        </View>
+      </View>
+
+      <View style={styles.dateSection}>
+        <CustomDateTimePicker
+          selectedDate={selectedDate}
+          onDateChange={setSelectedDate}
+          label="Date et heure"
+          minimumDate={new Date()}
+        />
+      </View>
+    </ScrollView>
+  );
+
+  const renderRecipientStep = () => (
+    <ScrollView contentContainerStyle={styles.scrollContent}>
+      <View style={styles.activityPreview}>
+        <Text style={styles.stepTitle}>Avec qui ?</Text>
+        <View style={styles.activityCard}>
+          <Text style={styles.activityTitle}>{selectedActivity?.title}</Text>
+          <View style={styles.activityMeta}>
+            <Icon name="calendar" size={14} color={COLORS.textSecondary} />
+            <Text style={styles.dateText}>
+              {selectedDate?.toLocaleDateString('fr-FR', {
+                weekday: 'short',
+                day: 'numeric',
+                month: 'short',
+                hour: '2-digit',
+                minute: '2-digit'
+              })}
+            </Text>
+          </View>
+        </View>
+      </View>
+
+      {/* CHOIX DU TYPE */}
+      {!recipientType && (
+        <View style={styles.typeSelection}>
+          <TouchableOpacity
+            style={styles.typeCard}
+            onPress={() => setRecipientType('new')}
+          >
+            <LinearGradient
+              colors={["#7C3AED", "#5B21B6"]}
+              style={styles.typeCardGradient}
+            >
+              <Icon name="person-add" size={32} color="#FFFFFF" />
+              <Text style={styles.typeCardTitle}>Nouveau groupe</Text>
+              <Text style={styles.typeCardSubtitle}>Créer avec des amis</Text>
+            </LinearGradient>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.typeCard}
+            onPress={() => setRecipientType('existing')}
+          >
+            <LinearGradient
+              colors={["#EC4899", "#BE185D"]}
+              style={styles.typeCardGradient}
+            >
+              <Icon name="people" size={32} color="#FFFFFF" />
+              <Text style={styles.typeCardTitle}>Groupe existant</Text>
+              <Text style={styles.typeCardSubtitle}>Choisir un groupe</Text>
+            </LinearGradient>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {/* SÉLECTION D'AMIS (nouveau groupe) */}
+      {recipientType === 'new' && (
+        <>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Sélectionner des amis</Text>
+            <TouchableOpacity onPress={() => setRecipientType(null)}>
+              <Text style={styles.changeText}>Changer</Text>
+            </TouchableOpacity>
+          </View>
+
+          {friends.length === 0 ? (
+            <View style={styles.emptyContainer}>
+              <Icon name="people-outline" size={48} color={COLORS.textSecondary} />
+              <Text style={styles.emptyText}>Vous n'avez pas encore d'amis</Text>
+            </View>
+          ) : (
+            <>
+              <View style={styles.friendsList}>
+                {friends.map((friend) => (
+                  <TouchableOpacity
+                    key={friend.id}
+                    style={[
+                      styles.friendCard,
+                      selectedFriends.includes(friend.id) && styles.friendCardSelected
+                    ]}
+                    onPress={() => toggleFriend(friend.id)}
+                  >
+                    <View style={styles.friendAvatar}>
+                      {friend.photoURL ? (
+                        <Image source={{ uri: friend.photoURL }} style={styles.avatarImage} />
+                      ) : (
+                        <Icon name="person" size={24} color={COLORS.textSecondary} />
+                      )}
+                    </View>
+                    <Text style={styles.friendName}>{friend.displayName}</Text>
+                    
+                    {selectedFriends.includes(friend.id) && (
+                      <View style={styles.checkmark}>
+                        <Icon name="checkmark-circle" size={24} color={COLORS.secondary} />
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <Text style={styles.selectedCount}>
+                {selectedFriends.length} ami{selectedFriends.length > 1 ? 's' : ''} sélectionné{selectedFriends.length > 1 ? 's' : ''}
+              </Text>
+            </>
+          )}
+        </>
+      )}
+
+      {/* SÉLECTION DE GROUPE EXISTANT */}
+      {recipientType === 'existing' && (
+        <>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Sélectionner un groupe</Text>
+            <TouchableOpacity onPress={() => setRecipientType(null)}>
+              <Text style={styles.changeText}>Changer</Text>
+            </TouchableOpacity>
+          </View>
+
+          {groups.length === 0 ? (
+            <View style={styles.emptyContainer}>
+              <Icon name="people-outline" size={48} color={COLORS.textSecondary} />
+              <Text style={styles.emptyText}>Vous n'avez pas encore de groupes</Text>
+            </View>
+          ) : (
+            <View style={styles.groupsList}>
+              {groups.map((group) => (
+                <TouchableOpacity
+                  key={group.id}
+                  style={[
+                    styles.groupCard,
+                    selectedGroup === group.id && styles.groupCardSelected
+                  ]}
+                  onPress={() => setSelectedGroup(group.id)}
+                >
+                  <View style={styles.groupEmoji}>
+                    <Text style={styles.groupEmojiText}>{group.emoji}</Text>
+                  </View>
+                  <View style={styles.groupInfo}>
+                    <Text style={styles.groupName}>{group.name}</Text>
+                    <Text style={styles.groupMembers}>
+                      {group.members.length} membre{group.members.length > 1 ? 's' : ''}
+                    </Text>
+                  </View>
+                  
+                  {selectedGroup === group.id && (
+                    <View style={styles.checkmark}>
+                      <Icon name="checkmark-circle" size={24} color={COLORS.secondary} />
+                    </View>
+                  )}
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
+        </>
+      )}
+    </ScrollView>
+  );
+
+  const canProceed = () => {
+    if (step === 'activity') return !!selectedActivity;
+    if (step === 'date') return !!selectedDate;
+    if (step === 'recipient') {
+      if (recipientType === 'new') return selectedFriends.length > 0;
+      if (recipientType === 'existing') return !!selectedGroup;
+      return false;
+    }
+    return false;
   };
 
   return (
     <Modal visible={visible} animationType="slide" transparent={false}>
-      <LinearGradient
-        colors={[COLORS.backgroundTop, COLORS.backgroundBottom]}
-        style={styles.container}
-      >
+      <LinearGradient colors={[COLORS.backgroundTop, COLORS.backgroundBottom]} style={styles.container}>
         {/* HEADER */}
         <View style={styles.header}>
-          <TouchableOpacity style={styles.closeButton} onPress={onClose}>
-            <Icon name="close" size={24} color={COLORS.textPrimary} />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Proposer à un groupe</Text>
+          {step !== (preSelectedActivity ? 'date' : 'activity') && (
+            <TouchableOpacity 
+              style={styles.backButton} 
+              onPress={() => {
+                if (step === 'recipient') {
+                  setStep('date');
+                  setRecipientType(null);
+                } else if (step === 'date' && !preSelectedActivity) {
+                  setStep('activity');
+                }
+              }}
+            >
+              <Icon name="arrow-back" size={24} color={COLORS.textPrimary} />
+            </TouchableOpacity>
+          )}
+          {step === (preSelectedActivity ? 'date' : 'activity') && (
+            <TouchableOpacity style={styles.closeButton} onPress={onClose}>
+              <Icon name="close" size={24} color={COLORS.textPrimary} />
+            </TouchableOpacity>
+          )}
+          <Text style={styles.headerTitle}>Proposer à mes amis</Text>
           <View style={{ width: 40 }} />
+        </View>
+
+        {/* STEPS INDICATOR */}
+        <View style={styles.stepsContainer}>
+          {!preSelectedActivity && (
+            <>
+              <View style={[styles.stepDot, step === 'activity' && styles.stepDotActive]} />
+              <View style={[styles.stepLine, (step === 'date' || step === 'recipient') && styles.stepLineActive]} />
+            </>
+          )}
+          <View style={[styles.stepDot, step === 'date' && styles.stepDotActive]} />
+          <View style={[styles.stepLine, step === 'recipient' && styles.stepLineActive]} />
+          <View style={[styles.stepDot, step === 'recipient' && styles.stepDotActive]} />
         </View>
 
         {loading ? (
@@ -163,67 +570,41 @@ export default function ProposeActivityModal({
             <Text style={styles.loadingText}>Chargement...</Text>
           </View>
         ) : (
-          <ScrollView contentContainerStyle={styles.scrollContent}>
-            {/* ACTIVITÉ SÉLECTIONNÉE */}
-            <View style={styles.activityPreview}>
-              <Text style={styles.activityPreviewTitle}>Activité sélectionnée :</Text>
-              <View style={styles.activityCard}>
-                <Text style={styles.activityTitle}>{activity.title}</Text>
-                <Text style={styles.activityCategory}>{activity.category}</Text>
-              </View>
-            </View>
+          <>
+            {step === 'activity' && !preSelectedActivity && renderActivityStep()}
+            {step === 'date' && renderDateStep()}
+            {step === 'recipient' && renderRecipientStep()}
 
-            {/* BOUTON CRÉER UN NOUVEAU GROUPE */}
-            <TouchableOpacity
-              style={styles.createGroupButton}
-              onPress={createNewGroup}
-            >
-              <LinearGradient
-                colors={[COLORS.titleGradientStart, COLORS.titleGradientEnd]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={styles.createGroupGradient}
+            {/* FOOTER BUTTON */}
+            <View style={styles.footer}>
+              <TouchableOpacity
+                style={styles.nextButtonWrapper}
+                onPress={step === 'recipient' ? handlePropose : handleNext}
+                disabled={!canProceed() || proposing}
               >
-                <Icon name="add-circle-outline" size={20} color="#FFFFFF" />
-                <Text style={styles.createGroupText}>Créer un nouveau groupe</Text>
-              </LinearGradient>
-            </TouchableOpacity>
-
-            {/* LISTE DES GROUPES */}
-            {groups.length === 0 ? (
-              <View style={styles.emptyContainer}>
-                <Icon name="people-outline" size={48} color={COLORS.textSecondary} />
-                <Text style={styles.emptyText}>Vous n'avez pas encore de groupes</Text>
-                <Text style={styles.emptySubtext}>
-                  Créez un groupe pour proposer cette activité !
-                </Text>
-              </View>
-            ) : (
-              <>
-                <Text style={styles.sectionTitle}>Vos groupes :</Text>
-                <View style={styles.groupsList}>
-                  {groups.map((group) => (
-                    <TouchableOpacity
-                      key={group.id}
-                      style={styles.groupCard}
-                      onPress={() => proposeToGroup(group.id)}
-                    >
-                      <View style={styles.groupEmoji}>
-                        <Text style={styles.groupEmojiText}>{group.emoji}</Text>
-                      </View>
-                      <View style={styles.groupInfo}>
-                        <Text style={styles.groupName}>{group.name}</Text>
-                        <Text style={styles.groupMembers}>
-                          {group.members.length} membre{group.members.length > 1 ? "s" : ""}
-                        </Text>
-                      </View>
-                      <Icon name="chevron-forward" size={20} color={COLORS.textSecondary} />
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </>
-            )}
-          </ScrollView>
+                <LinearGradient
+                  colors={[COLORS.titleGradientStart, COLORS.titleGradientEnd]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={[
+                    styles.nextButton,
+                    !canProceed() && styles.nextButtonDisabled
+                  ]}
+                >
+                  {proposing ? (
+                    <ActivityIndicator color="#FFFFFF" />
+                  ) : (
+                    <>
+                      <Text style={styles.nextButtonText}>
+                        {step === 'recipient' ? 'Proposer l\'activité' : 'Suivant'}
+                      </Text>
+                      <Icon name={step === 'recipient' ? "checkmark" : "arrow-forward"} size={20} color="#FFFFFF" />
+                    </>
+                  )}
+                </LinearGradient>
+              </TouchableOpacity>
+            </View>
+          </>
         )}
       </LinearGradient>
     </Modal>
@@ -252,10 +633,48 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: COLORS.neutralGray800,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    justifyContent: "center",
+    alignItems: "center",
+  },
   headerTitle: {
     fontSize: 20,
     fontWeight: "700",
     color: COLORS.textPrimary,
+  },
+  stepsContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 60,
+    marginBottom: 20,
+  },
+  stepDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: COLORS.border,
+  },
+  stepDotActive: {
+    backgroundColor: COLORS.secondary,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+  },
+  stepLine: {
+    flex: 1,
+    height: 2,
+    backgroundColor: COLORS.border,
+    marginHorizontal: 8,
+  },
+  stepLineActive: {
+    backgroundColor: COLORS.secondary,
   },
   loadingContainer: {
     flex: 1,
@@ -269,73 +688,165 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: 24,
-    paddingBottom: 40,
+    paddingBottom: 120,
+  },
+  stepTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: COLORS.textPrimary,
+    marginBottom: 20,
   },
   activityPreview: {
     marginBottom: 24,
   },
-  activityPreviewTitle: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: COLORS.textSecondary,
-    marginBottom: 12,
+  activitiesList: {
+    gap: 12,
   },
   activityCard: {
+    flexDirection: "row",
+    alignItems: "center",
     backgroundColor: COLORS.neutralGray800,
     borderRadius: 16,
     padding: 16,
-    borderWidth: 1,
+    borderWidth: 2,
     borderColor: COLORS.border,
+  },
+  activityCardSelected: {
+    borderColor: COLORS.secondary,
+    backgroundColor: COLORS.primary,
+  },
+  activityInfo: {
+    flex: 1,
   },
   activityTitle: {
     fontSize: 16,
     fontWeight: "700",
     color: COLORS.textPrimary,
-    marginBottom: 4,
+    marginBottom: 6,
+  },
+  activityMeta: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 6,
+  },
+  categoryBadge: {
+    backgroundColor: COLORS.primary,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  categoryText: {
+    fontSize: 10,
+    fontWeight: "600",
+    color: COLORS.textPrimary,
   },
   activityCategory: {
     fontSize: 12,
     color: COLORS.textSecondary,
   },
-  createGroupButton: {
-    borderRadius: 999,
-    overflow: "hidden",
-    marginBottom: 32,
-  },
-  createGroupGradient: {
+  activityLocation: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    paddingVertical: 14,
+    gap: 4,
   },
-  createGroupText: {
-    fontSize: 15,
+  activityLocationText: {
+    fontSize: 11,
+    color: COLORS.textSecondary,
+  },
+  dateText: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+  },
+  selectedBadge: {
+    marginLeft: 12,
+  },
+  dateSection: {
+    marginTop: 12,
+  },
+  typeSelection: {
+    gap: 16,
+    marginTop: 12,
+  },
+  typeCard: {
+    borderRadius: 20,
+    overflow: "hidden",
+  },
+  typeCardGradient: {
+    padding: 24,
+    alignItems: "center",
+    gap: 8,
+  },
+  typeCardTitle: {
+    fontSize: 18,
     fontWeight: "700",
     color: "#FFFFFF",
   },
-  emptyContainer: {
-    alignItems: "center",
-    paddingVertical: 60,
-  },
-  emptyText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: COLORS.textPrimary,
-    marginTop: 16,
-    textAlign: "center",
-  },
-  emptySubtext: {
+  typeCardSubtitle: {
     fontSize: 14,
-    color: COLORS.textSecondary,
-    marginTop: 8,
-    textAlign: "center",
+    color: "rgba(255, 255, 255, 0.8)",
+  },
+  sectionHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: 20,
+    marginBottom: 12,
   },
   sectionTitle: {
     fontSize: 16,
     fontWeight: "700",
     color: COLORS.textPrimary,
-    marginBottom: 16,
+  },
+  changeText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: COLORS.secondary,
+  },
+  friendsList: {
+    gap: 12,
+  },
+  friendCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: COLORS.neutralGray800,
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 2,
+    borderColor: COLORS.border,
+    gap: 12,
+  },
+  friendCardSelected: {
+    borderColor: COLORS.secondary,
+    backgroundColor: COLORS.primary,
+  },
+  friendAvatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: COLORS.primary,
+    justifyContent: "center",
+    alignItems: "center",
+    overflow: "hidden",
+  },
+  avatarImage: {
+    width: "100%",
+    height: "100%",
+  },
+  friendName: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: "600",
+    color: COLORS.textPrimary,
+  },
+  checkmark: {
+    marginLeft: 8,
+  },
+  selectedCount: {
+    marginTop: 16,
+    fontSize: 14,
+    color: COLORS.textSecondary,
+    textAlign: "center",
   },
   groupsList: {
     gap: 12,
@@ -346,9 +857,13 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.neutralGray800,
     borderRadius: 16,
     padding: 16,
-    borderWidth: 1,
+    borderWidth: 2,
     borderColor: COLORS.border,
     gap: 12,
+  },
+  groupCardSelected: {
+    borderColor: COLORS.secondary,
+    backgroundColor: COLORS.primary,
   },
   groupEmoji: {
     width: 48,
@@ -373,5 +888,44 @@ const styles = StyleSheet.create({
   groupMembers: {
     fontSize: 12,
     color: COLORS.textSecondary,
+  },
+  emptyContainer: {
+    alignItems: "center",
+    paddingVertical: 60,
+  },
+  emptyText: {
+    fontSize: 14,
+    color: COLORS.textSecondary,
+    marginTop: 12,
+  },
+  footer: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    paddingHorizontal: 24,
+    paddingVertical: 20,
+    backgroundColor: COLORS.backgroundBottom,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border,
+  },
+  nextButtonWrapper: {
+    borderRadius: 999,
+    overflow: "hidden",
+  },
+  nextButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    height: 52,
+    gap: 8,
+  },
+  nextButtonDisabled: {
+    opacity: 0.5,
+  },
+  nextButtonText: {
+    fontSize: 16,
+    color: "#FFFFFF",
+    fontWeight: "700",
   },
 });

@@ -280,13 +280,8 @@ export default function GroupsScreen() {
                               <Icon name="pin" size={12} color={COLORS.secondary} />
                             </View>
                           )}
-                          {isCreator && (
-                            <View style={styles.crownBadge}>
-                              <Icon name="crown" size={12} color="#FFD700" />
-                            </View>
-                          )}
                         </View>
-                        
+
                         <View style={styles.groupMeta}>
                           <Icon name="people" size={14} color={COLORS.textSecondary} />
                           <Text style={styles.groupMembers}>
@@ -388,7 +383,6 @@ const styles = StyleSheet.create({
     color: COLORS.textPrimary,
     fontSize: 15,
     fontFamily: "Poppins-Regular",
-    alignItems: "baseline"
   },
   emptyContainer: {
     flex: 1,
@@ -494,14 +488,6 @@ const styles = StyleSheet.create({
     height: 22,
     borderRadius: 11,
     backgroundColor: "rgba(99, 102, 241, 0.2)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  crownBadge: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    backgroundColor: "rgba(255, 215, 0, 0.2)",
     justifyContent: "center",
     alignItems: "center",
   },

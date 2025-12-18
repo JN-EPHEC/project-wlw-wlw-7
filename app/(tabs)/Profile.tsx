@@ -1,8 +1,8 @@
 import { useFocusEffect } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
-import { signOut } from "firebase/auth";
-import { doc, getDoc, updateDoc } from "firebase/firestore";
+import { deleteUser, signOut } from "firebase/auth";
+import { collection, deleteDoc, doc, getDoc, getDocs, query, updateDoc, where } from "firebase/firestore";
 import React, { useCallback, useState } from "react";
 import {
   ActivityIndicator,
@@ -29,6 +29,9 @@ export default function ProfileScreen() {
   const [isPremium, setIsPremium] = useState(false);
   const [premiumType, setPremiumType] = useState<string | null>(null);
   const [showCancelModal, setShowCancelModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [pendingRequestsCount, setPendingRequestsCount] = useState(0);
 
   // Recharger les données à chaque fois qu'on revient sur la page
   useFocusEffect(
@@ -45,7 +48,7 @@ export default function ProfileScreen() {
         setEmail(user.email || "");
         setPhotoURL(user.photoURL || null);
 
-        // Charger le nombre d'amis et le statut premium
+        // Charger les données depuis Firestore
         const userDoc = await getDoc(doc(db, "users", user.uid));
         if (userDoc.exists()) {
           const data = userDoc.data();
@@ -53,11 +56,19 @@ export default function ProfileScreen() {
           setIsPremium(data.isPremium || false);
           setPremiumType(data.premiumType || null);
           
-          // Mettre à jour la photo si elle existe dans Firestore
           if (data.photoURL) {
             setPhotoURL(data.photoURL);
           }
         }
+
+        // Charger le nombre de demandes en attente
+        const requestsQuery = query(
+          collection(db, "friend_requests"),
+          where("toUserId", "==", user.uid),
+          where("status", "==", "pending")
+        );
+        const requestsSnapshot = await getDocs(requestsQuery);
+        setPendingRequestsCount(requestsSnapshot.size);
       }
     } catch (e) {
       console.error("Error loading user data:", e);
@@ -68,9 +79,7 @@ export default function ProfileScreen() {
 
   const handleLogout = async () => {
     try {
-      console.log("▶ Logging out...");
       await signOut(auth);
-      console.log("✅ User logged out");
       router.replace("/login");
     } catch (e: any) {
       console.error("❌ Error logging out:", e);
@@ -79,19 +88,23 @@ export default function ProfileScreen() {
   };
 
   const handleEditProfile = () => {
-    (router as any).push("/Profile/Modif_prof");
+    router.push("/Profile/Modif_prof");
   };
 
   const handleManageFriends = () => {
-    (router as any).push("/Profile/Friends_management");
+    router.push("/Profile/Friends_management");
   };
 
   const handleFriendRequests = () => {
-    (router as any).push("/Profile/Friends_request");
+    router.push("/Profile/Friends_request");
   };
 
-  const handleSearchFriends = () => {
-    (router as any).push("/Profile/Search_friends");
+  const handleAddFriend = () => {
+    router.push("/Profile/Add_amis");
+  };
+
+  const handleActivityHistory = () => {
+    router.push("/Profile/Historique");
   };
 
   const handleCancelSubscription = async () => {
@@ -99,7 +112,6 @@ export default function ProfileScreen() {
       const user = auth.currentUser;
       if (!user) return;
 
-      // Résilier l'abonnement dans Firestore
       const userRef = doc(db, "users", user.uid);
       await updateDoc(userRef, {
         isPremium: false,
@@ -107,18 +119,130 @@ export default function ProfileScreen() {
         premiumCancelledAt: new Date().toISOString(),
       });
 
-      console.log("✅ Subscription cancelled");
-      
       setShowCancelModal(false);
       setIsPremium(false);
       setPremiumType(null);
-      
-      // Recharger les données
       loadUserData();
+      
+      Alert.alert("Succès", "Votre abonnement a été résilié.");
     } catch (e) {
       console.error("❌ Error cancelling subscription:", e);
       Alert.alert("Erreur", "Impossible de résilier l'abonnement.");
     }
+  };
+
+  // Fonction pour supprimer le compte
+  const handleDeleteAccount = async () => {
+    try {
+      setIsDeleting(true);
+      const user = auth.currentUser;
+      if (!user) {
+        Alert.alert("Erreur", "Aucun utilisateur connecté.");
+        return;
+      }
+
+      // 1. Supprimer le document utilisateur
+      const userRef = doc(db, "users", user.uid);
+      await deleteDoc(userRef);
+
+      // 2. Retirer l'utilisateur des listes d'amis
+      const usersSnapshot = await getDocs(collection(db, "users"));
+      const updatePromises: Promise<void>[] = [];
+      
+      usersSnapshot.forEach((otherUserDoc) => {
+        const otherUserData = otherUserDoc.data();
+        if (otherUserData.friends && otherUserData.friends.includes(user.uid)) {
+          const updatedFriends = otherUserData.friends.filter(
+            (friendId: string) => friendId !== user.uid
+          );
+          const otherUserRef = doc(db, "users", otherUserDoc.id);
+          updatePromises.push(updateDoc(otherUserRef, { friends: updatedFriends }));
+        }
+      });
+
+      if (updatePromises.length > 0) {
+        await Promise.all(updatePromises);
+      }
+
+      // 3. Supprimer les demandes d'amis
+      const friendRequestsQuery = query(
+        collection(db, "friend_requests"),
+        where("fromUserId", "==", user.uid)
+      );
+      const friendRequestsSnapshot = await getDocs(friendRequestsQuery);
+      const deleteRequestPromises: Promise<void>[] = [];
+      
+      friendRequestsSnapshot.forEach((requestDoc) => {
+        deleteRequestPromises.push(deleteDoc(requestDoc.ref));
+      });
+
+      const receivedRequestsQuery = query(
+        collection(db, "friend_requests"),
+        where("toUserId", "==", user.uid)
+      );
+      const receivedRequestsSnapshot = await getDocs(receivedRequestsQuery);
+      
+      receivedRequestsSnapshot.forEach((requestDoc) => {
+        deleteRequestPromises.push(deleteDoc(requestDoc.ref));
+      });
+
+      if (deleteRequestPromises.length > 0) {
+        await Promise.all(deleteRequestPromises);
+      }
+
+      // 4. Supprimer le compte d'authentification
+      await deleteUser(user);
+
+      // 5. Déconnexion et redirection
+      await signOut(auth);
+      
+      Alert.alert(
+        "Compte supprimé",
+        "Votre compte a été supprimé avec succès.",
+        [{ text: "OK", onPress: () => router.replace("/login") }]
+      );
+
+    } catch (error: any) {
+      console.error("❌ Erreur lors de la suppression du compte:", error);
+      
+      if (error.code === 'auth/requires-recent-login') {
+        Alert.alert(
+          "Ré-authentification requise",
+          "Pour des raisons de sécurité, veuillez vous reconnecter avant de supprimer votre compte.",
+          [
+            { text: "Annuler", style: "cancel" },
+            { 
+              text: "Se reconnecter", 
+              onPress: async () => {
+                await signOut(auth);
+                router.replace("/login");
+              }
+            }
+          ]
+        );
+      } else {
+        Alert.alert(
+          "Erreur",
+          "Une erreur est survenue lors de la suppression du compte. Veuillez réessayer."
+        );
+      }
+    } finally {
+      setIsDeleting(false);
+      setShowDeleteModal(false);
+    }
+  };
+
+  // Fonctions pour les pages légales
+  const handlePrivacyPolicy = () => {
+    router.push("/legal/Politiquedeconf");
+  };
+
+  const handleTermsOfService = () => {
+    router.push("/legal/ConditionUtilisation");
+  };
+
+  const handleTermsOfSale = () => {
+    router.push("/legal/CGV");
   };
 
   return (
@@ -126,150 +250,219 @@ export default function ProfileScreen() {
       colors={[COLORS.backgroundTop, COLORS.backgroundBottom]}
       style={styles.container}
     >
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        {/* HEADER avec boutons */}
-        <View style={styles.topBar}>
-          <Text style={styles.headerTitle}>Profil</Text>
-          <View style={styles.headerButtons}>
+      <ScrollView 
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* HEADER */}
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>Mon Profil</Text>
+          <View style={styles.headerActions}>
             <TouchableOpacity
-              style={styles.iconButton}
+              style={styles.headerButton}
               onPress={handleFriendRequests}
             >
-              <Icon name="person-add" size={20} color={COLORS.textPrimary} />
+              <Icon name="mail" size={20} color={COLORS.textPrimary} />
+              {pendingRequestsCount > 0 && (
+                <View style={styles.badge}>
+                  <Text style={styles.badgeText}>
+                    {pendingRequestsCount > 9 ? '9+' : pendingRequestsCount}
+                  </Text>
+                </View>
+              )}
             </TouchableOpacity>
             <TouchableOpacity
-              style={styles.iconButton}
-              onPress={handleSearchFriends}
+              style={styles.headerButton}
+              onPress={handleAddFriend}
             >
-              <Icon name="search" size={20} color={COLORS.textPrimary} />
+              <Icon name="person-add" size={20} color={COLORS.textPrimary} />
             </TouchableOpacity>
           </View>
         </View>
 
         {/* PROFILE CARD */}
         <View style={styles.profileCard}>
-          {/* AVATAR */}
-          <View style={styles.avatarContainer}>
-            {photoURL ? (
-              <Image source={{ uri: photoURL }} style={styles.avatarImage} />
-            ) : (
+          {/* AVATAR SECTION - CENTRÉE */}
+          <View style={styles.avatarSection}>
+            <View style={styles.avatarContainer}>
+              {photoURL ? (
+                <Image source={{ uri: photoURL }} style={styles.avatarImage} />
+              ) : (
+                <LinearGradient
+                  colors={[COLORS.titleGradientStart, COLORS.titleGradientEnd]}
+                  style={styles.avatarPlaceholder}
+                >
+                  <Text style={styles.avatarText}>
+                    {username.charAt(0).toUpperCase()}
+                  </Text>
+                </LinearGradient>
+              )}
+              {isPremium && (
+                <View style={styles.premiumBadge}>
+                  <Icon name="diamond" size={12} color="#FFD700" />
+                </View>
+              )}
+            </View>
+            
+            {/* USER INFOS - EN DESSOUS DE L'AVATAR */}
+            <View style={styles.userInfo}>
+              <Text style={styles.username}>{username}</Text>
+              <Text style={styles.email}>{email}</Text>
+              
+              {/* STATUS BADGE */}
+              <View style={[
+                styles.statusBadge,
+                isPremium ? styles.premiumStatus : styles.freeStatus
+              ]}>
+                <Text style={styles.statusText}>
+                  {isPremium ? (
+                    <>
+                      <Icon name="diamond" size={12} color="#FFD700" />{' '}
+                      Premium {premiumType === "monthly" ? "Mensuel" : "Annuel"}
+                    </>
+                  ) : 'Free'}
+                </Text>
+              </View>
+            </View>
+          </View>
+
+          {/* QUICK ACTIONS */}
+          <View style={styles.quickActions}>
+            <TouchableOpacity 
+              style={styles.quickAction}
+              onPress={handleManageFriends}
+            >
               <LinearGradient
                 colors={[COLORS.titleGradientStart, COLORS.titleGradientEnd]}
-                style={styles.avatar}
+                style={styles.quickActionIcon}
               >
-                <Text style={styles.avatarText}>
-                  {username.charAt(0).toUpperCase()}
-                </Text>
+                <Icon name="people" size={20} color={COLORS.textPrimary} />
               </LinearGradient>
+              <Text style={styles.quickActionText}>Mes amis</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={styles.quickAction}
+              onPress={() => router.push("/Profile/Modif_prof")}
+            >
+              <View style={[styles.quickActionIcon, { backgroundColor: 'rgba(99, 102, 241, 0.1)' }]}>
+                <Icon name="settings" size={20} color="#6366F1" />
+              </View>
+              <Text style={styles.quickActionText}>Paramètres</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={styles.quickAction}
+              onPress={handleActivityHistory}
+            >
+              <View style={[styles.quickActionIcon, { backgroundColor: 'rgba(34, 197, 94, 0.1)' }]}>
+                <Icon name="time" size={20} color="#22C55E" />
+              </View>
+              <Text style={styles.quickActionText}>Historique</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* MAIN ACTIONS */}
+          <View style={styles.mainActions}>
+            <TouchableOpacity 
+              style={styles.mainAction}
+              onPress={handleEditProfile}
+            >
+              <LinearGradient
+                colors={[COLORS.titleGradientStart, COLORS.titleGradientEnd]}
+                style={styles.mainActionGradient}
+              >
+                <Icon name="create" size={20} color={COLORS.textPrimary} />
+                <Text style={styles.mainActionText}>Modifier le profil</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+
+            {!isPremium ? (
+              <TouchableOpacity 
+                style={[styles.mainAction, styles.premiumAction]}
+                onPress={() => router.push("/Profile/Abo_choix")}
+              >
+                <LinearGradient
+                  colors={["#6366F1", "#8B5CF6"]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.mainActionGradient}
+                >
+                  <Icon name="diamond" size={20} color={COLORS.textPrimary} />
+                  <Text style={styles.mainActionText}>Passer en Premium</Text>
+                </LinearGradient>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity 
+                style={[styles.mainAction, styles.cancelAction]}
+                onPress={() => setShowCancelModal(true)}
+              >
+                <View style={styles.mainActionGradient}>
+                  <Icon name="close-circle" size={20} color="#FF3B30" />
+                  <Text style={[styles.mainActionText, { color: '#FF3B30' }]}>
+                    Résilier Premium
+                  </Text>
+                </View>
+              </TouchableOpacity>
             )}
           </View>
 
-          {/* USERNAME */}
-          <Text style={styles.username}>{username}</Text>
-
-          {/* EMAIL */}
-          <Text style={styles.email}>{email}</Text>
-
-          {/* BADGE FREE/PREMIUM */}
-          {isPremium ? (
-            <LinearGradient
-              colors={["#6366F1", "#8B5CF6"]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={styles.badge}
+          {/* LEGAL SECTION */}
+          <View style={styles.legalSection}>
+            <Text style={styles.legalTitle}>Informations légales</Text>
+            
+            <TouchableOpacity 
+              style={styles.legalItem}
+              onPress={handlePrivacyPolicy}
             >
-              <Icon name="diamond" size={14} color={COLORS.textPrimary} style={{ marginRight: 6 }} />
-              <Text style={styles.badgeTextPremium}>
-                Premium {premiumType === "monthly" ? "Mensuel" : "Annuel"}
-              </Text>
-            </LinearGradient>
-          ) : (
-            <View style={styles.badge}>
-              <Text style={styles.badgeText}>Free</Text>
-            </View>
-          )}
-
-          {/* SECTION MES AMIS */}
-          <View style={styles.friendsSection}>
-            <View style={styles.friendsContent}>
-              <View style={styles.friendsLeft}>
-                <LinearGradient
-                  colors={[COLORS.titleGradientStart, COLORS.titleGradientEnd]}
-                  style={styles.friendsIconGradient}
-                >
-                  <Icon name="people" size={22} color={COLORS.textPrimary} />
-                </LinearGradient>
-                <View style={styles.friendsInfo}>
-                  <Text style={styles.friendsSectionTitle}>Mes amis</Text>
-                  {loadingStats ? (
-                    <ActivityIndicator size="small" color={COLORS.textSecondary} />
-                  ) : (
-                    <Text style={styles.friendsCount}>{friendsCount} ami{friendsCount > 1 ? 's' : ''}</Text>
-                  )}
-                </View>
+              <View style={styles.legalItemLeft}>
+                <Icon name="shield-checkmark-outline" size={18} color={COLORS.textSecondary} />
+                <Text style={styles.legalText}>Confidentialité</Text>
               </View>
-              
-              <TouchableOpacity
-                style={styles.manageFriendsButton}
-                onPress={handleManageFriends}
-              >
-                <Text style={styles.manageFriendsText}>Gérer</Text>
-                <Icon name="chevron-forward" size={20} color={COLORS.textPrimary} />
-              </TouchableOpacity>
-            </View>
+              <Icon name="chevron-forward" size={18} color={COLORS.textSecondary} />
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={styles.legalItem}
+              onPress={handleTermsOfService}
+            >
+              <View style={styles.legalItemLeft}>
+                <Icon name="document-text-outline" size={18} color={COLORS.textSecondary} />
+                <Text style={styles.legalText}>Conditions d'utilisation</Text>
+              </View>
+              <Icon name="chevron-forward" size={18} color={COLORS.textSecondary} />
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={styles.legalItem}
+              onPress={handleTermsOfSale}
+            >
+              <View style={styles.legalItemLeft}>
+                <Icon name="cart-outline" size={18} color={COLORS.textSecondary} />
+                <Text style={styles.legalText}>Conditions de vente</Text>
+              </View>
+              <Icon name="chevron-forward" size={18} color={COLORS.textSecondary} />
+            </TouchableOpacity>
           </View>
 
-          {/* BUTTONS */}
-          <TouchableOpacity 
-            style={styles.buttonWrapper}
-            onPress={handleEditProfile}
-          >
-            <LinearGradient
-              colors={[COLORS.titleGradientStart, COLORS.titleGradientEnd]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={styles.button}
+          {/* ACCOUNT ACTIONS */}
+          <View style={styles.accountActions}>
+            <TouchableOpacity
+              style={styles.logoutButton}
+              onPress={handleLogout}
             >
-              <Text style={styles.buttonText}>Modifier mon profil</Text>
-            </LinearGradient>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.buttonWrapper, { marginTop: 12 }]}
-            onPress={handleLogout}
-          >
-            <View style={[styles.button, { backgroundColor: COLORS.error }]}>
-              <Text style={styles.buttonText}>Se déconnecter</Text>
-            </View>
-          </TouchableOpacity>
-
-          {!isPremium && (
-            <TouchableOpacity 
-              style={[styles.buttonWrapper, { marginTop: 12 }]}
-              onPress={() => (router as any).push("/Profile/Abo_choix")}
-            >
-              <LinearGradient
-                colors={["#6366F1", "#8B5CF6"]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={styles.button}
-              >
-                <Text style={styles.buttonText}>Passer en premium</Text>
-              </LinearGradient>
+              <Icon name="log-out-outline" size={20} color="#FF3B30" />
+              <Text style={styles.logoutText}>Se déconnecter</Text>
             </TouchableOpacity>
-          )}
-
-          {/* BOUTON RÉSILIER ABONNEMENT */}
-          {isPremium && (
+            
             <TouchableOpacity 
-              style={styles.cancelButton}
-              onPress={() => setShowCancelModal(true)}
+              style={styles.deleteAccountButton}
+              onPress={() => setShowDeleteModal(true)}
             >
-              <Text style={styles.cancelButtonText}>
-                Voulez-vous résilier votre abonnement ?
-              </Text>
+              <Icon name="trash-outline" size={16} color="#FF3B30" />
+              <Text style={styles.deleteAccountText}>Supprimer mon compte</Text>
             </TouchableOpacity>
-          )}
+          </View>
         </View>
       </ScrollView>
 
@@ -282,34 +475,95 @@ export default function ProfileScreen() {
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <View style={styles.sadIcon}>
+            <View style={styles.modalIcon}>
               <Icon name="sad-outline" size={64} color="#FF3B30" />
             </View>
 
-            <Text style={styles.modalTitle}>Vous partez déjà ? 😢</Text>
+            <Text style={styles.modalTitle}>Nous sommes tristes 😢</Text>
             <Text style={styles.modalMessage}>
-              Nous sommes tristes de vous voir partir...
+              Vraiment ? Vous voulez résilier votre abonnement Premium ?
             </Text>
-            <Text style={styles.modalSubtext}>
-              Votre abonnement Premium sera annulé immédiatement. Vous perdrez l'accès à tous les avantages Premium.
-            </Text>
-            <Text style={styles.modalHope}>
-              On a hâte de vous revoir ! 💙
+            
+            <Text style={styles.modalWarning}>
+              Vous perdrez immédiatement l'accès à tous les avantages Premium.
             </Text>
 
             <View style={styles.modalButtons}>
               <TouchableOpacity
-                style={styles.modalButtonCancel}
+                style={styles.modalButtonSecondary}
                 onPress={() => setShowCancelModal(false)}
               >
-                <Text style={styles.modalButtonCancelText}>Rester Premium</Text>
+                <Text style={styles.modalButtonSecondaryText}>Rester Premium</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={styles.modalButtonConfirm}
+                style={styles.modalButtonPrimary}
                 onPress={handleCancelSubscription}
               >
-                <Text style={styles.modalButtonConfirmText}>Résilier</Text>
+                <Text style={styles.modalButtonPrimaryText}>Résilier</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* MODAL DE SUPPRESSION DU COMPTE */}
+      <Modal
+        transparent
+        visible={showDeleteModal}
+        animationType="fade"
+        onRequestClose={() => setShowDeleteModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalIcon}>
+              <Icon name="warning-outline" size={64} color="#FF9500" />
+            </View>
+
+            <Text style={[styles.modalTitle, { color: '#FF3B30' }]}>
+              Supprimer votre compte ? ⚠️
+            </Text>
+            
+            <View style={styles.warningBox}>
+              <Icon name="alert-circle" size={20} color="#FF9500" />
+              <Text style={styles.warningText}>Cette action est irréversible !</Text>
+            </View>
+
+            <Text style={styles.modalMessage}>
+              Toutes vos données seront définitivement supprimées :
+            </Text>
+            
+            <View style={styles.warningList}>
+              <Text style={styles.warningItem}>• Votre profil et historique</Text>
+              <Text style={styles.warningItem}>• Toutes vos relations d'amitié</Text>
+              <Text style={styles.warningItem}>• Votre abonnement Premium</Text>
+              <Text style={styles.warningItem}>• Toutes vos activités</Text>
+            </View>
+
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={styles.modalButtonSecondary}
+                onPress={() => setShowDeleteModal(false)}
+                disabled={isDeleting}
+              >
+                <Text style={styles.modalButtonSecondaryText}>
+                  {isDeleting ? "..." : "Annuler"}
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.modalButtonDanger, isDeleting && styles.buttonDisabled]}
+                onPress={handleDeleteAccount}
+                disabled={isDeleting}
+              >
+                {isDeleting ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <>
+                    <Icon name="trash" size={18} color="#FFFFFF" style={{ marginRight: 8 }} />
+                    <Text style={styles.modalButtonDangerText}>Supprimer</Text>
+                  </>
+                )}
               </TouchableOpacity>
             </View>
           </View>
@@ -324,48 +578,70 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    flexGrow: 1,
-    paddingHorizontal: 24,
+    paddingHorizontal: 20,
     paddingTop: 60,
-    paddingBottom: 100,
+    paddingBottom: 100, // AJOUTÉ pour permettre le scroll
   },
-  topBar: {
+  header: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: 32,
+    marginBottom: 24,
   },
   headerTitle: {
-    fontSize: 32,
+    fontSize: 28,
     fontFamily: "Poppins-Bold",
     color: COLORS.textPrimary,
   },
-  headerButtons: {
+  headerActions: {
     flexDirection: "row",
     gap: 12,
   },
-  iconButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+  headerButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: COLORS.neutralGray800,
     borderWidth: 1,
     borderColor: COLORS.border,
     justifyContent: "center",
     alignItems: "center",
+    position: "relative",
+  },
+  badge: {
+    position: "absolute",
+    top: -4,
+    right: -4,
+    backgroundColor: "#FF3B30",
+    borderRadius: 10,
+    minWidth: 18,
+    height: 18,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 4,
+  },
+  badgeText: {
+    fontSize: 10,
+    fontFamily: "Poppins-Bold",
+    color: "#FFFFFF",
   },
   profileCard: {
     backgroundColor: COLORS.neutralGray800,
     borderRadius: 24,
-    padding: 32,
-    alignItems: "center",
+    padding: 20,
     borderWidth: 1,
     borderColor: COLORS.border,
   },
+  // AVATAR CENTRÉ
+  avatarSection: {
+    alignItems: "center",
+    marginBottom: 24,
+  },
   avatarContainer: {
+    position: "relative",
     marginBottom: 16,
   },
-  avatar: {
+  avatarPlaceholder: {
     width: 100,
     height: 100,
     borderRadius: 50,
@@ -382,178 +658,255 @@ const styles = StyleSheet.create({
     fontFamily: "Poppins-Bold",
     color: COLORS.textPrimary,
   },
+  premiumBadge: {
+    position: "absolute",
+    bottom: 0,
+    right: 0,
+    backgroundColor: COLORS.neutralGray800,
+    borderRadius: 12,
+    width: 28,
+    height: 28,
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 2,
+    borderColor: "#FFD700",
+  },
+  // INFOS USER CENTRÉES
+  userInfo: {
+    alignItems: "center",
+    width: "100%",
+  },
   username: {
     fontSize: 22,
     fontFamily: "Poppins-Bold",
     color: COLORS.textPrimary,
-    marginBottom: 8,
+    marginBottom: 6,
+    textAlign: "center",
   },
   email: {
-    fontSize: 14,
+    fontSize: 15,
     fontFamily: "Poppins-Regular",
     color: COLORS.textSecondary,
-    marginBottom: 16,
+    marginBottom: 12,
+    textAlign: "center",
   },
-  badge: {
-    backgroundColor: COLORS.neutralGray800,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    paddingHorizontal: 20,
-    paddingVertical: 6,
-    borderRadius: 999,
-    marginBottom: 24,
+  statusBadge: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
     flexDirection: "row",
     alignItems: "center",
+    gap: 6,
   },
-  badgeText: {
-    fontSize: 13,
-    fontFamily: "Poppins-SemiBold",
-    color: COLORS.textSecondary,
+  freeStatus: {
+    backgroundColor: "rgba(107, 114, 128, 0.1)",
+    borderWidth: 1,
+    borderColor: COLORS.border,
   },
-  badgeTextPremium: {
+  premiumStatus: {
+    backgroundColor: "rgba(99, 102, 241, 0.1)",
+    borderWidth: 1,
+    borderColor: "#6366F1",
+  },
+  statusText: {
     fontSize: 13,
     fontFamily: "Poppins-SemiBold",
     color: COLORS.textPrimary,
   },
-  friendsSection: {
-    width: "100%",
-    backgroundColor: COLORS.neutralGray800,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    padding: 18,
+  quickActions: {
+    flexDirection: "row",
+    justifyContent: "space-between",
     marginBottom: 24,
   },
-  friendsContent: {
+  quickAction: {
+    alignItems: "center",
+    width: "30%",
+  },
+  quickActionIcon: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  quickActionText: {
+    fontSize: 12,
+    fontFamily: "Poppins-Medium",
+    color: COLORS.textPrimary,
+    textAlign: "center",
+  },
+  mainActions: {
+    gap: 12,
+    marginBottom: 24,
+  },
+  mainAction: {
+    borderRadius: 16,
+    overflow: "hidden",
+  },
+  mainActionGradient: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    gap: 12,
+  },
+  mainActionText: {
+    fontSize: 15,
+    fontFamily: "Poppins-SemiBold",
+    color: COLORS.textPrimary,
+  },
+  premiumAction: {
+    borderWidth: 1,
+    borderColor: "#6366F1",
+  },
+  cancelAction: {
+    borderWidth: 1,
+    borderColor: "rgba(255, 59, 48, 0.2)",
+    backgroundColor: "rgba(255, 59, 48, 0.1)",
+  },
+  legalSection: {
+    backgroundColor: COLORS.neutralGray800,
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  legalTitle: {
+    fontSize: 14,
+    fontFamily: "Poppins-SemiBold",
+    color: COLORS.textPrimary,
+    marginBottom: 12,
+  },
+  legalItem: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
   },
-  friendsLeft: {
+  legalItemLeft: {
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
-    flex: 1,
   },
-  friendsIconGradient: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  friendsInfo: {
-    flex: 1,
-  },
-  friendsSectionTitle: {
-    fontSize: 15,
-    fontFamily: "Poppins-SemiBold",
-    color: COLORS.textPrimary,
-    marginBottom: 2,
-  },
-  friendsCount: {
-    fontSize: 13,
+  legalText: {
+    fontSize: 14,
     fontFamily: "Poppins-Regular",
     color: COLORS.textSecondary,
   },
-  manageFriendsButton: {
+  accountActions: {
+    alignItems: "center",
+    gap: 16,
+  },
+  logoutButton: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 999,
-    backgroundColor: COLORS.backgroundTop,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  manageFriendsText: {
-    fontSize: 13,
-    fontFamily: "Poppins-SemiBold",
-    color: COLORS.textPrimary,
-  },
-  buttonWrapper: {
-    width: "100%",
-    borderRadius: 999,
-    overflow: "hidden",
-  },
-  button: {
-    height: 48,
-    borderRadius: 999,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  buttonText: {
-    fontSize: 15,
-    fontFamily: "Poppins-SemiBold",
-    color: COLORS.textPrimary,
-  },
-  cancelButton: {
-    marginTop: 24,
+    gap: 8,
     paddingVertical: 12,
-    alignItems: "center",
+    paddingHorizontal: 20,
+    backgroundColor: "rgba(255, 59, 48, 0.1)",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(255, 59, 48, 0.2)",
   },
-  cancelButtonText: {
-    fontSize: 13,
-    fontFamily: "Poppins-Medium",
+  logoutText: {
+    fontSize: 14,
+    fontFamily: "Poppins-SemiBold",
+    color: "#FF3B30",
+  },
+  deleteAccountButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingVertical: 8,
+  },
+  deleteAccountText: {
+    fontSize: 12,
+    fontFamily: "Poppins-Regular",
     color: "#FF3B30",
     textDecorationLine: "underline",
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.85)",
+    backgroundColor: "rgba(0, 0, 0, 0.8)",
     justifyContent: "center",
     alignItems: "center",
-    padding: 24,
+    padding: 20,
   },
   modalContent: {
     backgroundColor: COLORS.neutralGray800,
     borderRadius: 24,
-    padding: 32,
-    alignItems: "center",
+    padding: 24,
     width: "100%",
     maxWidth: 400,
     borderWidth: 1,
     borderColor: COLORS.border,
+    alignItems: "center",
   },
-  sadIcon: {
-    marginBottom: 24,
+  modalIcon: {
+    marginBottom: 20,
   },
   modalTitle: {
-    fontSize: 24,
+    fontSize: 20,
     fontFamily: "Poppins-Bold",
     color: COLORS.textPrimary,
-    marginBottom: 12,
     textAlign: "center",
+    marginBottom: 12,
   },
   modalMessage: {
-    fontSize: 16,
-    fontFamily: "Poppins-Medium",
+    fontSize: 14,
+    fontFamily: "Poppins-Regular",
     color: COLORS.textPrimary,
     textAlign: "center",
     marginBottom: 16,
-  },
-  modalSubtext: {
-    fontSize: 14,
-    fontFamily: "Poppins-Regular",
-    color: COLORS.textSecondary,
-    textAlign: "center",
-    marginBottom: 12,
     lineHeight: 20,
   },
-  modalHope: {
-    fontSize: 15,
-    fontFamily: "Poppins-SemiBold",
-    color: "#6366F1",
+  modalWarning: {
+    fontSize: 13,
+    fontFamily: "Poppins-Medium",
+    color: "#FF3B30",
     textAlign: "center",
-    marginBottom: 32,
+    marginBottom: 24,
+  },
+  warningBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "rgba(255, 149, 0, 0.1)",
+    borderWidth: 1,
+    borderColor: "#FF9500",
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 20,
+    width: "100%",
+  },
+  warningText: {
+    fontSize: 14,
+    fontFamily: "Poppins-SemiBold",
+    color: "#FF9500",
+    flex: 1,
+  },
+  warningList: {
+    width: "100%",
+    marginBottom: 24,
+  },
+  warningItem: {
+    fontSize: 13,
+    fontFamily: "Poppins-Regular",
+    color: COLORS.textSecondary,
+    marginBottom: 4,
+    paddingLeft: 8,
   },
   modalButtons: {
     flexDirection: "row",
     gap: 12,
     width: "100%",
   },
-  modalButtonCancel: {
+  modalButtonSecondary: {
     flex: 1,
     backgroundColor: COLORS.backgroundTop,
     borderRadius: 12,
@@ -562,21 +915,39 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: COLORS.border,
   },
-  modalButtonCancelText: {
+  modalButtonSecondaryText: {
     fontSize: 14,
     fontFamily: "Poppins-SemiBold",
     color: COLORS.textPrimary,
   },
-  modalButtonConfirm: {
+  modalButtonPrimary: {
+    flex: 1,
+    backgroundColor: "#6366F1",
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: "center",
+  },
+  modalButtonPrimaryText: {
+    fontSize: 14,
+    fontFamily: "Poppins-SemiBold",
+    color: "#FFFFFF",
+  },
+  modalButtonDanger: {
     flex: 1,
     backgroundColor: "#FF3B30",
     borderRadius: 12,
     paddingVertical: 14,
     alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
   },
-  modalButtonConfirmText: {
+  modalButtonDangerText: {
     fontSize: 14,
     fontFamily: "Poppins-SemiBold",
-    color: COLORS.textPrimary,
+    color: "#FFFFFF",
+  },
+  buttonDisabled: {
+    backgroundColor: "#FF6B6B",
+    opacity: 0.7,
   },
 });

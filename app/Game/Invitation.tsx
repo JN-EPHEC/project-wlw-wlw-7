@@ -35,7 +35,6 @@ export default function Lobby() {
   const [gameId, setGameId] = useState<string | null>(null);
   const [game, setGame] = useState<Game | null>(null);
   const [loading, setLoading] = useState(false);
-  const [playerName, setPlayerName] = useState("");
 
   // Écouter les changements de la partie en temps réel
   useEffect(() => {
@@ -46,23 +45,23 @@ export default function Lobby() {
 
       // Si la partie commence, naviguer vers l'écran de jeu
       if (updatedGame?.status === "playing") {
-        router.replace(`/Game/TruthOrDareGame?gameId=${gameId}`);
+        router.replace(`/Game/TruthOrDare/TruthOrDareGame?gameId=${gameId}`);
       }
     });
 
     return () => unsubscribe();
   }, [gameId]);
 
-  // Créer une nouvelle partie
+  // Créer une nouvelle partie - ✅ MODIFIÉ (plus besoin de playerName)
   const handleCreateGame = async () => {
-    if (!user || !playerName.trim()) {
-      Alert.alert("Erreur", "Entre ton pseudo pour continuer");
+    if (!user) {
+      Alert.alert("Erreur", "Vous devez être connecté");
       return;
     }
 
     setLoading(true);
     try {
-      const newGameId = await createGame(user.uid, playerName.trim());
+      const newGameId = await createGame(user.uid); // ✅ Plus de playerName
       setGameId(newGameId);
       setMode("waiting");
     } catch (error) {
@@ -73,10 +72,10 @@ export default function Lobby() {
     }
   };
 
-  // Rejoindre une partie existante
+  // Rejoindre une partie existante - ✅ MODIFIÉ (plus besoin de playerName)
   const handleJoinGame = async () => {
-    if (!user || !playerName.trim()) {
-      Alert.alert("Erreur", "Entre ton pseudo pour continuer");
+    if (!user) {
+      Alert.alert("Erreur", "Vous devez être connecté");
       return;
     }
     if (!gameCode.trim()) {
@@ -88,8 +87,7 @@ export default function Lobby() {
     try {
       const joinedGameId = await joinGame(
         gameCode.trim().toUpperCase(),
-        user.uid,
-        playerName.trim()
+        user.uid // ✅ Plus de playerName
       );
 
       if (joinedGameId) {
@@ -184,23 +182,10 @@ export default function Lobby() {
 
       {/* Contenu selon le mode */}
       <View style={styles.content}>
-        {/* MODE: Choix initial */}
+        {/* MODE: Choix initial - ✅ SIMPLIFIÉ (plus d'input pseudo) */}
         {mode === "choice" && (
           <>
             <Text style={styles.title}>Comment veux-tu jouer ?</Text>
-
-            {/* Input pseudo */}
-            <View style={styles.inputContainer}>
-              <Icon name="person" size={20} color={COLORS.textSecondary} />
-              <TextInput
-                style={styles.input}
-                placeholder="Ton pseudo"
-                placeholderTextColor={COLORS.textSecondary}
-                value={playerName}
-                onChangeText={setPlayerName}
-                maxLength={15}
-              />
-            </View>
 
             <TouchableOpacity
               style={styles.optionCard}
@@ -407,24 +392,6 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
     textAlign: "center",
     marginBottom: 32,
-  },
-  inputContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: COLORS.neutralGray800,
-    borderRadius: 16,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    marginBottom: 24,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    gap: 12,
-  },
-  input: {
-    flex: 1,
-    fontSize: 16,
-    fontFamily: "Poppins-Regular",
-    color: COLORS.textPrimary,
   },
   optionCard: {
     flexDirection: "row",
