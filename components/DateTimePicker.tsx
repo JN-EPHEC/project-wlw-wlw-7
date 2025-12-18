@@ -1,11 +1,19 @@
-import DateTimePicker from '@react-native-community/datetimepicker';
-import React, { useState } from 'react';
-import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import Icon from 'react-native-vector-icons/Ionicons';
+import DateTimePicker from "@react-native-community/datetimepicker";
+import React, { useState } from "react";
+import {
+  Modal,
+  Platform,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import Icon from "react-native-vector-icons/Ionicons";
+import { COLORS } from "./Colors";
 
-interface DateTimePickerProps {
+interface CustomDateTimePickerProps {
   selectedDate: Date | null;
-  onDateChange: (date: Date) => void;
+  onDateChange: (date: Date | null) => void;
   label?: string;
   minimumDate?: Date;
 }
@@ -14,30 +22,38 @@ export default function CustomDateTimePicker({
   selectedDate,
   onDateChange,
   label = "Date et heure",
-  minimumDate = new Date()
-}: DateTimePickerProps) {
-  const [showDatePicker, setShowDatePicker] = useState(false);
-  const [showTimePicker, setShowTimePicker] = useState(false);
+  minimumDate,
+}: CustomDateTimePickerProps) {
+  const [showPicker, setShowPicker] = useState(false);
+  const [mode, setMode] = useState<"date" | "time">("date");
   const [tempDate, setTempDate] = useState<Date>(selectedDate || new Date());
 
-  const handleDateChange = (event: any, date?: Date) => {
-    if (Platform.OS === 'android') {
-      setShowDatePicker(false);
-    }
-    
-    if (date) {
-      setTempDate(date);
-      if (Platform.OS === 'android') {
-        setTimeout(() => setShowTimePicker(true), 100);
-      }
-    }
+  const handleConfirm = () => {
+    onDateChange(tempDate);
+    setShowPicker(false);
   };
 
-  const handleTimeChange = (event: any, date?: Date) => {
-    setShowTimePicker(false);
-    
-    if (date) {
-      onDateChange(date);
+  const handleCancel = () => {
+    setTempDate(selectedDate || new Date());
+    setShowPicker(false);
+  };
+
+  const onChange = (event: any, date?: Date) => {
+    if (Platform.OS === "android") {
+      setShowPicker(false);
+      if (event.type === "set" && date) {
+        if (mode === "date") {
+          setTempDate(date);
+          setMode("time");
+          setShowPicker(true);
+        } else {
+          onDateChange(date);
+        }
+      }
+    } else {
+      if (date) {
+        setTempDate(date);
+      }
     }
   };
 
@@ -45,66 +61,73 @@ export default function CustomDateTimePicker({
     if (!date) return "Sélectionner la date et l'heure";
     
     const options: Intl.DateTimeFormatOptions = {
-      weekday: 'short',
-      day: 'numeric',
-      month: 'short',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
+      weekday: "short",
+      day: "numeric",
+      month: "short",
+      hour: "2-digit",
+      minute: "2-digit",
     };
     
-    return date.toLocaleDateString('fr-FR', options);
-  };
-
-  const formatTime = (date: Date) => {
-    return date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+    return date.toLocaleDateString("fr-FR", options);
   };
 
   return (
     <View style={styles.container}>
-      <Text style={styles.label}>{label} *</Text>
+      <Text style={styles.label}>{label}</Text>
       
       <TouchableOpacity
-        style={[styles.button, !selectedDate && styles.buttonEmpty]}
-        onPress={() => setShowDatePicker(true)}
+        style={styles.button}
+        onPress={() => {
+          setMode("date");
+          setShowPicker(true);
+        }}
       >
-        <Icon 
-          name={selectedDate ? "calendar" : "calendar-outline"} 
-          size={20} 
-          color={selectedDate ? "#7C3AED" : "#666"} 
-        />
-        <Text style={[styles.buttonText, !selectedDate && styles.buttonTextEmpty]}>
-          {formatDateTime(selectedDate)}
-        </Text>
+        <Icon name="calendar-outline" size={20} color={COLORS.secondary} />
+        <Text style={styles.buttonText}>{formatDateTime(selectedDate)}</Text>
+        <Icon name="chevron-down" size={20} color={COLORS.textSecondary} />
       </TouchableOpacity>
 
-      {Platform.OS === 'ios' && selectedDate && (
-        <TouchableOpacity
-          style={styles.timeButton}
-          onPress={() => setShowTimePicker(!showTimePicker)}
+      {Platform.OS === "ios" && showPicker && (
+        <Modal
+          transparent
+          animationType="slide"
+          visible={showPicker}
+          onRequestClose={handleCancel}
         >
-          <Icon name="time-outline" size={20} color="#7C3AED" />
-          <Text style={styles.buttonText}>{formatTime(selectedDate)}</Text>
-        </TouchableOpacity>
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <View style={styles.modalHeader}>
+                <TouchableOpacity onPress={handleCancel}>
+                  <Text style={styles.cancelButton}>Annuler</Text>
+                </TouchableOpacity>
+                <Text style={styles.modalTitle}>Sélectionner</Text>
+                <TouchableOpacity onPress={handleConfirm}>
+                  <Text style={styles.confirmButton}>OK</Text>
+                </TouchableOpacity>
+              </View>
+
+              <DateTimePicker
+                value={tempDate}
+                mode="datetime"
+                display="spinner"
+                onChange={onChange}
+                minimumDate={minimumDate}
+                locale="fr-FR"
+                textColor={COLORS.textPrimary}
+                themeVariant="dark"
+              />
+            </View>
+          </View>
+        </Modal>
       )}
 
-      {showDatePicker && (
+      {Platform.OS === "android" && showPicker && (
         <DateTimePicker
           value={tempDate}
-          mode="date"
-          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-          onChange={handleDateChange}
+          mode={mode}
+          display="default"
+          onChange={onChange}
           minimumDate={minimumDate}
-          locale="fr-FR"
-        />
-      )}
-
-      {showTimePicker && (
-        <DateTimePicker
-          value={tempDate}
-          mode="time"
-          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-          onChange={handleTimeChange}
           locale="fr-FR"
         />
       )}
@@ -114,45 +137,64 @@ export default function CustomDateTimePicker({
 
 const styles = StyleSheet.create({
   container: {
-    marginVertical: 10,
+    marginBottom: 16,
   },
   label: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: "600",
+    color: COLORS.textPrimary,
     marginBottom: 8,
-    color: '#FFFFFF',
   },
   button: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    padding: 15,
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: COLORS.neutralGray800,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
-    gap: 10,
-  },
-  buttonEmpty: {
-    borderStyle: 'dashed',
-    borderColor: 'rgba(255, 255, 255, 0.3)',
+    borderColor: COLORS.border,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    gap: 12,
   },
   buttonText: {
-    fontSize: 15,
-    color: '#FFFFFF',
     flex: 1,
+    fontSize: 14,
+    color: COLORS.textPrimary,
+    fontWeight: "500",
   },
-  buttonTextEmpty: {
-    color: '#999',
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "flex-end",
   },
-  timeButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(124, 58, 237, 0.2)',
-    padding: 12,
-    borderRadius: 10,
-    marginTop: 8,
-    gap: 10,
-    borderWidth: 1,
-    borderColor: 'rgba(124, 58, 237, 0.4)',
+  modalContent: {
+    backgroundColor: COLORS.neutralGray800,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingBottom: 34,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
+  modalTitle: {
+    fontSize: 17,
+    fontWeight: "600",
+    color: COLORS.textPrimary,
+  },
+  cancelButton: {
+    fontSize: 16,
+    color: COLORS.error,
+    fontWeight: "600",
+  },
+  confirmButton: {
+    fontSize: 16,
+    color: COLORS.secondary,
+    fontWeight: "600",
   },
 });

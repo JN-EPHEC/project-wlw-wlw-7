@@ -16,7 +16,7 @@ import {
   View,
 } from "react-native";
 import { COLORS } from "../components/Colors";
-import Logo from "../components/Logo"; // 👈 IMPORT
+import Logo from "../components/Logo";
 import { auth } from "../firebase_Config";
 
 export default function LoginScreen() {
@@ -118,7 +118,9 @@ export default function LoginScreen() {
     return (
       <View style={styles.center}>
         <ActivityIndicator />
-        <Text style={{ color: COLORS.textPrimary, fontFamily: "Poppins-Regular" }}>Chargement...</Text>
+        <Text style={{ color: COLORS.textPrimary, fontFamily: "Poppins-Regular" }}>
+          Chargement...
+        </Text>
       </View>
     );
   }
@@ -135,6 +137,7 @@ export default function LoginScreen() {
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
         >
           <View style={styles.logoContainer}>
             <Logo size="large" />
@@ -224,9 +227,8 @@ const styles = StyleSheet.create({
   scrollContent: {
     flexGrow: 1,
     paddingHorizontal: 24,
-    paddingTop: 80,
-    paddingBottom: 32,
-    justifyContent: "flex-start",
+    paddingVertical: 40,
+    justifyContent: "center", // ✅ CENTRÉ VERTICALEMENT
   },
   center: {
     flex: 1,

@@ -1,13 +1,13 @@
 import {
-    addDoc,
-    collection,
-    doc,
-    getDoc,
-    getDocs,
-    onSnapshot,
-    query,
-    updateDoc,
-    where,
+  addDoc,
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  onSnapshot,
+  query,
+  updateDoc,
+  where,
 } from "firebase/firestore";
 import { db } from "../firebase_Config";
 
@@ -35,7 +35,7 @@ export interface Game {
 
 // Générer un code de partie aléatoire (6 caractères)
 const generateGameCode = (): string => {
-  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // Évite les caractères ambigus (0,O,1,I)
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
   let code = "";
   for (let i = 0; i < 6; i++) {
     code += chars.charAt(Math.floor(Math.random() * chars.length));
@@ -43,80 +43,125 @@ const generateGameCode = (): string => {
   return code;
 };
 
-// Créer une nouvelle partie
-export const createGame = async (
-  hostId: string,
-  hostName: string
-): Promise<string> => {
-  const gameCode = generateGameCode();
-
-  const gameData = {
-    gameCode,
-    hostId,
-    status: "waiting",
-    players: [
-      {
-        oderId: hostId,
-        name: hostName,
-        isHost: true,
-      },
-    ],
-    currentPlayerIndex: 0,
-    currentChallenge: null,
-    createdAt: new Date(),
-  };
-
-  const docRef = await addDoc(collection(db, "truthOrDareGames"), gameData);
-  return docRef.id;
+// ✅ FONCTION CORRIGÉE pour récupérer le nom de l'utilisateur
+const getUserDisplayName = async (userId: string): Promise<string> => {
+  try {
+    console.log("🔍 Fetching user name for:", userId);
+    
+    const usersQuery = query(
+      collection(db, "users"),
+      where("uid", "==", userId)
+    );
+    const usersSnapshot = await getDocs(usersQuery);
+    
+    if (!usersSnapshot.empty) {
+      const userData = usersSnapshot.docs[0].data();
+      const displayName = userData.displayName || userData.username || "Joueur";
+      console.log("✅ User name found:", displayName);
+      return displayName;
+    }
+    
+    console.log("⚠️ User not found in Firestore, using default name");
+    return "Joueur";
+  } catch (error) {
+    console.error("❌ Error fetching user name:", error);
+    return "Joueur";
+  }
 };
 
-// Rejoindre une partie avec un code
+// Créer une nouvelle partie - ✅ CORRIGÉ avec await
+export const createGame = async (hostId: string): Promise<string> => {
+  try {
+    const gameCode = generateGameCode();
+    const hostName = await getUserDisplayName(hostId); // ✅ await pour attendre le nom
+    
+    console.log("🎮 Creating game with:", { hostId, hostName, gameCode });
+
+    const gameData = {
+      gameCode,
+      hostId,
+      status: "waiting" as const,
+      players: [
+        {
+          oderId: hostId,
+          name: hostName, // ✅ Maintenant ça ne sera jamais undefined
+          isHost: true,
+        },
+      ],
+      currentPlayerIndex: 0,
+      currentChallenge: null,
+      createdAt: new Date(),
+    };
+
+    // ✅ Vérifier qu'aucun champ n'est undefined
+    console.log("📦 Game data:", JSON.stringify(gameData, null, 2));
+
+    const docRef = await addDoc(collection(db, "truthOrDareGames"), gameData);
+    console.log("✅ Game created with ID:", docRef.id);
+    
+    return docRef.id;
+  } catch (error) {
+    console.error("❌ Error creating game:", error);
+    throw error;
+  }
+};
+
+// Rejoindre une partie avec un code - ✅ CORRIGÉ avec await
 export const joinGame = async (
   gameCode: string,
-  oderId: string,
-  playerName: string
+  oderId: string
 ): Promise<string | null> => {
-  // Chercher la partie avec ce code
-  const gamesRef = collection(db, "truthOrDareGames");
-  const q = query(
-    gamesRef,
-    where("gameCode", "==", gameCode.toUpperCase()),
-    where("status", "==", "waiting")
-  );
+  try {
+    const playerName = await getUserDisplayName(oderId); // ✅ await pour attendre le nom
+    
+    console.log("🎮 Joining game with:", { gameCode, oderId, playerName });
 
-  const snapshot = await getDocs(q);
+    // Chercher la partie avec ce code
+    const gamesRef = collection(db, "truthOrDareGames");
+    const q = query(
+      gamesRef,
+      where("gameCode", "==", gameCode.toUpperCase()),
+      where("status", "==", "waiting")
+    );
 
-  if (snapshot.empty) {
-    return null; // Partie non trouvée
-  }
+    const snapshot = await getDocs(q);
 
-  const gameDoc = snapshot.docs[0];
-  const gameData = gameDoc.data() as Game;
+    if (snapshot.empty) {
+      console.log("⚠️ Game not found");
+      return null; // Partie non trouvée
+    }
 
-  // Vérifier si le joueur est déjà dans la partie
-  const alreadyJoined = gameData.players.some((p) => p.oderId === oderId);
-  if (alreadyJoined) {
+    const gameDoc = snapshot.docs[0];
+    const gameData = gameDoc.data() as Game;
+
+    // Vérifier si le joueur est déjà dans la partie
+    const alreadyJoined = gameData.players.some((p) => p.oderId === oderId);
+    if (alreadyJoined) {
+      console.log("ℹ️ Player already in game");
+      return gameDoc.id;
+    }
+
+    // Ajouter le joueur
+    const updatedPlayers = [
+      ...gameData.players,
+      {
+        oderId,
+        name: playerName, // ✅ Maintenant ça ne sera jamais undefined
+        isHost: false,
+      },
+    ];
+
+    await updateDoc(doc(db, "truthOrDareGames", gameDoc.id), {
+      players: updatedPlayers,
+    });
+
+    console.log("✅ Player joined successfully");
     return gameDoc.id;
+  } catch (error) {
+    console.error("❌ Error joining game:", error);
+    throw error;
   }
-
-  // Ajouter le joueur
-  const updatedPlayers = [
-    ...gameData.players,
-    {
-      oderId,
-      name: playerName,
-      isHost: false,
-    },
-  ];
-
-  await updateDoc(doc(db, "truthOrDareGames", gameDoc.id), {
-    players: updatedPlayers,
-  });
-
-  return gameDoc.id;
 };
-
-// Importer getDocs (j'ai oublié en haut)
 
 // Écouter les changements d'une partie en temps réel
 export const subscribeToGame = (
