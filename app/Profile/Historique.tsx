@@ -1,6 +1,6 @@
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
-import { collection, doc, getDoc, getDocs, orderBy, query, where } from "firebase/firestore";
+import { collection, doc, getDoc, getDocs, query, where } from "firebase/firestore";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -22,11 +22,11 @@ type Activity = {
   description: string;
   date: Date;
   timestamp: string;
-  participants: string[]; // IDs des participants
+  participants: string[];
   participantsCount: number;
   winnerId?: string;
-  duration?: number; // en minutes
-  gameType?: string; // 'truthOrDare', 'quiz', etc.
+  duration?: number;
+  gameType?: string;
   groupId?: string;
   groupName?: string;
 };
@@ -55,11 +55,10 @@ export default function ActivityHistoryScreen() {
 
       setLoading(true);
 
-      // 1. Charger l'historique des parties (truthOrDareGames) - ✅ CORRIGÉ
+      // 1. Charger l'historique des parties (truthOrDareGames) - ✅ SANS INDEX
       const gamesQuery = query(
         collection(db, "truthOrDareGames"),
-        where("participants", "array-contains", user.uid),
-        orderBy("endedAt", "desc")  // ✅ Un seul orderBy
+        where("participants", "array-contains", user.uid)
       );
 
       const gamesSnapshot = await getDocs(gamesQuery);
@@ -69,7 +68,7 @@ export default function ActivityHistoryScreen() {
 
       gamesSnapshot.forEach((docSnap) => {
         const data = docSnap.data();
-        if (data.endedAt) { // Seulement les parties terminées
+        if (data.endedAt) {
           gamesData.push({
             id: docSnap.id,
             type: 'game',
@@ -86,7 +85,6 @@ export default function ActivityHistoryScreen() {
             groupName: data.groupName,
           });
 
-          // Collecter tous les IDs d'utilisateurs
           data.participants?.forEach((id: string) => userIds.add(id));
           if (data.winnerId) userIds.add(data.winnerId);
         }
@@ -95,8 +93,7 @@ export default function ActivityHistoryScreen() {
       // 2. Charger les activités (groupActivities)
       const activitiesQuery = query(
         collection(db, "groupActivities"),
-        where("participants", "array-contains", user.uid),
-        orderBy("createdAt", "desc")
+        where("participants", "array-contains", user.uid)
       );
 
       const activitiesSnapshot = await getDocs(activitiesQuery);
@@ -105,30 +102,30 @@ export default function ActivityHistoryScreen() {
 
       activitiesSnapshot.forEach((docSnap) => {
         const data = docSnap.data();
-        activitiesData.push({
-          id: docSnap.id,
-          type: 'activity',
-          title: data.title || "Activité de groupe",
-          description: data.description || "",
-          date: data.createdAt.toDate(),
-          timestamp: formatDate(data.createdAt.toDate()),
-          participants: data.participants || [],
-          participantsCount: data.participants?.length || 0,
-          duration: data.duration,
-          groupId: data.groupId,
-          groupName: data.groupName,
-        });
+        if (data.createdAt) {
+          activitiesData.push({
+            id: docSnap.id,
+            type: 'activity',
+            title: data.title || "Activité de groupe",
+            description: data.description || "",
+            date: data.createdAt.toDate(),
+            timestamp: formatDate(data.createdAt.toDate()),
+            participants: data.participants || [],
+            participantsCount: data.participants?.length || 0,
+            duration: data.duration,
+            groupId: data.groupId,
+            groupName: data.groupName,
+          });
 
-        // Collecter tous les IDs d'utilisateurs
-        data.participants?.forEach((id: string) => userIds.add(id));
+          data.participants?.forEach((id: string) => userIds.add(id));
+        }
       });
 
       // 3. Charger les challenges (userChallenges)
       const challengesQuery = query(
         collection(db, "userChallenges"),
         where("userId", "==", user.uid),
-        where("completed", "==", true),
-        orderBy("completedAt", "desc")
+        where("completed", "==", true)
       );
 
       const challengesSnapshot = await getDocs(challengesQuery);
@@ -137,20 +134,22 @@ export default function ActivityHistoryScreen() {
 
       challengesSnapshot.forEach((docSnap) => {
         const data = docSnap.data();
-        challengesData.push({
-          id: docSnap.id,
-          type: 'challenge',
-          title: data.challengeName || "Challenge",
-          description: data.description || "",
-          date: data.completedAt.toDate(),
-          timestamp: formatDate(data.completedAt.toDate()),
-          participants: [user.uid],
-          participantsCount: 1,
-          winnerId: user.uid,
-        });
+        if (data.completedAt) {
+          challengesData.push({
+            id: docSnap.id,
+            type: 'challenge',
+            title: data.challengeName || "Challenge",
+            description: data.description || "",
+            date: data.completedAt.toDate(),
+            timestamp: formatDate(data.completedAt.toDate()),
+            participants: [user.uid],
+            participantsCount: 1,
+            winnerId: user.uid,
+          });
+        }
       });
 
-      // 4. Combiner et trier toutes les activités
+      // 4. Combiner et trier toutes les activités côté client
       const allActivities = [...gamesData, ...activitiesData, ...challengesData]
         .sort((a, b) => b.date.getTime() - a.date.getTime());
 
@@ -172,7 +171,6 @@ export default function ActivityHistoryScreen() {
         }
       }
 
-      // Ajouter l'utilisateur courant
       usersInfo[user.uid] = {
         id: user.uid,
         username: user.displayName || "Vous",
@@ -206,7 +204,7 @@ export default function ActivityHistoryScreen() {
   const calculateDuration = (start?: Date, end?: Date): number | undefined => {
     if (!start || !end) return undefined;
     const diffMs = end.getTime() - start.getTime();
-    return Math.round(diffMs / (1000 * 60)); // Convertir en minutes
+    return Math.round(diffMs / (1000 * 60));
   };
 
   const formatDate = (date: Date): string => {
@@ -234,7 +232,7 @@ export default function ActivityHistoryScreen() {
     const currentUserId = auth.currentUser?.uid;
     const otherParticipants = participants
       .filter(id => id !== currentUserId)
-      .slice(0, 2); // Prendre maximum 2 autres participants
+      .slice(0, 2);
     
     const names = otherParticipants.map(id => {
       const user = userInfo[id];
@@ -392,7 +390,6 @@ export default function ActivityHistoryScreen() {
       colors={[COLORS.backgroundTop, COLORS.backgroundBottom]}
       style={styles.container}
     >
-      {/* HEADER */}
       <View style={styles.header}>
         <TouchableOpacity
           style={styles.backButton}
@@ -410,7 +407,6 @@ export default function ActivityHistoryScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* FILTRES */}
       <ScrollView 
         horizontal 
         showsHorizontalScrollIndicator={false}
@@ -477,7 +473,6 @@ export default function ActivityHistoryScreen() {
         </TouchableOpacity>
       </ScrollView>
 
-      {/* STATISTIQUES */}
       <View style={styles.statsContainer}>
         <View style={styles.statCard}>
           <Text style={styles.statNumber}>{stats.total}</Text>
@@ -495,7 +490,6 @@ export default function ActivityHistoryScreen() {
         </View>
       </View>
 
-      {/* LISTE DES ACTIVITÉS */}
       <FlatList
         data={filteredActivities}
         renderItem={renderActivityItem}
@@ -519,9 +513,7 @@ export default function ActivityHistoryScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
+  container: { flex: 1 },
   loadingContainer: {
     flex: 1,
     justifyContent: "center",
