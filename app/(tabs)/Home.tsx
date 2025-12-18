@@ -434,7 +434,7 @@ export default function HomeScreen() {
                   <TouchableOpacity 
                     key={activity.id} 
                     style={styles.card}
-                    onPress={() => router.push(`/activity[id]?id=${activity.id}` as any)}
+                    onPress={() => router.push(`/activity/${activity.id}` as any)}
                     activeOpacity={0.8}
                   >
                     {activity.image ? (

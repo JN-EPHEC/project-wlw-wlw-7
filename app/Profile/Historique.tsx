@@ -3,13 +3,13 @@ import { useRouter } from "expo-router";
 import { collection, doc, getDoc, getDocs, orderBy, query, where } from "firebase/firestore";
 import React, { useEffect, useState } from "react";
 import {
-    ActivityIndicator,
-    FlatList,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  FlatList,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import Icon from "react-native-vector-icons/Ionicons";
 import { COLORS } from "../../components/Colors";
@@ -55,12 +55,11 @@ export default function ActivityHistoryScreen() {
 
       setLoading(true);
 
-      // 1. Charger l'historique des parties (truthOrDareGames)
+      // 1. Charger l'historique des parties (truthOrDareGames) - ✅ CORRIGÉ
       const gamesQuery = query(
         collection(db, "truthOrDareGames"),
         where("participants", "array-contains", user.uid),
-        orderBy("createdAt", "desc"),
-        orderBy("endedAt", "desc")
+        orderBy("endedAt", "desc")  // ✅ Un seul orderBy
       );
 
       const gamesSnapshot = await getDocs(gamesQuery);
