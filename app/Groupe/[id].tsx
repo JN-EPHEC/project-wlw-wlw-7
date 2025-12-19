@@ -331,7 +331,7 @@ export default function GroupDetailScreen() {
             >
               <Icon name="sparkles" size={20} color="#000000" />
               <Text style={styles.recommendationsButtonText}>
-                Recommandations IA 🤖
+                Nos recommandations 
               </Text>
             </LinearGradient>
           </TouchableOpacity>
