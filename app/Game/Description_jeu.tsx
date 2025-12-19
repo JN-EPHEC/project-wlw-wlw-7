@@ -1,22 +1,4 @@
 import { LinearGradient } from "expo-linear-gradient";
-<<<<<<< HEAD
-import { useRouter } from "expo-router";
-import React from "react";
-import {
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
-} from "react-native";
-import Icon from "react-native-vector-icons/Ionicons";
-import { COLORS } from "../../components/Colors";
-
-export default function DescriptionJeu() {
-  const router = useRouter();
-
-  const rules = [
-=======
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React from "react";
 import {
@@ -40,7 +22,6 @@ interface GameRules {
 
 const GAME_RULES: GameRules = {
   "action-verite": [
->>>>>>> 8cec59f0f1ba13a7d651a4b1ad9cd48aeaba8f39
     {
       icon: "people",
       title: "2 joueurs minimum",
@@ -66,9 +47,6 @@ const GAME_RULES: GameRules = {
       title: "Pas de perdant",
       description: "Le but c'est de s'amuser entre amis, pas de gagner !",
     },
-<<<<<<< HEAD
-  ];
-=======
   ],
   "undercover": [
     {
@@ -348,7 +326,6 @@ export default function DescriptionJeu() {
       });
     }
   };
->>>>>>> 8cec59f0f1ba13a7d651a4b1ad9cd48aeaba8f39
 
   return (
     <LinearGradient
@@ -363,11 +340,7 @@ export default function DescriptionJeu() {
         >
           <Icon name="arrow-back" size={24} color={COLORS.textPrimary} />
         </TouchableOpacity>
-<<<<<<< HEAD
-        <Text style={styles.headerTitle}>Action ou Vérité</Text>
-=======
         <Text style={styles.headerTitle}>{gameName}</Text>
->>>>>>> 8cec59f0f1ba13a7d651a4b1ad9cd48aeaba8f39
         <View style={styles.placeholder} />
       </View>
 
@@ -377,34 +350,19 @@ export default function DescriptionJeu() {
       >
         {/* Image/Banner du jeu */}
         <LinearGradient
-<<<<<<< HEAD
-          colors={["#9D4EDD", "#7B2CBF"]}
-          style={styles.banner}
-        >
-          <Icon name="game-controller" size={64} color={COLORS.textPrimary} />
-          <Text style={styles.bannerTitle}>Action ou Vérité</Text>
-          <Text style={styles.bannerSubtitle}>Le classique revisité</Text>
-=======
           colors={gameColors as [string, string, ...string[]]}
           style={styles.banner}
         >
           <Icon name={gameIcon} size={64} color={COLORS.textPrimary} />
           <Text style={styles.bannerTitle}>{gameName}</Text>
           <Text style={styles.bannerSubtitle}>{gameCategory}</Text>
->>>>>>> 8cec59f0f1ba13a7d651a4b1ad9cd48aeaba8f39
         </LinearGradient>
 
         {/* Description */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>C'est quoi ?</Text>
           <Text style={styles.description}>
-<<<<<<< HEAD
-            Le jeu parfait pour pimenter vos soirées entre amis ! Chacun son 
-            tour, choisis entre réaliser une Action folle ou révéler une Vérité 
-            sur toi. Fous rires garantis !
-=======
             {gameDescription}
->>>>>>> 8cec59f0f1ba13a7d651a4b1ad9cd48aeaba8f39
           </Text>
         </View>
 
@@ -429,30 +387,11 @@ export default function DescriptionJeu() {
         <View style={styles.infoBox}>
           <Icon name="information-circle" size={20} color={COLORS.info} />
           <Text style={styles.infoText}>
-<<<<<<< HEAD
-            Tous les joueurs doivent être connectés pour jouer en temps réel.
-=======
             {gameMinPlayers}+ joueurs nécessaires. Tous les joueurs doivent être connectés pour jouer en temps réel.
->>>>>>> 8cec59f0f1ba13a7d651a4b1ad9cd48aeaba8f39
           </Text>
         </View>
       </ScrollView>
 
-<<<<<<< HEAD
-      {/* Bouton Jouer fixe en bas */}
-      <View style={styles.bottomContainer}>
-        <TouchableOpacity
-          style={styles.playButton}
-        >
-          <LinearGradient
-            colors={[COLORS.titleGradientStart, COLORS.titleGradientEnd]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={styles.playButtonGradient}
-          >
-            <Icon name="play" size={24} color={COLORS.textPrimary} />
-            <Text style={styles.playButtonText}>Jouer maintenant</Text>
-=======
       {/* Bouton Jouer / Débloquer fixe en bas */}
       <View style={styles.bottomContainer}>
         <TouchableOpacity
@@ -471,7 +410,6 @@ export default function DescriptionJeu() {
             <Text style={styles.playButtonText}>
               {isLocked ? "Débloquer" : "Jouer maintenant"}
             </Text>
->>>>>>> 8cec59f0f1ba13a7d651a4b1ad9cd48aeaba8f39
           </LinearGradient>
         </TouchableOpacity>
       </View>
@@ -621,8 +559,4 @@ const styles = StyleSheet.create({
     fontFamily: "Poppins-SemiBold",
     color: COLORS.textPrimary,
   },
-<<<<<<< HEAD
 });
-=======
-});
->>>>>>> 8cec59f0f1ba13a7d651a4b1ad9cd48aeaba8f39
