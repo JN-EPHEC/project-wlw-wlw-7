@@ -1,3 +1,4 @@
+// components/RecommandationModal.tsx
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { addDoc, collection } from "firebase/firestore";
@@ -24,12 +25,15 @@ interface Activity {
   category: string;
   price: "Gratuit" | "Payant";
   location: string;
-  interests: string[];
+  interests?: string[];
+  tags?: string[];
   image?: string;
   isNew: boolean;
   date: string;
   score: number;
   matchedInterests: string[];
+  city?: string;
+  rating?: number;
 }
 
 interface RecommendationsModalProps {
@@ -62,11 +66,15 @@ export default function RecommendationsModal({
   const loadRecommendations = async () => {
     setLoading(true);
     try {
-      console.log("🤖 Loading recommendations for group:", groupId);
+      console.log("🤖 Chargement recommandations pour groupe:", groupId);
       const results = await suggestActivitiesForGroup(groupId);
-      setRecommendations(results as Activity[]);
+      setRecommendations(results);
+      
+      if (results.length === 0) {
+        console.log("ℹ️ Aucune recommandation trouvée");
+      }
     } catch (error) {
-      console.error("Error loading recommendations:", error);
+      console.error("Erreur chargement recommandations:", error);
     } finally {
       setLoading(false);
     }
@@ -79,9 +87,8 @@ export default function RecommendationsModal({
     setSelectedActivity(activity.id);
 
     try {
-      // Créer l'activité de groupe avec deadline automatique
       const activityDate = new Date(activity.date);
-      const deadline = new Date(activityDate.getTime() - 60 * 60 * 1000); // 1h avant
+      const deadline = new Date(activityDate.getTime() - 60 * 60 * 1000);
 
       const participants: any = {};
       groupMembers.forEach((memberId: string) => {
@@ -105,13 +112,13 @@ export default function RecommendationsModal({
         proposedBy: currentUser.uid,
         proposedAt: new Date().toISOString(),
         participants,
-        recommendationScore: activity.score, // Sauvegarder le score
+        recommendationScore: activity.score,
+        matchedInterests: activity.matchedInterests || [],
       });
 
       onClose();
-      // Optionnel : notification de succès
     } catch (error) {
-      console.error("Error proposing activity:", error);
+      console.error("Erreur proposition activité:", error);
     } finally {
       setProposing(false);
       setSelectedActivity(null);
@@ -123,9 +130,9 @@ export default function RecommendationsModal({
   };
 
   const getMatchColor = (percentage: number) => {
-    if (percentage >= 80) return "#10B981"; // Vert
-    if (percentage >= 60) return "#F59E0B"; // Orange
-    return "#6366F1"; // Violet
+    if (percentage >= 80) return "#10B981";
+    if (percentage >= 60) return "#F59E0B";
+    return "#6366F1";
   };
 
   return (
@@ -134,7 +141,6 @@ export default function RecommendationsModal({
         colors={[COLORS.backgroundTop, COLORS.backgroundBottom]}
         style={styles.container}
       >
-        {/* HEADER */}
         <View style={styles.header}>
           <TouchableOpacity style={styles.closeButton} onPress={onClose}>
             <Icon name="close" size={24} color={COLORS.textPrimary} />
@@ -156,15 +162,13 @@ export default function RecommendationsModal({
           </View>
         ) : (
           <>
-            {/* INFO BANNER */}
             <View style={styles.infoBanner}>
               <Icon name="information-circle" size={20} color="#6366F1" />
               <Text style={styles.infoBannerText}>
-                Basé sur les intérêts communs des {groupMembers.length} membres
+                Basé sur les intérêts communs • {recommendations.length}/5 activités
               </Text>
             </View>
 
-            {/* RECOMMENDATIONS LIST */}
             <ScrollView
               contentContainerStyle={styles.scrollContent}
               showsVerticalScrollIndicator={false}
@@ -174,7 +178,7 @@ export default function RecommendationsModal({
                   <Icon name="sad-outline" size={64} color={COLORS.textSecondary} />
                   <Text style={styles.emptyTitle}>Aucune recommandation</Text>
                   <Text style={styles.emptyText}>
-                    Essayez d'ajouter plus d'intérêts à vos profils
+                    Ajoutez plus d'intérêts à vos profils pour améliorer les suggestions
                   </Text>
                 </View>
               ) : (
@@ -186,12 +190,10 @@ export default function RecommendationsModal({
 
                     return (
                       <View key={activity.id} style={styles.activityCard}>
-                        {/* RANK BADGE */}
                         <View style={styles.rankBadge}>
                           <Text style={styles.rankText}>#{index + 1}</Text>
                         </View>
 
-                        {/* IMAGE */}
                         {activity.image ? (
                           <ImageBackground
                             source={{ uri: activity.image }}
@@ -210,13 +212,11 @@ export default function RecommendationsModal({
                           />
                         )}
 
-                        {/* CONTENT */}
                         <View style={styles.activityContent}>
                           <Text style={styles.activityTitle} numberOfLines={2}>
                             {activity.title}
                           </Text>
 
-                          {/* MATCH SCORE */}
                           <View style={styles.matchContainer}>
                             <View
                               style={[
@@ -237,21 +237,21 @@ export default function RecommendationsModal({
                             )}
                           </View>
 
-                          {/* MATCHED INTERESTS */}
-                          <View style={styles.interestsContainer}>
-                            {activity.matchedInterests.slice(0, 3).map((interest, idx) => (
-                              <View key={idx} style={styles.interestTag}>
-                                <Text style={styles.interestTagText}>#{interest}</Text>
-                              </View>
-                            ))}
-                            {activity.matchedInterests.length > 3 && (
-                              <Text style={styles.moreInterests}>
-                                +{activity.matchedInterests.length - 3}
-                              </Text>
-                            )}
-                          </View>
+                          {activity.matchedInterests && activity.matchedInterests.length > 0 && (
+                            <View style={styles.interestsContainer}>
+                              {activity.matchedInterests.slice(0, 3).map((interest, idx) => (
+                                <View key={idx} style={styles.interestTag}>
+                                  <Text style={styles.interestTagText}>#{interest}</Text>
+                                </View>
+                              ))}
+                              {activity.matchedInterests.length > 3 && (
+                                <Text style={styles.moreInterests}>
+                                  +{activity.matchedInterests.length - 3}
+                                </Text>
+                              )}
+                            </View>
+                          )}
 
-                          {/* META INFO */}
                           <View style={styles.metaContainer}>
                             <View style={styles.metaItem}>
                               <Icon name="location" size={14} color={COLORS.textSecondary} />
@@ -269,7 +269,6 @@ export default function RecommendationsModal({
                             </View>
                           </View>
 
-                          {/* PROPOSE BUTTON */}
                           <TouchableOpacity
                             style={styles.proposeButtonWrapper}
                             onPress={() => proposeActivity(activity)}
@@ -306,9 +305,7 @@ export default function RecommendationsModal({
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
+  container: { flex: 1 },
   header: {
     flexDirection: "row",
     alignItems: "center",

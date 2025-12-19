@@ -1,4 +1,3 @@
-import MaskedView from "@react-native-masked-view/masked-view";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { arrayRemove, arrayUnion, collection, doc, getDoc, getDocs, setDoc, updateDoc } from "firebase/firestore";
@@ -7,7 +6,6 @@ import {
   ActivityIndicator,
   Alert,
   ImageBackground,
-  Platform,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -18,14 +16,19 @@ import {
 } from "react-native";
 import Icon from "react-native-vector-icons/Ionicons";
 import { COLORS } from "../../components/Colors";
+import Logo from "../../components/Logo";
 import { auth, db } from "../../firebase_Config";
+import { addGPSToActivities } from "../../service/addGPSToActivities";
 import { generateActivities } from "../../service/generateActivities";
+import { generateMoreActivities } from "../../service/generateMoreActivities";
 import {
+  calculateDistance,
   checkLocationPermission,
   LocationData,
   requestLocationPermission,
   saveUserLocation
 } from "../../service/Location_service";
+import { getPersonalizedActivities, PersonalScoredActivity } from "../../service/personalScoring";
 
 interface Activity {
   id: string;
@@ -38,6 +41,10 @@ interface Activity {
   image?: string;
   isNew: boolean;
   date: string;
+  distance?: number;
+  personalScore?: number;
+  latitude?: number;
+  longitude?: number;
 }
 
 export default function HomeScreen() {
@@ -54,6 +61,11 @@ export default function HomeScreen() {
   // États pour la géolocalisation
   const [locationGranted, setLocationGranted] = useState(false);
   const [userLocation, setUserLocation] = useState<LocationData | null>(null);
+
+  // États pour les recommandations personnalisées
+  const [personalizedActivities, setPersonalizedActivities] = useState<PersonalScoredActivity[]>([]);
+  const [showPersonalized, setShowPersonalized] = useState(false);
+  const [loadingPersonalized, setLoadingPersonalized] = useState(false);
 
   const handleGenerateActivities = async () => {
     setGenerating(true);
@@ -73,6 +85,45 @@ export default function HomeScreen() {
     }
   };
 
+  const handleGenerateMoreActivities = async () => {
+    setGenerating(true);
+    try {
+      const result = await generateMoreActivities();
+      if (result.success) {
+        Alert.alert("Succès", `${result.count} activités ajoutées ! 🎉`);
+        await loadActivities();
+      } else {
+        Alert.alert("Erreur", "Impossible d'ajouter les activités");
+      }
+    } catch (error) {
+      console.error("Error generating more:", error);
+      Alert.alert("Erreur", "Une erreur est survenue");
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  const handleAddGPSToActivities = async () => {
+    setGenerating(true);
+    try {
+      const result = await addGPSToActivities();
+      if (result.success) {
+        Alert.alert(
+          "GPS ajouté ! 🌍", 
+          `${result.updated} activités mises à jour\n${result.skipped} déjà à jour`
+        );
+        await loadActivities();
+      } else {
+        Alert.alert("Erreur", "Impossible d'ajouter les coordonnées GPS");
+      }
+    } catch (error) {
+      console.error("Error adding GPS:", error);
+      Alert.alert("Erreur", "Une erreur est survenue");
+    } finally {
+      setGenerating(false);
+    }
+  };
+
   useEffect(() => {
     loadActivities();
     loadFavorites();
@@ -80,15 +131,16 @@ export default function HomeScreen() {
   }, []);
 
   useEffect(() => {
-    applyFilters();
-  }, [activities, searchQuery, activeFilter, showFavorites, favorites]);
+    if (!showPersonalized) {
+      applyFilters();
+    }
+  }, [activities, searchQuery, activeFilter, showFavorites, favorites, userLocation]);
 
   // Vérifier si la permission de localisation existe déjà
   const checkExistingLocationPermission = async () => {
     const granted = await checkLocationPermission();
     if (granted) {
       setLocationGranted(true);
-      // Récupérer la localisation si déjà autorisée (sans popup)
       const { location } = await requestLocationPermission();
       if (location) {
         setUserLocation(location);
@@ -96,10 +148,56 @@ export default function HomeScreen() {
     }
   };
 
+  // 🎯 CHARGER LES ACTIVITÉS PERSONNALISÉES
+  const loadPersonalizedActivities = async () => {
+    if (showPersonalized) {
+      setShowPersonalized(false);
+      setActiveFilter("all");
+      return;
+    }
+
+    setLoadingPersonalized(true);
+    try {
+      console.log("🎯 Chargement des recommandations personnalisées...");
+      const personalized = await getPersonalizedActivities();
+      
+      if (personalized.length === 0) {
+        Alert.alert(
+          "Aucune recommandation",
+          "Complète ton profil (intérêts, localisation) pour recevoir des recommandations personnalisées !"
+        );
+        return;
+      }
+
+      setPersonalizedActivities(personalized);
+      setShowPersonalized(true);
+      setActiveFilter("personalized");
+      
+      if (searchQuery.trim()) {
+        const filtered = personalized.filter(activity =>
+          activity.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          activity.description.toLowerCase().includes(searchQuery.toLowerCase())
+        );
+        setFilteredActivities(filtered as Activity[]);
+      } else {
+        setFilteredActivities(personalized as Activity[]);
+      }
+
+    } catch (error) {
+      console.error("Error loading personalized activities:", error);
+      Alert.alert("Erreur", "Impossible de charger les recommandations personnalisées");
+    } finally {
+      setLoadingPersonalized(false);
+    }
+  };
+
   // Gérer le filtre "Près de moi"
   const handleNearbyFilter = async () => {
+    if (showPersonalized) {
+      setShowPersonalized(false);
+    }
+
     if (!locationGranted) {
-      // Demander la permission avec popup natif
       Alert.alert(
         "📍 Localisation requise",
         "Pour voir les activités près de vous, nous avons besoin d'accéder à votre localisation.",
@@ -130,7 +228,6 @@ export default function HomeScreen() {
         ]
       );
     } else {
-      // Toggle le filtre si déjà autorisé
       setActiveFilter(activeFilter === "near" ? "all" : "near");
     }
   };
@@ -168,12 +265,10 @@ export default function HomeScreen() {
   const applyFilters = () => {
     let filtered = [...activities];
 
-    // Filtre : Favoris uniquement
     if (showFavorites) {
       filtered = filtered.filter(activity => favorites.includes(activity.id));
     }
 
-    // Filtre : Recherche
     if (searchQuery.trim()) {
       filtered = filtered.filter(activity =>
         activity.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -182,40 +277,43 @@ export default function HomeScreen() {
       );
     }
 
-    // Filtre : Prix/Nouveau (désactivé en mode favoris)
     if (!showFavorites) {
-      if (activeFilter === "near" && userLocation) {
-        // Liste des communes bruxelloises
-        const brusselsCommunes = [
-          "auderghem", "berchem-sainte-agathe", "bruxelles", "etterbeek",
-          "evere", "forest", "ganshoren", "ixelles", "jette", "koekelberg",
-          "molenbeek", "molenbeek-saint-jean", "saint-gilles", "saint-josse",
-          "saint-josse-ten-noode", "schaerbeek", "uccle", "watermael-boitsfort",
-          "woluwe-saint-lambert", "woluwe-saint-pierre", "anderlecht"
-        ];
-
-        const userCity = userLocation.city?.toLowerCase() || "";
-        
-        // Vérifier si le user est dans une commune bruxelloise
-        const isInBrussels = brusselsCommunes.some(commune => 
-          userCity.includes(commune) || commune.includes(userCity)
+      // Filtre par catégorie
+      if (activeFilter.startsWith("category:")) {
+        const category = activeFilter.split(":")[1];
+        filtered = filtered.filter(activity =>
+          activity.category.toLowerCase() === category.toLowerCase()
         );
-
-        if (isInBrussels) {
-          // Si le user est à Bruxelles, affiche toutes les activités de Bruxelles et ses communes
-          filtered = filtered.filter(activity => {
-            const activityLocation = activity.location.toLowerCase();
-            return activityLocation.includes("bruxelles") || 
-                   activityLocation.includes("brussels") ||
-                   brusselsCommunes.some(commune => activityLocation.includes(commune));
-          });
-        } else {
-          // Sinon, filtre par la ville exacte
-          filtered = filtered.filter(activity =>
-            activity.location.toLowerCase().includes(userCity)
-          );
-        }
-      } else if (activeFilter === "free") {
+      } 
+      // 🌍 FILTRE GPS "PRÈS DE MOI"
+      else if (activeFilter === "near" && userLocation) {
+        console.log("📍 Filtre 'Près de moi' activé");
+        console.log(`👤 Position utilisateur: ${userLocation.latitude}, ${userLocation.longitude}`);
+        
+        // Calculer la distance pour chaque activité
+        const activitiesWithDistance = filtered.map(activity => {
+          let distance = 999; // Distance par défaut si pas de coordonnées
+          
+          if (activity.latitude && activity.longitude && userLocation.latitude && userLocation.longitude) {
+            distance = calculateDistance(
+              userLocation.latitude,
+              userLocation.longitude,
+              activity.latitude,
+              activity.longitude
+            );
+          }
+          
+          return { ...activity, distance };
+        });
+        
+        // Filtrer : garder seulement les activités à moins de 15km
+        filtered = activitiesWithDistance
+          .filter(activity => activity.distance <= 15)
+          .sort((a, b) => a.distance - b.distance); // Trier par distance croissante
+        
+        console.log(`✅ ${filtered.length} activités à moins de 15km trouvées`);
+      } 
+      else if (activeFilter === "free") {
         filtered = filtered.filter(activity => activity.price === "Gratuit");
       } else if (activeFilter === "new") {
         filtered = filtered.filter(activity => activity.isNew);
@@ -280,12 +378,8 @@ export default function HomeScreen() {
         colors={[COLORS.backgroundTop, COLORS.backgroundBottom]}
         style={styles.background}
       >
-        <ScrollView
-          style={styles.scrollView}
-          contentContainerStyle={styles.contentContainer}
-          showsVerticalScrollIndicator={false}
-        >
-          {/* HEADER - Différent selon le mode */}
+        {/* HEADER STICKY - VERSION COMPACTE */}
+        <View style={styles.stickyHeader}>
           {showFavorites ? (
             <View style={styles.header}>
               <TouchableOpacity 
@@ -295,61 +389,252 @@ export default function HomeScreen() {
                 <Icon name="arrow-back" size={24} color={COLORS.textPrimary} />
               </TouchableOpacity>
               <View style={styles.favoritesHeader}>
-                <Icon name="heart" size={28} color={COLORS.error} />
-                <Text style={styles.favoritesTitle}>Mes Favoris</Text>
+                <Icon name="heart" size={24} color={COLORS.error} />
+                <Text style={styles.favoritesTitle}>Favoris</Text>
               </View>
               <View style={{ width: 40 }} />
             </View>
           ) : (
-            <View>
-              <View style={styles.header}>
-                {Platform.OS === 'web' ? (
-                  // VERSION WEB : Deux couleurs séparées (fallback)
-                  <View style={styles.titleContainer}>
-                    <Text style={[styles.title, styles.titleGradientStart]}>What</Text>
-                    <Text style={[styles.title, styles.titleGradientEnd]}>2do</Text>
+            <>
+              {/* LIGNE 1 : LOGO + LOCALISATION + FAVORIS */}
+              <View style={styles.headerRow}>
+                <Logo size="small" />
+                
+                {userLocation && locationGranted && (
+                  <View style={styles.locationBadgeCompact}>
+                    <Icon name="location" size={12} color="#6366F1" />
+                    <Text style={styles.locationTextCompact}>{userLocation.city}</Text>
                   </View>
-                ) : (
-                  // VERSION MOBILE : Vrai gradient avec MaskedView
-                  <MaskedView
-                    maskElement={
-                      <View style={styles.titleContainer}>
-                        <Text style={styles.titleMask}>What2do</Text>
-                      </View>
-                    }
-                  >
-                    <LinearGradient
-                      colors={[COLORS.titleGradientStart, COLORS.titleGradientEnd]}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 0 }}
-                      style={styles.titleGradient}
-                    >
-                      <Text style={styles.titleMask}>What2do</Text>
-                    </LinearGradient>
-                  </MaskedView>
                 )}
                 
+                <View style={{ flex: 1 }} />
+                
                 <TouchableOpacity 
-                  style={styles.iconButton}
+                  style={styles.iconButtonCompact}
                   onPress={() => setShowFavorites(true)}
                 >
-                  <Icon name="heart-outline" size={18} color={COLORS.secondary} />
+                  <Icon name="heart-outline" size={16} color={COLORS.secondary} />
                 </TouchableOpacity>
               </View>
-              
-              {/* BADGE DE LOCALISATION EN DESSOUS */}
-              {userLocation && locationGranted && (
-                <View style={styles.locationBadgeContainer}>
-                  <View style={styles.locationBadge}>
-                    <Icon name="location" size={16} color="#6366F1" />
-                    <Text style={styles.locationText}>{userLocation.city}</Text>
-                  </View>
+
+              {/* LIGNE 2 : BARRE DE RECHERCHE */}
+              <View style={styles.searchBarCompact}>
+                <Icon name="search" size={16} color={COLORS.textSecondary} />
+                <TextInput
+                  placeholder="Rechercher..."
+                  placeholderTextColor={COLORS.textSecondary}
+                  style={styles.searchInputCompact}
+                  value={searchQuery}
+                  onChangeText={setSearchQuery}
+                />
+                {searchQuery.length > 0 && (
+                  <TouchableOpacity onPress={() => setSearchQuery("")}>
+                    <Icon name="close" size={16} color={COLORS.textSecondary} />
+                  </TouchableOpacity>
+                )}
+              </View>
+
+              {/* LIGNE 3 : FILTRES COMPACTS (SCROLLABLE) */}
+              <ScrollView 
+                horizontal 
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.filtersContainer}
+              >
+                {/* POUR TOI */}
+                <TouchableOpacity 
+                  style={[
+                    styles.chipCompact, 
+                    showPersonalized && styles.chipPersonalizedCompact
+                  ]}
+                  onPress={loadPersonalizedActivities}
+                  disabled={loadingPersonalized}
+                >
+                  {loadingPersonalized ? (
+                    <ActivityIndicator size="small" color="#F59E0B" />
+                  ) : (
+                    <>
+                      <Icon 
+                        name="sparkles" 
+                        size={12} 
+                        color={showPersonalized ? "#F59E0B" : COLORS.textSecondary}
+                      />
+                      <Text style={[
+                        styles.chipTextCompact, 
+                        showPersonalized && styles.chipTextPersonalizedCompact
+                      ]}>
+                        Pour toi
+                      </Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+
+                {/* PRÈS DE MOI */}
+                <TouchableOpacity 
+                  style={[
+                    styles.chipCompact, 
+                    activeFilter === "near" && styles.chipActiveCompact
+                  ]}
+                  onPress={handleNearbyFilter}
+                >
+                  <Icon 
+                    name="location" 
+                    size={12} 
+                    color={activeFilter === "near" ? COLORS.textPrimary : COLORS.textSecondary}
+                  />
+                  <Text style={[
+                    styles.chipTextCompact, 
+                    activeFilter === "near" && styles.chipTextActiveCompact
+                  ]}>
+                    Proche
+                  </Text>
+                </TouchableOpacity>
+
+                {/* GRATUIT */}
+                <TouchableOpacity 
+                  style={[
+                    styles.chipCompact, 
+                    activeFilter === "free" && styles.chipActiveCompact
+                  ]}
+                  onPress={() => {
+                    setShowPersonalized(false);
+                    setActiveFilter(activeFilter === "free" ? "all" : "free");
+                  }}
+                >
+                  <Icon 
+                    name="pricetag" 
+                    size={12} 
+                    color={activeFilter === "free" ? COLORS.success : COLORS.textSecondary}
+                  />
+                  <Text style={[
+                    styles.chipTextCompact, 
+                    activeFilter === "free" && styles.chipTextActiveCompact
+                  ]}>
+                    Gratuit
+                  </Text>
+                </TouchableOpacity>
+
+                {/* NOUVEAU */}
+                <TouchableOpacity 
+                  style={[
+                    styles.chipCompact, 
+                    activeFilter === "new" && styles.chipActiveCompact
+                  ]}
+                  onPress={() => {
+                    setShowPersonalized(false);
+                    setActiveFilter(activeFilter === "new" ? "all" : "new");
+                  }}
+                >
+                  <Icon 
+                    name="star" 
+                    size={12} 
+                    color={activeFilter === "new" ? COLORS.warning : COLORS.textSecondary}
+                  />
+                  <Text style={[
+                    styles.chipTextCompact, 
+                    activeFilter === "new" && styles.chipTextActiveCompact
+                  ]}>
+                    Nouveau
+                  </Text>
+                </TouchableOpacity>
+
+                {/* CATÉGORIES */}
+                <TouchableOpacity 
+                  style={[
+                    styles.chipCompact, 
+                    activeFilter.startsWith("category:") && styles.chipActiveCompact
+                  ]}
+                  onPress={() => {
+                    Alert.alert(
+                      "Catégories",
+                      "Quelle catégorie ?",
+                      [
+                        { text: "Sport", onPress: () => {
+                          setShowPersonalized(false);
+                          setActiveFilter("category:Sport");
+                        }},
+                        { text: "Gaming", onPress: () => {
+                          setShowPersonalized(false);
+                          setActiveFilter("category:Gaming");
+                        }},
+                        { text: "Culture", onPress: () => {
+                          setShowPersonalized(false);
+                          setActiveFilter("category:Culture");
+                        }},
+                        { text: "Cinéma", onPress: () => {
+                          setShowPersonalized(false);
+                          setActiveFilter("category:Cinéma");
+                        }},
+                        { text: "Musique", onPress: () => {
+                          setShowPersonalized(false);
+                          setActiveFilter("category:Musique");
+                        }},
+                        { text: "Nature", onPress: () => {
+                          setShowPersonalized(false);
+                          setActiveFilter("category:Nature");
+                        }},
+                        { text: "Événement", onPress: () => {
+                          setShowPersonalized(false);
+                          setActiveFilter("category:Événement");
+                        }},
+                        { text: "Soirée", onPress: () => {
+                          setShowPersonalized(false);
+                          setActiveFilter("category:Soirée");
+                        }},
+                        { text: "Danse", onPress: () => {
+                          setShowPersonalized(false);
+                          setActiveFilter("category:Danse");
+                        }},
+                        { text: "Food", onPress: () => {
+                          setShowPersonalized(false);
+                          setActiveFilter("category:Food");
+                        }},
+                        { text: "Atelier", onPress: () => {
+                          setShowPersonalized(false);
+                          setActiveFilter("category:Atelier");
+                        }},
+                        { text: "Bien-être", onPress: () => {
+                          setShowPersonalized(false);
+                          setActiveFilter("category:Bien-être");
+                        }},
+                        { text: "Shopping", onPress: () => {
+                          setShowPersonalized(false);
+                          setActiveFilter("category:Shopping");
+                        }},
+                        { text: "Famille", onPress: () => {
+                          setShowPersonalized(false);
+                          setActiveFilter("category:Famille");
+                        }},
+                        { text: "Tous", onPress: () => setActiveFilter("all"), style: "cancel" },
+                      ]
+                    );
+                  }}
+                >
+                  <Icon 
+                    name="grid" 
+                    size={12} 
+                    color={activeFilter.startsWith("category:") ? COLORS.primary : COLORS.textSecondary}
+                  />
+                  <Text style={[
+                    styles.chipTextCompact, 
+                    activeFilter.startsWith("category:") && styles.chipTextActiveCompact
+                  ]}>
+                    Catégorie
+                  </Text>
+                </TouchableOpacity>
+              </ScrollView>
+
+              {/* MESSAGE PERSONNALISÉ (si actif) */}
+              {showPersonalized && (
+                <View style={styles.personalizedBannerCompact}>
+                  <Icon name="sparkles" size={14} color="#F59E0B" />
+                  <Text style={styles.personalizedTextCompact}>
+                    Sélectionnées pour toi
+                  </Text>
                 </View>
               )}
-            </View>
+            </>
           )}
 
-          {/* Afficher le compteur de favoris en mode favoris */}
           {showFavorites && (
             <View style={styles.favoritesCount}>
               <Text style={styles.favoritesCountText}>
@@ -357,67 +642,14 @@ export default function HomeScreen() {
               </Text>
             </View>
           )}
+        </View>
 
-          {/* BARRE DE RECHERCHE */}
-          <View style={styles.searchBar}>
-            <Icon name="search" size={18} color={COLORS.textSecondary} />
-            <TextInput
-              placeholder={showFavorites ? "Rechercher dans mes favoris" : "Rechercher une activité"}
-              placeholderTextColor={COLORS.textSecondary}
-              style={styles.searchInput}
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-            />
-            {searchQuery.length > 0 && (
-              <TouchableOpacity onPress={() => setSearchQuery("")}>
-                <Icon name="close" size={18} color={COLORS.textSecondary} />
-              </TouchableOpacity>
-            )}
-          </View>
-
-          {/* FILTRES - Masqués en mode favoris */}
-          {!showFavorites && (
-            <View style={styles.filters}>
-              {/* FILTRE PRÈS DE MOI avec géolocalisation */}
-              <TouchableOpacity 
-                style={[
-                  styles.chip, 
-                  activeFilter === "near" && styles.chipActive,
-                  !locationGranted && styles.chipPending
-                ]}
-                onPress={handleNearbyFilter}
-              >
-                <Icon 
-                  name={locationGranted ? "location" : "location-outline"} 
-                  size={14} 
-                  color={activeFilter === "near" ? COLORS.textPrimary : COLORS.textSecondary}
-                  style={{ marginRight: 4 }}
-                />
-                <Text style={[styles.chipText, activeFilter === "near" && styles.chipTextActive]}>
-                  Près de moi
-                </Text>
-                {!locationGranted && <View style={styles.permissionDot} />}
-              </TouchableOpacity>
-
-              <TouchableOpacity 
-                style={[styles.chip, activeFilter === "free" && styles.chipActive]}
-                onPress={() => setActiveFilter(activeFilter === "free" ? "all" : "free")}
-              >
-                <Text style={[styles.chipText, activeFilter === "free" && styles.chipTextActive]}>
-                  Gratuit
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity 
-                style={[styles.chip, activeFilter === "new" && styles.chipActive]}
-                onPress={() => setActiveFilter(activeFilter === "new" ? "all" : "new")}
-              >
-                <Text style={[styles.chipText, activeFilter === "new" && styles.chipTextActive]}>
-                  Nouveau
-                </Text>
-              </TouchableOpacity>
-            </View>
-          )}
-
+        {/* CONTENU SCROLLABLE */}
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.contentContainer}
+          showsVerticalScrollIndicator={false}
+        >
           {/* BOUTON GÉNÉRER ACTIVITÉS */}
           {activities.length === 0 && !loading && !showFavorites && (
             <TouchableOpacity 
@@ -433,11 +665,55 @@ export default function HomeScreen() {
               >
                 <Icon name="rocket" size={20} color={COLORS.textPrimary} />
                 <Text style={styles.generateButtonText}>
-                  {generating ? "Génération..." : "🎯 Générer 100 activités"}
+                  {generating ? "Génération..." : "🎯 Générer 50 activités"}
                 </Text>
               </LinearGradient>
             </TouchableOpacity>
           )}
+
+          {/* BOUTON AJOUTER 50 ACTIVITÉS */}
+          {activities.length > 0 && activities.length < 80 && !loading && !showFavorites && (
+            <TouchableOpacity 
+              style={[styles.generateButton, { marginBottom: 16 }]}
+              onPress={handleGenerateMoreActivities}
+              disabled={generating}
+            >
+              <LinearGradient
+                colors={["#10B981", "#059669"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.generateButtonGradient}
+              >
+                <Icon name="add-circle" size={20} color={COLORS.textPrimary} />
+                <Text style={styles.generateButtonText}>
+                  {generating ? "Ajout..." : "➕ Ajouter 50 activités variées"}
+                </Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          )}
+
+          {/* 🌍 BOUTON AJOUTER GPS AUX ACTIVITÉS */}
+          {activities.length > 0 && !loading && !showFavorites && (
+             activities.some(act => !act.latitude || !act.longitude) && ( // ⬅️ NOUVEAU CHECK
+
+            <TouchableOpacity 
+              style={[styles.generateButton, { marginBottom: 16 }]}
+              onPress={handleAddGPSToActivities}
+              disabled={generating}
+            >
+              <LinearGradient
+                colors={["#6366F1", "#8B5CF6"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.generateButtonGradient}
+              >
+                <Icon name="location" size={20} color={COLORS.textPrimary} />
+                <Text style={styles.generateButtonText}>
+                  {generating ? "Ajout GPS..." : "🌍 Ajouter GPS aux activités"}
+                </Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          ))}
 
           {/* LISTE DES ACTIVITÉS */}
           {filteredActivities.length === 0 ? (
@@ -450,6 +726,8 @@ export default function HomeScreen() {
               <Text style={styles.emptyText}>
                 {showFavorites 
                   ? "Aucun favori pour le moment"
+                  : showPersonalized
+                  ? "Complète ton profil pour des recommandations"
                   : activeFilter === "near" && userLocation
                   ? `Aucune activité près de ${userLocation.city}`
                   : "Aucune activité trouvée"}
@@ -466,8 +744,15 @@ export default function HomeScreen() {
                 const isFavorite = favorites.includes(activity.id);
                 
                 return (
-                  <View key={activity.id} style={styles.card}>
-                    {/* IMAGE DE L'ACTIVITÉ */}
+                  <TouchableOpacity 
+                    key={activity.id} 
+                    style={styles.card}
+                    onPress={() => {
+                      // @ts-ignore
+                      router.push(`/activity/${activity.id}`);
+                    }}
+                    activeOpacity={0.8}
+                  >
                     {activity.image ? (
                       <ImageBackground
                         source={{ uri: activity.image }}
@@ -505,7 +790,10 @@ export default function HomeScreen() {
 
                     <TouchableOpacity 
                       style={styles.cardHeart}
-                      onPress={() => toggleFavorite(activity.id)}
+                      onPress={(e) => {
+                        e.stopPropagation();
+                        toggleFavorite(activity.id);
+                      }}
                     >
                       <Icon 
                         name={isFavorite ? "heart" : "heart-outline"} 
@@ -513,6 +801,14 @@ export default function HomeScreen() {
                         color={isFavorite ? COLORS.error : COLORS.textPrimary} 
                       />
                     </TouchableOpacity>
+
+                    {/* SCORE PERSONNALISÉ */}
+                    {showPersonalized && activity.personalScore && (
+                      <View style={styles.scoreBadge}>
+                        <Icon name="star" size={12} color="#F59E0B" />
+                        <Text style={styles.scoreText}>{activity.personalScore}%</Text>
+                      </View>
+                    )}
 
                     <View style={styles.cardContent}>
                       <Text style={styles.cardTitle}>{activity.title}</Text>
@@ -522,7 +818,13 @@ export default function HomeScreen() {
                       <View style={styles.cardMeta}>
                         <View style={styles.cardMetaItem}>
                           <Icon name="location" size={14} color={COLORS.textSecondary} />
-                          <Text style={styles.cardMetaText}>{activity.location}</Text>
+                          <Text style={styles.cardMetaText} numberOfLines={1}>
+                            {/* 🌍 ÉTAPE 5 : AFFICHAGE DE LA DISTANCE */}
+                            {activity.distance !== undefined && activity.distance < 999
+                              ? `${activity.distance.toFixed(1)} km`
+                              : activity.location
+                            }
+                          </Text>
                         </View>
                         <View style={styles.cardMetaItem}>
                           <Icon 
@@ -539,12 +841,6 @@ export default function HomeScreen() {
                         </View>
                       </View>
                       <View style={styles.cardFooter}>
-                        <TouchableOpacity 
-                          style={styles.cardButton}
-                          onPress={() => router.push("../Activity/[id]")}
-                        >
-                          <Text style={styles.cardButtonText}>Découvrir</Text>
-                        </TouchableOpacity>
                         <Text style={styles.cardDate}>
                           {new Date(activity.date).toLocaleDateString('fr-FR', { 
                             day: 'numeric', 
@@ -553,7 +849,7 @@ export default function HomeScreen() {
                         </Text>
                       </View>
                     </View>
-                  </View>
+                  </TouchableOpacity>
                 );
               })}
             </View>
@@ -577,6 +873,16 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
+  stickyHeader: {
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 10,
+    gap: 10,
+    backgroundColor: COLORS.backgroundTop,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(255, 255, 255, 0.05)",
+    zIndex: 10,
+  },
   contentContainer: {
     paddingHorizontal: 20,
     paddingTop: 20,
@@ -588,58 +894,33 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   header: {
-    position: "relative",
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
   },
-  titleContainer: {
+  headerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  locationBadgeCompact: {
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-  },
-  titleMask: {
-    fontSize: 32,
-    fontWeight: "800",
-    color: "#000000",
-  },
-  titleGradient: {
-    flexDirection: "row",
-  },
-  title: {
-    fontSize: 32,
-    fontWeight: "800",
-  },
-  titleGradientStart: {
-    color: COLORS.titleGradientStart,
-  },
-  titleGradientEnd: {
-    color: COLORS.titleGradientEnd,
-  },
-  locationBadgeContainer: {
-    marginTop: 12,
-    alignItems: 'flex-start',
-  },
-  locationBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
     backgroundColor: "rgba(99, 102, 241, 0.15)",
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
     borderRadius: 999,
-    borderWidth: 1,
-    borderColor: "rgba(99, 102, 241, 0.3)",
   },
-  locationText: {
-    fontSize: 13,
+  locationTextCompact: {
+    fontSize: 11,
     fontFamily: "Poppins-SemiBold",
     color: "#6366F1",
   },
-  iconButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+  iconButtonCompact: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     backgroundColor: "#1C122D",
     alignItems: "center",
     justifyContent: "center",
@@ -660,73 +941,90 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   favoritesTitle: {
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: "800",
+    fontFamily: "Poppins-Bold",
     color: COLORS.textPrimary,
   },
   favoritesCount: {
     backgroundColor: "#1C122D",
-    paddingVertical: 12,
-    paddingHorizontal: 20,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
     borderRadius: 12,
     alignSelf: "center",
   },
   favoritesCountText: {
     color: COLORS.textSecondary,
-    fontSize: 14,
-    fontWeight: "600",
+    fontSize: 13,
+    fontFamily: "Poppins-SemiBold",
   },
-  searchBar: {
+  searchBarCompact: {
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "#1C122D",
-    borderRadius: 16,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    gap: 10,
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    gap: 8,
   },
-  searchInput: {
+  searchInputCompact: {
     flex: 1,
     color: COLORS.textPrimary,
-    fontSize: 14,
+    fontSize: 13,
+    fontFamily: "Poppins-Regular",
+    paddingVertical: 0,
   },
-  filters: {
+  filtersContainer: {
     flexDirection: "row",
-    gap: 10,
+    gap: 8,
+    paddingVertical: 4,
   },
-  chip: {
+  chipCompact: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 14,
-    paddingVertical: 8,
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
     borderRadius: 999,
     borderWidth: 1,
     borderColor: "#2A1B3D",
     backgroundColor: "transparent",
-    position: "relative",
   },
-  chipPending: {
-    // Style pour indiquer que la permission n'est pas encore accordée
-  },
-  chipActive: {
+  chipActiveCompact: {
     backgroundColor: "#2A1B3D",
+    borderColor: COLORS.primary,
   },
-  chipText: {
-    fontSize: 12,
+  chipPersonalizedCompact: {
+    backgroundColor: "rgba(245, 158, 11, 0.15)",
+    borderColor: "#F59E0B",
+  },
+  chipTextCompact: {
+    fontSize: 11,
+    fontFamily: "Poppins-Regular",
     color: COLORS.textSecondary,
   },
-  chipTextActive: {
+  chipTextActiveCompact: {
     color: COLORS.textPrimary,
-    fontWeight: "600",
+    fontFamily: "Poppins-SemiBold",
   },
-  permissionDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: "#FF3B30",
-    position: "absolute",
-    top: 4,
-    right: 4,
+  chipTextPersonalizedCompact: {
+    color: "#F59E0B",
+    fontFamily: "Poppins-SemiBold",
+  },
+  personalizedBannerCompact: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    backgroundColor: "rgba(245, 158, 11, 0.1)",
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+  },
+  personalizedTextCompact: {
+    fontSize: 11,
+    fontFamily: "Poppins-SemiBold",
+    color: "#F59E0B",
   },
   emptyContainer: {
     flex: 1,
@@ -736,12 +1034,13 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 18,
-    fontWeight: "600",
+    fontFamily: "Poppins-SemiBold",
     color: COLORS.textPrimary,
     marginTop: 16,
   },
   emptySubtext: {
     fontSize: 14,
+    fontFamily: "Poppins-Regular",
     color: COLORS.textSecondary,
     marginTop: 8,
     textAlign: "center",
@@ -779,7 +1078,7 @@ const styles = StyleSheet.create({
   },
   cardTagText: {
     color: COLORS.textPrimary,
-    fontWeight: "600",
+    fontFamily: "Poppins-SemiBold",
     fontSize: 12,
   },
   newBadge: {
@@ -791,7 +1090,7 @@ const styles = StyleSheet.create({
   },
   newBadgeText: {
     color: COLORS.textPrimary,
-    fontWeight: "700",
+    fontFamily: "Poppins-Bold",
     fontSize: 11,
   },
   cardHeart: {
@@ -805,6 +1104,23 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  scoreBadge: {
+    position: "absolute",
+    top: 18,
+    right: 64,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: "rgba(245, 158, 11, 0.9)",
+  },
+  scoreText: {
+    fontSize: 12,
+    fontFamily: "Poppins-Bold",
+    color: COLORS.textPrimary,
+  },
   cardContent: {
     paddingHorizontal: 20,
     paddingBottom: 16,
@@ -812,11 +1128,12 @@ const styles = StyleSheet.create({
   },
   cardTitle: {
     fontSize: 18,
-    fontWeight: "700",
+    fontFamily: "Poppins-Bold",
     color: COLORS.textPrimary,
   },
   cardDescription: {
     fontSize: 13,
+    fontFamily: "Poppins-Regular",
     color: COLORS.textSecondary,
     lineHeight: 18,
   },
@@ -829,36 +1146,28 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
+    flex: 1,
   },
   cardMetaText: {
     fontSize: 12,
+    fontFamily: "Poppins-Regular",
     color: COLORS.textSecondary,
+    flex: 1,
   },
   cardFooter: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
+    justifyContent: "flex-end",
     marginTop: 8,
-  },
-  cardButton: {
-    backgroundColor: COLORS.secondary,
-    paddingHorizontal: 18,
-    paddingVertical: 10,
-    borderRadius: 999,
-  },
-  cardButtonText: {
-    color: COLORS.textPrimary,
-    fontSize: 14,
-    fontWeight: "700",
   },
   cardDate: {
     color: COLORS.textSecondary,
     fontSize: 12,
+    fontFamily: "Poppins-Regular",
   },
   generateButton: {
     borderRadius: 16,
     overflow: "hidden",
-    marginBottom: 16,
   },
   generateButtonGradient: {
     flexDirection: "row",
@@ -871,6 +1180,6 @@ const styles = StyleSheet.create({
   generateButtonText: {
     color: COLORS.textPrimary,
     fontSize: 16,
-    fontWeight: "700",
+    fontFamily: "Poppins-Bold",
   },
 });

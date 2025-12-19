@@ -1,110 +1,106 @@
-import { addDoc, collection, doc, getDoc } from 'firebase/firestore';
+import Constants from 'expo-constants';
+import * as Device from 'expo-device';
+import * as Notifications from 'expo-notifications';
+import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import { Platform } from 'react-native';
 import { db } from '../firebase_Config';
 
-// TYPES
-type NotificationType = "friend_request" | "friend_accept" | "group_invite" | "activity_proposed";
+// Configuration du comportement des notifications
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: true,
+    shouldShowBanner: true, 
+    shouldShowList: true, 
+  }),
+});
 
-/**
- * Créer une notification dans Firestore
- * (Une Cloud Function l'enverra automatiquement via Expo Push)
- */
-export async function createNotification(
-  toUserId: string,
-  type: NotificationType,
-  data: {
-    fromUserId?: string;
-    fromUsername?: string;
-    groupId?: string;
-    groupName?: string;
-    message: string;
+// Demander la permission et obtenir le token
+export async function registerForPushNotificationsAsync() {
+  // ⚠️ Les notifications push ne marchent pas sur web
+  if (Platform.OS === 'web') {
+    console.log('⚠️ Push notifications not supported on web');
+    return null;
   }
-) {
-  try {
-    const notificationsRef = collection(db, 'notifications');
-    
-    await addDoc(notificationsRef, {
-      toUserId,
-      type,
-      ...data,
-      read: false,
-      createdAt: new Date().toISOString(),
+
+  let token;
+
+  if (Platform.OS === 'android') {
+    await Notifications.setNotificationChannelAsync('default', {
+      name: 'default',
+      importance: Notifications.AndroidImportance.MAX,
+      vibrationPattern: [0, 250, 250, 250],
+      lightColor: '#7C3AED',
     });
+  }
+
+  if (Device.isDevice) {
+    const { status: existingStatus } = await Notifications.getPermissionsAsync();
+    let finalStatus = existingStatus;
     
-    console.log('✅ Notification créée pour', toUserId);
-  } catch (error) {
-    console.error('❌ Erreur création notification:', error);
-  }
-}
-
-/**
- * Envoyer une notification de demande d'ami
- */
-export async function sendFriendRequestNotification(
-  toUserId: string,
-  fromUserId: string,
-  fromUsername: string
-) {
-  await createNotification(toUserId, 'friend_request', {
-    fromUserId,
-    fromUsername,
-    message: `${fromUsername} vous a envoyé une demande d'ami`,
-  });
-}
-
-/**
- * Envoyer une notification d'acceptation d'ami
- */
-export async function sendFriendAcceptNotification(
-  toUserId: string,
-  fromUserId: string,
-  fromUsername: string
-) {
-  await createNotification(toUserId, 'friend_accept', {
-    fromUserId,
-    fromUsername,
-    message: `${fromUsername} a accepté votre demande d'ami`,
-  });
-}
-
-/**
- * Envoyer une notification d'invitation à un groupe
- */
-export async function sendGroupInviteNotification(
-  toUserId: string,
-  fromUserId: string,
-  fromUsername: string,
-  groupId: string,
-  groupName: string
-) {
-  await createNotification(toUserId, 'group_invite', {
-    fromUserId,
-    fromUsername,
-    groupId,
-    groupName,
-    message: `${fromUsername} vous a ajouté au groupe "${groupName}"`,
-  });
-}
-
-/**
- * Récupérer le token Expo Push d'un user
- */
-export async function getUserPushToken(userId: string): Promise<string | null> {
-  try {
-    const userDoc = await getDoc(doc(db, 'users', userId));
-    if (userDoc.exists()) {
-      return userDoc.data().expoPushToken || null;
+    if (existingStatus !== 'granted') {
+      const { status } = await Notifications.requestPermissionsAsync();
+      finalStatus = status;
     }
-    return null;
+    
+    if (finalStatus !== 'granted') {
+      console.log('❌ Permission refusée pour les notifications');
+      return null;
+    }
+
+    try {
+      const projectId = Constants.expoConfig?.extra?.eas?.projectId ?? Constants.easConfig?.projectId;
+      
+      if (!projectId) {
+        console.log('⚠️ Project ID non trouvé - tentative sans projectId');
+      }
+
+      token = (await Notifications.getExpoPushTokenAsync({ projectId })).data;
+      console.log('✅ Push token:', token);
+    } catch (e) {
+      console.error('❌ Erreur getExpoPushTokenAsync:', e);
+    }
+  } else {
+    console.log('⚠️ Doit utiliser un appareil physique pour les notifications push');
+  }
+
+  return token;
+}
+
+// Sauvegarder le token dans Firestore
+export async function savePushToken(userId: string, token: string) {
+  try {
+    await updateDoc(doc(db, 'users', userId), {
+      expoPushToken: token,
+      notificationsEnabled: true,
+      lastTokenUpdate: new Date().toISOString(),
+    });
+    console.log('✅ Token sauvegardé dans Firestore');
   } catch (error) {
-    console.error('Erreur récupération token:', error);
-    return null;
+    console.error('❌ Erreur sauvegarde token:', error);
   }
 }
 
-/**
- * FONCTION SIMPLIFIÉE : Envoyer directement une push notification
- * (Sans Cloud Functions pour la démo)
- */
+// Envoyer une notification locale (pour tester)
+export async function sendLocalNotification(title: string, body: string, data?: any) {
+  if (Platform.OS === 'web') {
+    console.log('⚠️ Local notifications not supported on web');
+    return;
+  }
+
+  await Notifications.scheduleNotificationAsync({
+    content: {
+      title,
+      body,
+      data,
+      sound: true,
+    },
+    trigger: null, // Immédiatement
+  });
+}
+
+// Envoyer une notification push à un utilisateur (via Expo Push API)
 export async function sendPushNotification(
   expoPushToken: string,
   title: string,
@@ -114,9 +110,9 @@ export async function sendPushNotification(
   const message = {
     to: expoPushToken,
     sound: 'default',
-    title: title,
-    body: body,
-    data: data || {},
+    title,
+    body,
+    data,
   };
 
   try {
@@ -131,33 +127,50 @@ export async function sendPushNotification(
     });
 
     const result = await response.json();
-    console.log('✅ Push notification envoyée:', result);
+    console.log('✅ Notification envoyée:', result);
+    return result;
   } catch (error) {
-    console.error('❌ Erreur envoi push:', error);
+    console.error('❌ Erreur envoi notification:', error);
   }
 }
 
-/**
- * FONCTION COMPLÈTE : Notifier un user (crée la notif + envoie la push)
- */
+// 👇 NOUVELLE FONCTION : Helper pour notifier un utilisateur facilement
 export async function notifyUser(
-  toUserId: string,
-  type: NotificationType,
+  userId: string,
   title: string,
   body: string,
   data?: any
 ) {
-  // 1. Créer la notification dans Firestore
-  await createNotification(toUserId, type, {
-    message: body,
-    ...data,
-  });
+  try {
+    const userDoc = await getDoc(doc(db, 'users', userId));
+    const token = userDoc.data()?.expoPushToken;
 
-  // 2. Récupérer le token push du destinataire
-  const pushToken = await getUserPushToken(toUserId);
-  
-  // 3. Envoyer la push notification
-  if (pushToken) {
-    await sendPushNotification(pushToken, title, body, data);
+    if (token) {
+      await sendPushNotification(token, title, body, data);
+      console.log(`✅ Notification envoyée à ${userId}`);
+    } else {
+      console.log(`⚠️ Pas de token pour ${userId}`);
+    }
+  } catch (error) {
+    console.error(`❌ Erreur notification pour ${userId}:`, error);
   }
+}
+
+// Setup listeners pour gérer les notifications
+export function setupNotificationListeners(
+  onNotificationReceived: (notification: Notifications.Notification) => void,
+  onNotificationTapped: (response: Notifications.NotificationResponse) => void
+) {
+  if (Platform.OS === 'web') {
+    console.log('⚠️ Notification listeners not supported on web');
+    return () => {};
+  }
+
+  const notificationListener = Notifications.addNotificationReceivedListener(onNotificationReceived);
+  const responseListener = Notifications.addNotificationResponseReceivedListener(onNotificationTapped);
+
+  return () => {
+    notificationListener.remove();
+    responseListener.remove();
+  };
 }

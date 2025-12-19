@@ -1,10 +1,12 @@
+import DateTimePicker from "@react-native-community/datetimepicker";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { addDoc, collection, doc, getDoc, getDocs, query, where } from "firebase/firestore";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Animated,
   ImageBackground,
   KeyboardAvoidingView,
   Platform,
@@ -40,7 +42,8 @@ interface Activity {
 
 export default function CreateGroupScreen() {
   const router = useRouter();
-  const [step, setStep] = useState(1); // 1: Info, 2: Amis, 3: Activité
+  const scrollViewRef = useRef<ScrollView>(null);
+  const [step, setStep] = useState(1);
   
   // Step 1: Info du groupe
   const [groupName, setGroupName] = useState("");
@@ -55,13 +58,46 @@ export default function CreateGroupScreen() {
   const [selectedActivity, setSelectedActivity] = useState<Activity | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   
+  // ✅ NOUVEAU: Date et heure personnalisées
+  const [customDate, setCustomDate] = useState(new Date());
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showTimePicker, setShowTimePicker] = useState(false);
+  
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
+
+  // Animation pour le bouton flottant
+  const [buttonScale] = useState(new Animated.Value(0));
 
   useEffect(() => {
     loadFriends();
     loadActivities();
   }, []);
+
+  // Animation du bouton quand une activité est sélectionnée
+  useEffect(() => {
+    if (selectedActivity) {
+      // Scroll automatique vers le bas
+      setTimeout(() => {
+        scrollViewRef.current?.scrollToEnd({ animated: true });
+      }, 100);
+
+      // Animation du bouton
+      Animated.spring(buttonScale, {
+        toValue: 1,
+        friction: 5,
+        tension: 40,
+        useNativeDriver: true,
+      }).start();
+    } else {
+      Animated.spring(buttonScale, {
+        toValue: 0,
+        friction: 5,
+        tension: 40,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [selectedActivity]);
 
   const loadFriends = async () => {
     const currentUser = auth.currentUser;
@@ -134,14 +170,38 @@ export default function CreateGroupScreen() {
         return;
       }
       setStep(3);
+      // Scroll en haut quand on arrive sur step 3
+      setTimeout(() => {
+        scrollViewRef.current?.scrollTo({ y: 0, animated: true });
+      }, 100);
     }
   };
 
   const goToPreviousStep = () => {
     if (step > 1) {
       setStep(step - 1);
+      setSelectedActivity(null); // Reset l'activité sélectionnée
     } else {
       router.back();
+    }
+  };
+
+  // ✅ NOUVEAU: Gérer le changement de date
+  const onDateChange = (event: any, selectedDate?: Date) => {
+    setShowDatePicker(false);
+    if (selectedDate) {
+      setCustomDate(selectedDate);
+    }
+  };
+
+  // ✅ NOUVEAU: Gérer le changement d'heure
+  const onTimeChange = (event: any, selectedTime?: Date) => {
+    setShowTimePicker(false);
+    if (selectedTime) {
+      const newDate = new Date(customDate);
+      newDate.setHours(selectedTime.getHours());
+      newDate.setMinutes(selectedTime.getMinutes());
+      setCustomDate(newDate);
     }
   };
 
@@ -182,8 +242,7 @@ export default function CreateGroupScreen() {
             {
               text: "Voir le groupe",
               onPress: () => {
-                router.back();
-                router.push(`/Groupe/${duplicateGroup.id}`);
+                router.replace(`/Groupe/${duplicateGroup.id}`);
               }
             }
           ]
@@ -204,9 +263,8 @@ export default function CreateGroupScreen() {
       const groupDoc = await addDoc(groupsRef, groupData);
       console.log("✅ Group created:", groupDoc.id);
 
-      // Créer l'activité de groupe avec deadline automatique
-      const activityDate = new Date(selectedActivity.date);
-      const deadline = new Date(activityDate.getTime() - 60 * 60 * 1000); // 1h avant
+      // ✅ MODIFIÉ: Utiliser la date personnalisée au lieu de selectedActivity.date
+      const deadline = new Date(customDate.getTime() - 60 * 60 * 1000); // 1h avant
 
       const participants: any = {};
       allMembers.forEach((memberId: string) => {
@@ -224,7 +282,7 @@ export default function CreateGroupScreen() {
         activityDescription: selectedActivity.description,
         activityImage: selectedActivity.image || "",
         activityLocation: selectedActivity.location,
-        activityDate: selectedActivity.date,
+        activityDate: customDate.toISOString(), // ✅ Date personnalisée
         activityCategory: selectedActivity.category,
         deadline: deadline.toISOString(),
         proposedBy: currentUser.uid,
@@ -234,14 +292,19 @@ export default function CreateGroupScreen() {
 
       // Envoyer les notifications
       const creatorName = currentUser.displayName || "Un utilisateur";
+      const formattedDate = customDate.toLocaleDateString('fr-FR', {
+        day: 'numeric',
+        month: 'long',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
       
       Promise.all(
         selectedFriends.map(friendId =>
           notifyUser(
             friendId,
-            "group_invite",
             "Nouveau groupe",
-            `${creatorName} vous a ajouté au groupe "${groupName}" pour ${selectedActivity.title}`,
+            `${creatorName} vous a ajouté au groupe "${groupName}" pour ${selectedActivity.title} le ${formattedDate}`,
             { 
               fromUserId: currentUser.uid,
               groupId: groupDoc.id,
@@ -251,16 +314,12 @@ export default function CreateGroupScreen() {
         )
       ).catch(err => console.error("Notifications error:", err));
 
-      Alert.alert("Succès", `Groupe "${groupName}" créé ! 🎉`, [
-        { 
-          text: "OK", 
-          onPress: () => router.push(`/Groupe/${groupDoc.id}`)
-        }
-      ]);
+      // Navigation directe vers le groupe créé
+      router.replace(`/Groupe/${groupDoc.id}`);
+      
     } catch (error: any) {
       console.error("Error creating group:", error);
       Alert.alert("Erreur", "Impossible de créer le groupe");
-    } finally {
       setCreating(false);
     }
   };
@@ -293,7 +352,11 @@ export default function CreateGroupScreen() {
         style={{ flex: 1 }}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
-        <ScrollView contentContainerStyle={styles.scrollContent}>
+        <ScrollView 
+          ref={scrollViewRef}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
           {/* HEADER */}
           <View style={styles.header}>
             <TouchableOpacity
@@ -426,72 +489,207 @@ export default function CreateGroupScreen() {
                     value={searchQuery}
                     onChangeText={setSearchQuery}
                   />
+                  {searchQuery.length > 0 && (
+                    <TouchableOpacity onPress={() => setSearchQuery("")}>
+                      <Icon name="close" size={18} color={COLORS.textSecondary} />
+                    </TouchableOpacity>
+                  )}
                 </View>
               </View>
 
-              <View style={styles.activitiesList}>
-                {filteredActivities.map((activity) => (
-                  <TouchableOpacity
-                    key={activity.id}
-                    style={[
-                      styles.activityCard,
-                      selectedActivity?.id === activity.id && styles.activityCardSelected
-                    ]}
-                    onPress={() => setSelectedActivity(activity)}
-                  >
-                    {activity.image ? (
-                      <ImageBackground
-                        source={{ uri: activity.image }}
-                        style={styles.activityImage}
-                        imageStyle={{ borderRadius: 12 }}
-                      >
-                        <View style={styles.activityOverlay} />
-                      </ImageBackground>
-                    ) : (
-                      <LinearGradient
-                        colors={["#7C3AED", "#5B21B6"]}
-                        style={styles.activityImage}
-                      />
-                    )}
+              {/* ✅ NOUVEAU: Sélection date et heure */}
+              {selectedActivity && (
+                <>
+                  <View style={styles.selectedActivityBanner}>
+                    <Icon name="checkmark-circle" size={24} color={COLORS.secondary} />
+                    <View style={styles.selectedActivityInfo}>
+                      <Text style={styles.selectedActivityText}>
+                        Activité sélectionnée
+                      </Text>
+                      <Text style={styles.selectedActivityTitle}>
+                        {selectedActivity.title}
+                      </Text>
+                    </View>
+                    <TouchableOpacity onPress={() => setSelectedActivity(null)}>
+                      <Icon name="close-circle" size={24} color={COLORS.textSecondary} />
+                    </TouchableOpacity>
+                  </View>
+
+                  {/* ✅ DATE ET HEURE */}
+                  <View style={styles.section}>
+                    <Text style={styles.sectionTitle}>📅 Date et heure de l'activité</Text>
                     
-                    <View style={styles.activityInfo}>
-                      <Text style={styles.activityTitle}>{activity.title}</Text>
-                      <View style={styles.activityMeta}>
-                        <Icon name="location" size={12} color={COLORS.textSecondary} />
-                        <Text style={styles.activityMetaText}>{activity.location}</Text>
-                      </View>
+                    <View style={styles.dateTimeContainer}>
+                      {/* Bouton Date */}
+                      <TouchableOpacity
+                        style={styles.dateTimeButton}
+                        onPress={() => setShowDatePicker(true)}
+                      >
+                        <Icon name="calendar" size={20} color={COLORS.secondary} />
+                        <View style={styles.dateTimeInfo}>
+                          <Text style={styles.dateTimeLabel}>Date</Text>
+                          <Text style={styles.dateTimeValue}>
+                            {customDate.toLocaleDateString('fr-FR', {
+                              day: 'numeric',
+                              month: 'long',
+                              year: 'numeric'
+                            })}
+                          </Text>
+                        </View>
+                      </TouchableOpacity>
+
+                      {/* Bouton Heure */}
+                      <TouchableOpacity
+                        style={styles.dateTimeButton}
+                        onPress={() => setShowTimePicker(true)}
+                      >
+                        <Icon name="time" size={20} color={COLORS.secondary} />
+                        <View style={styles.dateTimeInfo}>
+                          <Text style={styles.dateTimeLabel}>Heure</Text>
+                          <Text style={styles.dateTimeValue}>
+                            {customDate.toLocaleTimeString('fr-FR', {
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })}
+                          </Text>
+                        </View>
+                      </TouchableOpacity>
                     </View>
 
-                    {selectedActivity?.id === activity.id && (
-                      <Icon name="checkmark-circle" size={24} color={COLORS.secondary} />
+                    {/* Date Pickers */}
+                    {showDatePicker && (
+                      <DateTimePicker
+                        value={customDate}
+                        mode="date"
+                        display={Platform.OS === "ios" ? "spinner" : "default"}
+                        onChange={onDateChange}
+                        minimumDate={new Date()}
+                      />
                     )}
-                  </TouchableOpacity>
-                ))}
+
+                    {showTimePicker && (
+                      <DateTimePicker
+                        value={customDate}
+                        mode="time"
+                        display={Platform.OS === "ios" ? "spinner" : "default"}
+                        onChange={onTimeChange}
+                        is24Hour={true}
+                      />
+                    )}
+                  </View>
+                </>
+              )}
+
+              <View style={styles.activitiesList}>
+                {filteredActivities.length === 0 ? (
+                  <View style={styles.emptyContainer}>
+                    <Icon name="search-outline" size={48} color={COLORS.textSecondary} />
+                    <Text style={styles.emptyText}>
+                      Aucune activité trouvée
+                    </Text>
+                  </View>
+                ) : (
+                  filteredActivities.map((activity) => (
+                    <TouchableOpacity
+                      key={activity.id}
+                      style={[
+                        styles.activityCard,
+                        selectedActivity?.id === activity.id && styles.activityCardSelected
+                      ]}
+                      onPress={() => setSelectedActivity(activity)}
+                    >
+                      {activity.image ? (
+                        <ImageBackground
+                          source={{ uri: activity.image }}
+                          style={styles.activityImage}
+                          imageStyle={{ borderRadius: 12 }}
+                        >
+                          <View style={styles.activityOverlay} />
+                        </ImageBackground>
+                      ) : (
+                        <LinearGradient
+                          colors={["#7C3AED", "#5B21B6"]}
+                          style={styles.activityImage}
+                        />
+                      )}
+                      
+                      <View style={styles.activityInfo}>
+                        <Text style={styles.activityTitle}>{activity.title}</Text>
+                        <View style={styles.activityMeta}>
+                          <Icon name="location" size={12} color={COLORS.textSecondary} />
+                          <Text style={styles.activityMetaText}>{activity.location}</Text>
+                        </View>
+                      </View>
+
+                      {selectedActivity?.id === activity.id && (
+                        <Icon name="checkmark-circle" size={24} color={COLORS.secondary} />
+                      )}
+                    </TouchableOpacity>
+                  ))
+                )}
               </View>
+
+              {/* Espace pour voir le bouton flottant */}
+              <View style={{ height: 100 }} />
             </>
           )}
 
-          {/* BOUTON SUIVANT/CRÉER */}
-          <TouchableOpacity
-            style={styles.createButtonWrapper}
-            onPress={step === 3 ? createGroup : goToNextStep}
-            disabled={creating || (step === 2 && friends.length === 0)}
-          >
-            <LinearGradient
-              colors={[COLORS.titleGradientStart, COLORS.titleGradientEnd]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={[
-                styles.createButton,
-                ((creating || (step === 2 && friends.length === 0))) && styles.createButtonDisabled
-              ]}
+          {/* BOUTON SUIVANT (Steps 1 & 2) */}
+          {step < 3 && (
+            <TouchableOpacity
+              style={styles.createButtonWrapper}
+              onPress={goToNextStep}
+              disabled={step === 2 && friends.length === 0}
             >
-              <Text style={styles.createButtonText}>
-                {creating ? "Création..." : step === 3 ? "Créer le groupe" : "Suivant"}
-              </Text>
-            </LinearGradient>
-          </TouchableOpacity>
+              <LinearGradient
+                colors={[COLORS.titleGradientStart, COLORS.titleGradientEnd]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={[
+                  styles.createButton,
+                  step === 2 && friends.length === 0 && styles.createButtonDisabled
+                ]}
+              >
+                <Text style={styles.createButtonText}>Suivant</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          )}
         </ScrollView>
+
+        {/* BOUTON FLOTTANT CRÉER (Step 3 uniquement) */}
+        {step === 3 && selectedActivity && (
+          <Animated.View 
+            style={[
+              styles.floatingButtonContainer,
+              {
+                transform: [{ scale: buttonScale }],
+                opacity: buttonScale,
+              }
+            ]}
+          >
+            <TouchableOpacity
+              style={styles.floatingButtonWrapper}
+              onPress={createGroup}
+              disabled={creating}
+            >
+              <LinearGradient
+                colors={[COLORS.titleGradientStart, COLORS.titleGradientEnd]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.floatingButton}
+              >
+                {creating ? (
+                  <ActivityIndicator color={COLORS.textPrimary} />
+                ) : (
+                  <>
+                    <Icon name="checkmark" size={24} color={COLORS.textPrimary} />
+                    <Text style={styles.floatingButtonText}>Créer le groupe</Text>
+                  </>
+                )}
+              </LinearGradient>
+            </TouchableOpacity>
+          </Animated.View>
+        )}
       </KeyboardAvoidingView>
     </LinearGradient>
   );
@@ -503,7 +701,7 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     paddingHorizontal: 24,
     paddingTop: 60,
-    paddingBottom: 100,
+    paddingBottom: 40,
   },
   loadingContainer: {
     flex: 1,
@@ -513,6 +711,7 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: 16,
     fontSize: 16,
+    fontFamily: "Poppins-Regular",
     color: COLORS.textSecondary,
   },
   header: {
@@ -533,7 +732,7 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: 20,
-    fontWeight: "700",
+    fontFamily: "Poppins-Bold",
     color: COLORS.textPrimary,
   },
   progressContainer: {
@@ -567,7 +766,7 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 16,
-    fontWeight: "600",
+    fontFamily: "Poppins-SemiBold",
     color: COLORS.textPrimary,
     marginBottom: 12,
   },
@@ -581,6 +780,7 @@ const styles = StyleSheet.create({
     borderColor: COLORS.border,
     color: COLORS.textPrimary,
     fontSize: 16,
+    fontFamily: "Poppins-Regular",
   },
   emojiGrid: {
     flexDirection: "row",
@@ -636,16 +836,17 @@ const styles = StyleSheet.create({
   },
   friendAvatarText: {
     fontSize: 18,
-    fontWeight: "700",
+    fontFamily: "Poppins-Bold",
     color: COLORS.textPrimary,
   },
   friendName: {
     fontSize: 16,
-    fontWeight: "600",
+    fontFamily: "Poppins-SemiBold",
     color: COLORS.textPrimary,
   },
   friendEmail: {
     fontSize: 12,
+    fontFamily: "Poppins-Regular",
     color: COLORS.textSecondary,
     marginTop: 2,
   },
@@ -668,6 +869,7 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 14,
+    fontFamily: "Poppins-Regular",
     color: COLORS.textSecondary,
     marginTop: 12,
     marginBottom: 16,
@@ -680,7 +882,7 @@ const styles = StyleSheet.create({
   },
   addFriendsButtonText: {
     fontSize: 14,
-    fontWeight: "600",
+    fontFamily: "Poppins-SemiBold",
     color: COLORS.textPrimary,
   },
   searchBar: {
@@ -698,6 +900,62 @@ const styles = StyleSheet.create({
     flex: 1,
     color: COLORS.textPrimary,
     fontSize: 14,
+    fontFamily: "Poppins-Regular",
+  },
+  selectedActivityBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: COLORS.primary,
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 16,
+    borderWidth: 2,
+    borderColor: COLORS.secondary,
+    gap: 12,
+  },
+  selectedActivityInfo: {
+    flex: 1,
+  },
+  selectedActivityText: {
+    fontSize: 12,
+    fontFamily: "Poppins-Regular",
+    color: COLORS.textSecondary,
+  },
+  selectedActivityTitle: {
+    fontSize: 16,
+    fontFamily: "Poppins-SemiBold",
+    color: COLORS.textPrimary,
+    marginTop: 2,
+  },
+  // ✅ NOUVEAUX STYLES: Date et heure
+  dateTimeContainer: {
+    flexDirection: "row",
+    gap: 12,
+  },
+  dateTimeButton: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: COLORS.neutralGray800,
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    gap: 12,
+  },
+  dateTimeInfo: {
+    flex: 1,
+  },
+  dateTimeLabel: {
+    fontSize: 12,
+    fontFamily: "Poppins-Regular",
+    color: COLORS.textSecondary,
+    marginBottom: 4,
+  },
+  dateTimeValue: {
+    fontSize: 14,
+    fontFamily: "Poppins-SemiBold",
+    color: COLORS.textPrimary,
   },
   activitiesList: {
     gap: 12,
@@ -731,7 +989,7 @@ const styles = StyleSheet.create({
   },
   activityTitle: {
     fontSize: 14,
-    fontWeight: "700",
+    fontFamily: "Poppins-Bold",
     color: COLORS.textPrimary,
     marginBottom: 4,
   },
@@ -742,6 +1000,7 @@ const styles = StyleSheet.create({
   },
   activityMetaText: {
     fontSize: 11,
+    fontFamily: "Poppins-Regular",
     color: COLORS.textSecondary,
   },
   createButtonWrapper: {
@@ -759,7 +1018,36 @@ const styles = StyleSheet.create({
   },
   createButtonText: {
     fontSize: 16,
+    fontFamily: "Poppins-SemiBold",
     color: COLORS.textPrimary,
-    fontWeight: "600",
+  },
+  // BOUTON FLOTTANT
+  floatingButtonContainer: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    paddingHorizontal: 24,
+    paddingBottom: 34,
+    paddingTop: 16,
+    backgroundColor: COLORS.backgroundBottom,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border,
+  },
+  floatingButtonWrapper: {
+    borderRadius: 999,
+    overflow: "hidden",
+  },
+  floatingButton: {
+    height: 56,
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 8,
+  },
+  floatingButtonText: {
+    fontSize: 16,
+    fontFamily: "Poppins-SemiBold",
+    color: COLORS.textPrimary,
   },
 });

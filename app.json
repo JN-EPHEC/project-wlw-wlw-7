@@ -58,7 +58,8 @@
         {
           "locationAlwaysAndWhenInUsePermission": "What2Do utilise votre localisation pour vous montrer les activités près de chez vous."
         }
-      ]
+      ],
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true,

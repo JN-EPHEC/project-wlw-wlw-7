@@ -1,6 +1,6 @@
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
-import { collection, doc, getDoc, getDocs, query, where } from "firebase/firestore";
+import { collection, doc, getDoc, getDocs, query, setDoc, where } from "firebase/firestore";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -30,20 +30,19 @@ export default function GroupsScreen() {
   const router = useRouter();
   const [groups, setGroups] = useState<Group[]>([]);
   const [filteredGroups, setFilteredGroups] = useState<Group[]>([]);
-  const [favoriteGroups, setFavoriteGroups] = useState<string[]>([]);
+  const [pinnedGroups, setPinnedGroups] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [showFavorites, setShowFavorites] = useState(false);
 
   useEffect(() => {
     loadGroups();
-    loadFavoriteGroups();
+    loadPinnedGroups();
   }, []);
 
   useEffect(() => {
     applyFilters();
-  }, [searchQuery, groups, showFavorites, favoriteGroups]);
+  }, [searchQuery, groups, pinnedGroups]);
 
   const loadGroups = async () => {
     const currentUser = auth.currentUser;
@@ -73,34 +72,70 @@ export default function GroupsScreen() {
     }
   };
 
-  const loadFavoriteGroups = async () => {
+  const loadPinnedGroups = async () => {
     const currentUser = auth.currentUser;
     if (!currentUser) return;
 
     try {
-      const userDoc = await getDoc(doc(db, "userFavoriteGroups", currentUser.uid));
+      const userDocRef = doc(db, "userPinnedGroups", currentUser.uid);
+      const userDoc = await getDoc(userDocRef);
+      
       if (userDoc.exists()) {
-        setFavoriteGroups(userDoc.data().favoriteGroups || []);
+        setPinnedGroups(userDoc.data().pinnedGroups || []);
+      } else {
+        await setDoc(userDocRef, {
+          pinnedGroups: [],
+        });
+        setPinnedGroups([]);
       }
     } catch (error) {
-      console.error("Error loading favorite groups:", error);
+      console.error("Error loading pinned groups:", error);
+      setPinnedGroups([]);
+    }
+  };
+
+  const togglePinGroup = async (groupId: string) => {
+    const currentUser = auth.currentUser;
+    if (!currentUser) return;
+
+    try {
+      const userDocRef = doc(db, "userPinnedGroups", currentUser.uid);
+      const isPinned = pinnedGroups.includes(groupId);
+
+      let updatedPinned: string[];
+      if (isPinned) {
+        updatedPinned = pinnedGroups.filter(id => id !== groupId);
+      } else {
+        updatedPinned = [...pinnedGroups, groupId];
+      }
+
+      await setDoc(userDocRef, {
+        pinnedGroups: updatedPinned,
+      }, { merge: true });
+
+      setPinnedGroups(updatedPinned);
+    } catch (error) {
+      console.error("Error toggling pin:", error);
     }
   };
 
   const applyFilters = () => {
     let filtered = [...groups];
 
-    // Filtre : Favoris uniquement
-    if (showFavorites) {
-      filtered = filtered.filter(group => favoriteGroups.includes(group.id));
-    }
-
-    // Filtre : Recherche
     if (searchQuery.trim()) {
       filtered = filtered.filter(group =>
         group.name.toLowerCase().includes(searchQuery.toLowerCase())
       );
     }
+
+    filtered.sort((a, b) => {
+      const aIsPinned = pinnedGroups.includes(a.id);
+      const bIsPinned = pinnedGroups.includes(b.id);
+      
+      if (aIsPinned && !bIsPinned) return -1;
+      if (!aIsPinned && bIsPinned) return 1;
+      return 0;
+    });
 
     setFilteredGroups(filtered);
   };
@@ -108,7 +143,7 @@ export default function GroupsScreen() {
   const onRefresh = () => {
     setRefreshing(true);
     loadGroups();
-    loadFavoriteGroups();
+    loadPinnedGroups();
   };
 
   const openGroup = (groupId: string) => {
@@ -149,49 +184,23 @@ export default function GroupsScreen() {
           />
         }
       >
-        {/* HEADER */}
-        {showFavorites ? (
-          <View style={styles.header}>
-            <TouchableOpacity
-              style={styles.backButton}
-              onPress={() => setShowFavorites(false)}
+        <View style={styles.header}>
+          <Text style={styles.appTitle}>Groupes</Text>
+          <TouchableOpacity style={styles.createIconButton} onPress={createGroup}>
+            <LinearGradient
+              colors={[COLORS.titleGradientStart, COLORS.titleGradientEnd]}
+              style={styles.createIconGradient}
             >
-              <Icon name="arrow-back" size={24} color={COLORS.textPrimary} />
-            </TouchableOpacity>
-            <View style={styles.favoritesHeader}>
-              <Icon name="heart" size={28} color={COLORS.error} />
-              <Text style={styles.favoritesTitle}>Mes Favoris</Text>
-            </View>
-            <View style={{ width: 40 }} />
-          </View>
-        ) : (
-          <View style={styles.header}>
-            <Text style={styles.appTitle}>Groupes</Text>
-            <View style={styles.headerRight}>
-              <TouchableOpacity 
-                style={styles.iconButton}
-                onPress={() => setShowFavorites(true)}
-              >
-                <Icon name="heart-outline" size={20} color={COLORS.secondary} />
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.createIconButton} onPress={createGroup}>
-                <LinearGradient
-                  colors={[COLORS.titleGradientStart, COLORS.titleGradientEnd]}
-                  style={styles.createIconGradient}
-                >
-                  <Icon name="add" size={24} color={COLORS.textPrimary} />
-                </LinearGradient>
-              </TouchableOpacity>
-            </View>
-          </View>
-        )}
+              <Icon name="add" size={24} color={COLORS.textPrimary} />
+            </LinearGradient>
+          </TouchableOpacity>
+        </View>
 
-        {/* SEARCH BAR */}
         <View style={styles.searchContainer}>
           <Icon name="search" size={20} color={COLORS.textSecondary} style={styles.searchIcon} />
           <TextInput
             style={styles.searchInput}
-            placeholder={showFavorites ? "Rechercher dans mes favoris" : "Chercher un groupe"}
+            placeholder="Chercher un groupe"
             placeholderTextColor={COLORS.textSecondary}
             value={searchQuery}
             onChangeText={setSearchQuery}
@@ -203,31 +212,24 @@ export default function GroupsScreen() {
           )}
         </View>
 
-        {/* GROUPS LIST */}
         {filteredGroups.length === 0 ? (
           <View style={styles.emptyContainer}>
             <View style={styles.emptyIconContainer}>
               <Icon 
-                name={showFavorites ? "heart-dislike-outline" : "people-outline"} 
+                name={searchQuery ? "search-outline" : "people-outline"} 
                 size={64} 
                 color={COLORS.textSecondary} 
               />
             </View>
             <Text style={styles.emptyTitle}>
-              {showFavorites 
-                ? "Aucun groupe favori"
-                : searchQuery 
-                  ? "Aucun groupe trouvé" 
-                  : "Aucun groupe"}
+              {searchQuery ? "Aucun groupe trouvé" : "Aucun groupe"}
             </Text>
             <Text style={styles.emptyText}>
-              {showFavorites
-                ? "Ajoutez des groupes à vos favoris"
-                : searchQuery
-                  ? "Essayez une autre recherche"
-                  : "Créez votre premier groupe pour commencer !"}
+              {searchQuery
+                ? "Essayez une autre recherche"
+                : "Créez votre premier groupe pour commencer !"}
             </Text>
-            {!searchQuery && !showFavorites && (
+            {!searchQuery && (
               <TouchableOpacity style={styles.createButtonWrapper} onPress={createGroup}>
                 <LinearGradient
                   colors={[COLORS.titleGradientStart, COLORS.titleGradientEnd]}
@@ -246,59 +248,68 @@ export default function GroupsScreen() {
             {filteredGroups.map((group) => {
               const currentUser = auth.currentUser;
               const isCreator = group.createdBy === currentUser?.uid;
-              const isFavorite = favoriteGroups.includes(group.id);
+              const isPinned = pinnedGroups.includes(group.id);
 
               return (
-                <TouchableOpacity
-                  key={group.id}
-                  style={styles.groupCard}
-                  onPress={() => openGroup(group.id)}
-                  activeOpacity={0.7}
-                >
-                  <LinearGradient
-                    colors={["rgba(99, 102, 241, 0.1)", "rgba(139, 92, 246, 0.1)"]}
-                    style={styles.groupCardGradient}
+                <View key={group.id} style={styles.groupCardWrapper}>
+                  <TouchableOpacity
+                    style={styles.groupCard}
+                    onPress={() => openGroup(group.id)}
+                    activeOpacity={0.7}
                   >
-                    <View style={styles.groupAvatar}>
-                      <LinearGradient
-                        colors={[COLORS.titleGradientStart, COLORS.titleGradientEnd]}
-                        style={styles.groupAvatarGradient}
-                      >
-                        <Text style={styles.groupEmoji}>{group.emoji}</Text>
-                      </LinearGradient>
-                    </View>
-
-                    <View style={styles.groupInfo}>
-                      <View style={styles.groupHeader}>
-                        <Text style={styles.groupName} numberOfLines={1}>
-                          {group.name}
-                        </Text>
-                        {isCreator && (
-                          <View style={styles.creatorBadge}>
-                            <Icon name="crown" size={12} color="#FFD700" />
-                          </View>
-                        )}
+                    <LinearGradient
+                      colors={["rgba(99, 102, 241, 0.1)", "rgba(139, 92, 246, 0.1)"]}
+                      style={styles.groupCardGradient}
+                    >
+                      <View style={styles.groupAvatar}>
+                        <LinearGradient
+                          colors={[COLORS.titleGradientStart, COLORS.titleGradientEnd]}
+                          style={styles.groupAvatarGradient}
+                        >
+                          <Text style={styles.groupEmoji}>{group.emoji}</Text>
+                        </LinearGradient>
                       </View>
-                      
-                      <View style={styles.groupMetaContainer}>
+
+                      <View style={styles.groupInfo}>
+                        <View style={styles.groupHeader}>
+                          <Text style={styles.groupName} numberOfLines={1}>
+                            {group.name}
+                          </Text>
+                          {isPinned && (
+                            <View style={styles.pinnedBadge}>
+                              <Icon name="pin" size={12} color={COLORS.secondary} />
+                            </View>
+                          )}
+                        </View>
+
                         <View style={styles.groupMeta}>
                           <Icon name="people" size={14} color={COLORS.textSecondary} />
                           <Text style={styles.groupMembers}>
                             {group.memberCount} membre{group.memberCount > 1 ? "s" : ""}
                           </Text>
                         </View>
+
+                        <Text style={styles.groupActivity} numberOfLines={1}>
+                          {group.lastActivity}
+                        </Text>
                       </View>
 
-                      <Text style={styles.groupActivity} numberOfLines={1}>
-                        {group.lastActivity}
-                      </Text>
-                    </View>
-
-                    <View style={styles.groupArrow}>
-                      <Icon name="chevron-forward" size={24} color={COLORS.textSecondary} />
-                    </View>
-                  </LinearGradient>
-                </TouchableOpacity>
+                      <View style={styles.groupActions}>
+                        <TouchableOpacity
+                          style={[styles.pinButton, isPinned && styles.pinButtonActive]}
+                          onPress={() => togglePinGroup(group.id)}
+                          activeOpacity={0.7}
+                        >
+                          <Icon 
+                            name={isPinned ? "pin" : "pin-outline"} 
+                            size={20} 
+                            color={isPinned ? COLORS.textPrimary : COLORS.textSecondary} 
+                          />
+                        </TouchableOpacity>
+                      </View>
+                    </LinearGradient>
+                  </TouchableOpacity>
+                </View>
               );
             })}
           </View>
@@ -341,20 +352,6 @@ const styles = StyleSheet.create({
     color: COLORS.textPrimary,
     fontFamily: "Poppins-Bold",
   },
-  headerRight: {
-    flexDirection: "row",
-    gap: 12,
-  },
-  iconButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: COLORS.neutralGray800,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    alignItems: "center",
-    justifyContent: "center",
-  },
   createIconButton: {
     width: 44,
     height: 44,
@@ -366,50 +363,6 @@ const styles = StyleSheet.create({
     height: "100%",
     alignItems: "center",
     justifyContent: "center",
-  },
-  backButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: COLORS.neutralGray800,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  favoritesHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    flex: 1,
-    justifyContent: "center",
-  },
-  favoritesTitle: {
-    fontSize: 24,
-    fontWeight: "700",
-    color: COLORS.textPrimary,
-    fontFamily: "Poppins-Bold",
-  },
-  statsContainer: {
-    marginBottom: 20,
-  },
-  statBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    backgroundColor: COLORS.neutralGray800,
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 999,
-    alignSelf: "flex-start",
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  statText: {
-    color: COLORS.textPrimary,
-    fontSize: 14,
-    fontWeight: "600",
-    fontFamily: "Poppins-SemiBold",
   },
   searchContainer: {
     flexDirection: "row",
@@ -482,7 +435,10 @@ const styles = StyleSheet.create({
     fontFamily: "Poppins-Bold",
   },
   groupsList: {
-    gap: 16,
+    gap: 12,
+  },
+  groupCardWrapper: {
+    marginBottom: 0,
   },
   groupCard: {
     borderRadius: 20,
@@ -517,7 +473,7 @@ const styles = StyleSheet.create({
   groupHeader: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: 6,
     marginBottom: 6,
   },
   groupName: {
@@ -527,23 +483,19 @@ const styles = StyleSheet.create({
     fontFamily: "Poppins-Bold",
     flex: 1,
   },
-  creatorBadge: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: "rgba(255, 215, 0, 0.15)",
+  pinnedBadge: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: "rgba(99, 102, 241, 0.2)",
     justifyContent: "center",
     alignItems: "center",
-    borderWidth: 1,
-    borderColor: "rgba(255, 215, 0, 0.3)",
-  },
-  groupMetaContainer: {
-    marginBottom: 6,
   },
   groupMeta: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
+    marginBottom: 6,
   },
   groupMembers: {
     fontSize: 13,
@@ -556,12 +508,22 @@ const styles = StyleSheet.create({
     fontStyle: "italic",
     fontFamily: "Poppins-Regular",
   },
-  groupArrow: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+  groupActions: {
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  pinButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: COLORS.neutralGray800,
     justifyContent: "center",
     alignItems: "center",
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  pinButtonActive: {
+    backgroundColor: COLORS.secondary,
+    borderColor: COLORS.secondary,
   },
 });

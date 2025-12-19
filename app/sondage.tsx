@@ -1,10 +1,10 @@
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
-import { doc, updateDoc } from "firebase/firestore";
-import React, { useEffect, useRef, useState } from "react";
+import { doc, getDoc, updateDoc } from "firebase/firestore";
+import React, { useEffect, useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
-  Animated,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -16,26 +16,78 @@ import {
 } from "react-native";
 
 import { COLORS } from "../components/Colors";
-import { auth, db } from "../firebase_Config"; // assure-toi que le fichier s'appelle bien comme ça
-
-type AccountType = "private" | "pro";
+import { auth, db } from "../firebase_Config";
 
 export default function SurveyScreen() {
   const router = useRouter();
 
-  const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [step, setStep] = useState<1 | 2>(1);
+  const [loading, setLoading] = useState(true);
+  const [accountType, setAccountType] = useState<"personal" | "professional" | null>(null);
 
-  // Étape 1
-  const [accountType, setAccountType] = useState<AccountType | null>(null);
-
-  // Étape 2
-  const interestOptions = ["Cinéma", "Théâtre", "Sport", "Musée", "Sortie", "Bowling"];
+  // ========== QUESTIONS PERSO ==========
+  const interestOptions = ["Cinéma", "Théâtre", "Sport", "Musée", "Sortie", "Bowling", "Restaurant", "Concert"];
   const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
 
-  // Étape 3
   const cityOptions = ["Bruxelles", "Liège", "Anvers", "Gand", "Autre"];
   const [selectedCityOption, setSelectedCityOption] = useState<string | null>(null);
   const [customCity, setCustomCity] = useState("");
+
+  // ========== QUESTIONS PRO ==========
+  const sectorOptions = [
+    "Tech & IT",
+    "Finance & Banque",
+    "Commerce & Retail",
+    "Santé",
+    "Éducation",
+    "Construction",
+    "Restauration & Hôtellerie",
+    "Marketing & Communication",
+    "Juridique",
+    "Autre"
+  ];
+  const [selectedSector, setSelectedSector] = useState<string | null>(null);
+  const [customSector, setCustomSector] = useState("");
+
+  const teamSizeOptions = [
+    "1-10 employés",
+    "11-50 employés",
+    "51-200 employés",
+    "201-500 employés",
+    "500+ employés"
+  ];
+  const [selectedTeamSize, setSelectedTeamSize] = useState<string | null>(null);
+
+  // Charger le type de compte depuis Firestore
+  useEffect(() => {
+    const loadUserAccountType = async () => {
+      const user = auth.currentUser;
+      if (!user) {
+        Alert.alert("Erreur", "Utilisateur non connecté.");
+        router.replace("/login");
+        return;
+      }
+
+      try {
+        const userRef = doc(db, "users", user.uid);
+        const userSnap = await getDoc(userRef);
+
+        if (userSnap.exists()) {
+          const userData = userSnap.data();
+          setAccountType(userData.accountType || "personal");
+        } else {
+          setAccountType("personal");
+        }
+      } catch (e) {
+        console.error("Erreur chargement compte:", e);
+        setAccountType("personal");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadUserAccountType();
+  }, []);
 
   const toggleInterest = (interest: string) => {
     setSelectedInterests((prev) =>
@@ -44,108 +96,117 @@ export default function SurveyScreen() {
   };
 
   const handleContinue = async () => {
-    console.log("▶ handleContinue step =", step);
+    console.log("▶ handleContinue step =", step, "accountType =", accountType);
 
     // STEP 1 → STEP 2
     if (step === 1) {
-      if (!accountType) {
-        Alert.alert("Info", "Choisis une option pour continuer.");
-        return;
+      if (accountType === 'personal') {
+        // Vérifier les centres d'intérêt
+        if (selectedInterests.length === 0) {
+          Alert.alert("Info", "Sélectionne au moins un centre d'intérêt.");
+          return;
+        }
+      } else {
+        // Vérifier le secteur
+        if (!selectedSector) {
+          Alert.alert("Info", "Choisis un secteur d'activité.");
+          return;
+        }
+        if (selectedSector === "Autre" && !customSector.trim()) {
+          Alert.alert("Info", "Indique ton secteur d'activité.");
+          return;
+        }
       }
       setStep(2);
       return;
     }
 
-    // STEP 2 → STEP 3
+    // STEP 2 → ENVOI FIRESTORE
     if (step === 2) {
-      if (selectedInterests.length === 0) {
-        Alert.alert("Info", "Sélectionne au moins un centre d’intérêt.");
-        return;
-      }
-      setStep(3);
-      return;
-    }
-
-    // STEP 3 → ENVOI FIRESTORE
-    if (step === 3) {
-      if (!selectedCityOption) {
-        Alert.alert("Info", "Choisis une ville ou 'Autre'.");
-        return;
-      }
-
-      let finalCity = selectedCityOption;
-      if (selectedCityOption === "Autre") {
-        if (!customCity.trim()) {
-          Alert.alert("Info", "Indique ta ville.");
-          return;
-        }
-        finalCity = customCity.trim();
-      }
-
       const user = auth.currentUser;
       if (!user) {
         Alert.alert("Erreur", "Utilisateur non connecté.");
-        console.log("❌ Pas de user auth.currentUser dans survey");
         return;
       }
 
       try {
-  const userRef = doc(db, "users", user.uid);
+        const userRef = doc(db, "users", user.uid);
 
-  await updateDoc(userRef, {
-    surveyCompleted: true,
-    accountType: accountType,
-    interests: selectedInterests,
-    city: finalCity,
-  });
+        if (accountType === 'personal') {
+          // Valider la ville
+          if (!selectedCityOption) {
+            Alert.alert("Info", "Choisis une ville.");
+            return;
+          }
 
-  if (accountType === "private") {
-    router.replace("/(tabs)/Home");
-  } else {
-    router.replace("/work_in_progress");
-  }
-} catch (e: any) {
-  console.error(e);
-  Alert.alert("Erreur", e.message || "Impossible d’enregistrer le sondage.");
-}
+          let finalCity = selectedCityOption;
+          if (selectedCityOption === "Autre") {
+            if (!customCity.trim()) {
+              Alert.alert("Info", "Indique ta ville.");
+              return;
+            }
+            finalCity = customCity.trim();
+          }
 
+          // Sauvegarder pour perso
+          await updateDoc(userRef, {
+            surveyCompleted: true,
+            interests: selectedInterests,
+            city: finalCity,
+          });
+
+          router.replace("/(tabs)/Home");
+
+        } else {
+          // Professionnel
+          // Valider la taille d'équipe
+          if (!selectedTeamSize) {
+            Alert.alert("Info", "Choisis la taille de ton équipe.");
+            return;
+          }
+
+          let finalSector = selectedSector;
+          if (selectedSector === "Autre") {
+            finalSector = customSector.trim();
+          }
+
+          // Sauvegarder pour pro
+          await updateDoc(userRef, {
+            surveyCompleted: true,
+            businessSector: finalSector,
+            teamSize: selectedTeamSize,
+          });
+
+          // Redirection vers Work in Progress
+          router.replace("/work_in_progress");
+        }
+      } catch (e: any) {
+        console.error(e);
+        Alert.alert("Erreur", e.message || "Impossible d'enregistrer le sondage.");
+      }
     }
   };
 
-  // ---------- RENDU STEP 1 ----------
+  // Loading
+  if (loading) {
+    return (
+      <LinearGradient
+        colors={[COLORS.backgroundTop, COLORS.backgroundBottom]}
+        style={styles.container}
+      >
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={COLORS.primary} />
+          <Text style={styles.loadingText}>Chargement...</Text>
+        </View>
+      </LinearGradient>
+    );
+  }
 
-  const renderStep1 = () => (
+  // ========== RENDU POUR COMPTES PERSO ==========
+
+  const renderPersonalStep1 = () => (
     <View>
-      <Text style={styles.title}>Bienvenue 👋</Text>
-      <Text style={styles.subtitle}>
-        Dis-nous comment tu veux utiliser What2do. On personnalise tout pour toi
-      </Text>
-
-      <SelectableAccountCard
-        type="private"
-        selected={accountType}
-        onSelect={setAccountType}
-        emoji="🎉"
-        title="Personnel"
-        desc="Pour organiser tes sorties, jeux, anniversaires, soirées..."
-      />
-
-      <SelectableAccountCard
-        type="pro"
-        selected={accountType}
-        onSelect={setAccountType}
-        emoji="💼"
-        title="Professionnel"
-        desc="Pour l’équipe, les afterworks, les activités de cohésion, etc."
-      />
-    </View>
-  );
-
-  // ---------- RENDU STEP 2 ----------
-
-  const renderStep2 = () => (
-    <View>
-      <Text style={styles.title}>Qu’est-ce qui t’intéresse ?</Text>
+      <Text style={styles.title}>Qu'est-ce qui t'intéresse ? 🎯</Text>
       <Text style={styles.subtitle}>
         Dis-nous ce que tu veux faire. On te proposera les meilleures idées autour de toi.
       </Text>
@@ -169,9 +230,7 @@ export default function SurveyScreen() {
     </View>
   );
 
-  // ---------- RENDU STEP 3 ----------
-
-  const renderStep3 = () => (
+  const renderPersonalStep2 = () => (
     <View>
       <Text style={styles.title}>Tu es où ? 🌍</Text>
       <Text style={styles.subtitle}>
@@ -210,6 +269,73 @@ export default function SurveyScreen() {
     </View>
   );
 
+  // ========== RENDU POUR COMPTES PRO ==========
+
+  const renderProfessionalStep1 = () => (
+    <View>
+      <Text style={styles.title}>Dans quel secteur opères-tu ? 💼</Text>
+      <Text style={styles.subtitle}>
+        Ça nous aidera à te proposer des activités adaptées à ton domaine.
+      </Text>
+
+      <View style={styles.chipsContainer}>
+        {sectorOptions.map((sector) => {
+          const active = selectedSector === sector;
+          return (
+            <TouchableOpacity
+              key={sector}
+              onPress={() => setSelectedSector(sector)}
+              style={[styles.chip, active && styles.chipActive]}
+            >
+              <Text style={[styles.chipText, active && styles.chipTextActive]}>
+                {sector}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+
+      {selectedSector === "Autre" && (
+        <View style={{ marginTop: 20 }}>
+          <Text style={styles.label}>Indique ton secteur</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="Ex : Énergie, Transport..."
+            placeholderTextColor={COLORS.textSecondary}
+            value={customSector}
+            onChangeText={setCustomSector}
+          />
+        </View>
+      )}
+    </View>
+  );
+
+  const renderProfessionalStep2 = () => (
+    <View>
+      <Text style={styles.title}>Quelle est la taille de ton équipe ? 👥</Text>
+      <Text style={styles.subtitle}>
+        On adaptera nos suggestions selon la taille de ton groupe.
+      </Text>
+
+      <View style={styles.chipsContainer}>
+        {teamSizeOptions.map((size) => {
+          const active = selectedTeamSize === size;
+          return (
+            <TouchableOpacity
+              key={size}
+              onPress={() => setSelectedTeamSize(size)}
+              style={[styles.chip, active && styles.chipActive]}
+            >
+              <Text style={[styles.chipText, active && styles.chipTextActive]}>
+                {size}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+    </View>
+  );
+
   return (
     <LinearGradient
       colors={[COLORS.backgroundTop, COLORS.backgroundBottom]}
@@ -223,16 +349,37 @@ export default function SurveyScreen() {
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
         >
-          {step === 1 && renderStep1()}
-          {step === 2 && renderStep2()}
-          {step === 3 && renderStep3()}
+          {/* Badge du type de compte */}
+          <View style={styles.accountBadge}>
+            <Text style={styles.accountBadgeText}>
+              Compte {accountType === "personal" ? "Personnel 🎉" : "Professionnel 💼"}
+            </Text>
+          </View>
+
+          {/* Rendu conditionnel selon le type de compte */}
+          {accountType === 'personal' ? (
+            <>
+              {step === 1 && renderPersonalStep1()}
+              {step === 2 && renderPersonalStep2()}
+            </>
+          ) : (
+            <>
+              {step === 1 && renderProfessionalStep1()}
+              {step === 2 && renderProfessionalStep2()}
+            </>
+          )}
 
           <TouchableOpacity style={styles.buttonWrapper} onPress={handleContinue}>
-            <View style={styles.button}>
+            <LinearGradient
+              colors={[COLORS.titleGradientStart, COLORS.titleGradientEnd]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.button}
+            >
               <Text style={styles.buttonText}>
-                {step === 3 ? "Terminer" : "Continuer"}
+                {step === 2 ? "Terminer" : "Continuer"}
               </Text>
-            </View>
+            </LinearGradient>
           </TouchableOpacity>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -240,87 +387,21 @@ export default function SurveyScreen() {
   );
 }
 
-// ---------- COMPOSANT CARTE AVEC GRADIENT + ANIMATION ----------
-
-type CardProps = {
-  type: AccountType;
-  selected: AccountType | null;
-  onSelect: (type: AccountType) => void;
-  emoji: string;
-  title: string;
-  desc: string;
-};
-
-function SelectableAccountCard({
-  type,
-  selected,
-  onSelect,
-  emoji,
-  title,
-  desc,
-}: CardProps) {
-  const isSelected = selected === type;
-
-  const scaleAnim = useRef(new Animated.Value(1)).current;
-  const opacityAnim = useRef(new Animated.Value(0.9)).current;
-
-  useEffect(() => {
-    Animated.parallel([
-      Animated.timing(scaleAnim, {
-        toValue: isSelected ? 1.03 : 1,
-        duration: 150,
-        useNativeDriver: true,
-      }),
-      Animated.timing(opacityAnim, {
-        toValue: isSelected ? 1 : 0.9,
-        duration: 150,
-        useNativeDriver: true,
-      }),
-    ]).start();
-  }, [isSelected, scaleAnim, opacityAnim]);
-
-  return (
-    <TouchableOpacity
-      activeOpacity={0.9}
-      style={styles.cardWrapper}
-      onPress={() => onSelect(type)}
-    >
-      <Animated.View
-        style={[
-          styles.cardAnimated,
-          {
-            transform: [{ scale: scaleAnim }],
-            opacity: opacityAnim,
-          },
-        ]}
-      >
-        {isSelected ? (
-          <LinearGradient
-            colors={[COLORS.titleGradientStart, COLORS.titleGradientEnd]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={[styles.card, styles.cardGradient]}
-          >
-            <Text style={styles.cardEmoji}>{emoji}</Text>
-            <Text style={styles.cardTitle}>{title}</Text>
-            <Text style={styles.cardDesc}>{desc}</Text>
-          </LinearGradient>
-        ) : (
-          <View style={[styles.card, styles.cardBase]}>
-            <Text style={styles.cardEmoji}>{emoji}</Text>
-            <Text style={styles.cardTitle}>{title}</Text>
-            <Text style={styles.cardDesc}>{desc}</Text>
-          </View>
-        )}
-      </Animated.View>
-    </TouchableOpacity>
-  );
-}
-
 // ---------- STYLES ----------
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    fontFamily: "Poppins-Regular",
+    color: COLORS.textPrimary,
+  },
   scrollContent: {
     flexGrow: 1,
     paddingHorizontal: 24,
@@ -328,7 +409,19 @@ const styles = StyleSheet.create({
     paddingBottom: 32,
     justifyContent: "flex-start",
   },
-
+  accountBadge: {
+    alignSelf: "center",
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    backgroundColor: COLORS.primary,
+    marginBottom: 24,
+  },
+  accountBadgeText: {
+    fontSize: 13,
+    fontFamily: "Poppins-SemiBold",
+    color: COLORS.textPrimary,
+  },
   title: {
     fontFamily: "Poppins-Bold",
     fontSize: 26,
@@ -342,48 +435,10 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
     textAlign: "center",
     marginBottom: 28,
+    paddingHorizontal: 10,
   },
 
-  // Cards
-  cardWrapper: {
-    marginBottom: 18,
-  },
-  cardAnimated: {
-    borderRadius: 20,
-    overflow: "hidden",
-  },
-  card: {
-    paddingVertical: 22,
-    paddingHorizontal: 18,
-    borderRadius: 20,
-  },
-  cardBase: {
-    backgroundColor: COLORS.neutralGray800,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  cardGradient: {
-    borderWidth: 2,
-    borderColor: COLORS.titleGradientStart,
-  },
-  cardEmoji: {
-    fontSize: 24,
-    marginBottom: 6,
-  },
-  cardTitle: {
-    fontFamily: "Poppins-SemiBold",
-    fontSize: 18,
-    color: COLORS.textPrimary,
-    marginBottom: 4,
-  },
-  cardDesc: {
-    fontFamily: "Poppins-Regular",
-    fontSize: 13,
-    color: COLORS.textSecondary,
-    width: "95%",
-  },
-
-  // Chips (step 2 & 3)
+  // Chips
   chipsContainer: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -392,13 +447,16 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   chip: {
-    paddingVertical: 8,
-    paddingHorizontal: 14,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
     borderRadius: 999,
     backgroundColor: COLORS.neutralGray800,
+    borderWidth: 1,
+    borderColor: COLORS.border,
   },
   chipActive: {
     backgroundColor: COLORS.primary,
+    borderColor: COLORS.primary,
   },
   chipText: {
     fontFamily: "Poppins-Regular",
@@ -407,10 +465,10 @@ const styles = StyleSheet.create({
   },
   chipTextActive: {
     color: COLORS.textPrimary,
-    fontFamily: "Poppins-Medium",
+    fontFamily: "Poppins-SemiBold",
   },
 
-  // Input (step 3)
+  // Input
   label: {
     fontFamily: "Poppins-Regular",
     fontSize: 13,
@@ -440,10 +498,9 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: COLORS.primary,
   },
   buttonText: {
-    fontFamily: "Poppins-Medium",
+    fontFamily: "Poppins-SemiBold",
     fontSize: 15,
     color: COLORS.textPrimary,
   },

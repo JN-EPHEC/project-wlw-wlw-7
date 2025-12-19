@@ -1,6 +1,5 @@
 import { useAuth } from "@/Auth_context";
 import { Ionicons } from "@expo/vector-icons";
-import MaskedView from "@react-native-masked-view/masked-view";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { sendPasswordResetEmail } from "firebase/auth";
@@ -17,8 +16,8 @@ import {
   View,
 } from "react-native";
 import { COLORS } from "../components/Colors";
+import Logo from "../components/Logo";
 import { auth } from "../firebase_Config";
-import { signInWithGooglePopup } from "../service/SimpleGoogleAuth";
 
 export default function LoginScreen() {
   const { signInWithEmail, user, loading, isRegistering } = useAuth();
@@ -29,7 +28,6 @@ export default function LoginScreen() {
   const [passwordVisible, setPasswordVisible] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
-  const [googleLoading, setGoogleLoading] = useState(false);
 
   useEffect(() => {
     if (!loading && user && !isRegistering) {
@@ -82,33 +80,6 @@ export default function LoginScreen() {
     }
   };
 
-  const handleGoogleSignIn = async () => {
-    setError("");
-    setSuccess("");
-    setGoogleLoading(true);
-
-    try {
-      const result = await signInWithGooglePopup();
-      
-      if (result.needsSurvey) {
-        router.replace("/sondage");
-      } else {
-        router.replace("/(tabs)/Home");
-      }
-    } catch (e: any) {
-      console.error("❌ Google Sign-In error:", e);
-      
-      if (e.message === "Connexion annulée") {
-        // L'utilisateur a fermé la popup, pas d'erreur à afficher
-        return;
-      }
-      
-      setError("❌ Impossible de se connecter avec Google.");
-    } finally {
-      setGoogleLoading(false);
-    }
-  };
-
   const handleForgotPassword = async () => {
     setError("");
     setSuccess("");
@@ -147,7 +118,9 @@ export default function LoginScreen() {
     return (
       <View style={styles.center}>
         <ActivityIndicator />
-        <Text style={{ color: COLORS.textPrimary, fontFamily: "Poppins-Regular" }}>Chargement...</Text>
+        <Text style={{ color: COLORS.textPrimary, fontFamily: "Poppins-Regular" }}>
+          Chargement...
+        </Text>
       </View>
     );
   }
@@ -164,50 +137,25 @@ export default function LoginScreen() {
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
         >
-          {/* LOGO */}
-<View style={styles.logoContainer}>
-  {Platform.OS === 'web' ? (
-    // VERSION WEB : Deux couleurs séparées
-    <Text style={styles.logoText}>
-      <Text style={styles.logoWhat}>What</Text>
-      <Text style={styles.logo2Do}>2Do</Text>
-    </Text>
-  ) : (
-    // VERSION MOBILE : Vrai gradient
-    <MaskedView
-      maskElement={
-        <Text style={styles.logoTextMask}>What2do</Text>
-      }
-    >
-      <LinearGradient
-        colors={[COLORS.titleGradientStart, COLORS.titleGradientEnd]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 0 }}
-      >
-        <Text style={styles.logoTextMask}>What2do</Text>
-      </LinearGradient>
-    </MaskedView>
-  )}
-</View>
+          <View style={styles.logoContainer}>
+            <Logo size="large" />
+          </View>
 
-          {/* MESSAGE D'ERREUR */}
           {error ? (
             <View style={styles.errorContainer}>
               <Text style={styles.errorText}>{error}</Text>
             </View>
           ) : null}
 
-          {/* MESSAGE DE SUCCÈS */}
           {success ? (
             <View style={styles.successContainer}>
               <Text style={styles.successText}>{success}</Text>
             </View>
           ) : null}
 
-          {/* FORM */}
           <View style={styles.form}>
-            {/* EMAIL */}
             <View style={styles.fieldGroup}>
               <Text style={styles.label}>Email</Text>
               <TextInput
@@ -221,7 +169,6 @@ export default function LoginScreen() {
               />
             </View>
 
-            {/* PASSWORD */}
             <View style={styles.fieldGroup}>
               <Text style={styles.label}>Mot de passe</Text>
               <View style={styles.passwordContainer}>
@@ -244,7 +191,6 @@ export default function LoginScreen() {
                 </TouchableOpacity>
               </View>
 
-              {/* LIEN MOT DE PASSE OUBLIÉ */}
               <TouchableOpacity 
                 style={styles.forgotPasswordButton}
                 onPress={handleForgotPassword}
@@ -255,53 +201,11 @@ export default function LoginScreen() {
               </TouchableOpacity>
             </View>
 
-            {/* LOGIN BUTTON */}
             <TouchableOpacity style={styles.primaryButton} onPress={handleLogin}>
               <Text style={styles.primaryButtonText}>Se connecter</Text>
             </TouchableOpacity>
           </View>
 
-          {/* SOCIAL LOGIN */}
-          <View style={styles.socialSection}>
-            <Text style={styles.socialSeparatorText}>Ou continuer avec</Text>
-
-            <TouchableOpacity 
-              style={styles.socialButtonLight}
-              onPress={handleGoogleSignIn}
-              disabled={googleLoading}
-            >
-              {googleLoading ? (
-                <ActivityIndicator color="#000000" style={{ position: "absolute", left: 18 }} />
-              ) : (
-                <Ionicons
-                  name="logo-google"
-                  size={18}
-                  color="#000000"
-                  style={styles.socialIcon}
-                />
-              )}
-              <Text style={styles.socialButtonLightText}>
-                {googleLoading ? "Connexion..." : "Continuer avec Google"}
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity 
-              style={styles.socialButtonDark}
-              onPress={() => setError("Apple Sign-In non implémenté pour ce MVP")}
-            >
-              <Ionicons
-                name="logo-apple"
-                size={18}
-                color="#FFFFFF"
-                style={styles.socialIcon}
-              />
-              <Text style={styles.socialButtonDarkText}>
-                Continuer avec Apple
-              </Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* BOTTOM SIGNUP */}
           <View style={styles.bottom}>
             <Text style={styles.bottomText}>
               Vous n'avez pas de compte?
@@ -320,48 +224,22 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-
   scrollContent: {
     flexGrow: 1,
     paddingHorizontal: 24,
-    paddingTop: 80,
-    paddingBottom: 32,
-    justifyContent: "flex-start",
+    paddingVertical: 40,
+    justifyContent: "center", // ✅ CENTRÉ VERTICALEMENT
   },
-
   center: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
     backgroundColor: COLORS.backgroundBottom,
   },
-
-  /* LOGO */
-
   logoContainer: {
     marginBottom: 40,
     alignItems: "center",
   },
-
-  logoText: {
-    fontSize: 34,
-    fontFamily: "Poppins-Bold",
-  },
-
-  logoWhat: {
-    color: COLORS.titleGradientStart,
-  },
-
-  logo2Do: {
-    color: COLORS.titleGradientEnd,
-  },
-  logoTextMask: {  // ← AJOUTE CE STYLE ICI
-    fontSize: 34,
-    fontFamily: "Poppins-Bold",
-    color: "#000000",
-  },
-  /* ERROR MESSAGE */
-
   errorContainer: {
     backgroundColor: "rgba(255, 59, 48, 0.1)",
     borderWidth: 1,
@@ -370,16 +248,12 @@ const styles = StyleSheet.create({
     padding: 16,
     marginBottom: 24,
   },
-
   errorText: {
     color: "#FF3B30",
     fontSize: 14,
     fontFamily: "Poppins-Medium",
     textAlign: "center",
   },
-
-  /* SUCCESS MESSAGE */
-
   successContainer: {
     backgroundColor: "rgba(52, 199, 89, 0.1)",
     borderWidth: 1,
@@ -388,24 +262,18 @@ const styles = StyleSheet.create({
     padding: 16,
     marginBottom: 24,
   },
-
   successText: {
     color: "#34C759",
     fontSize: 14,
     fontFamily: "Poppins-Medium",
     textAlign: "center",
   },
-
-  /* FORM */
-
   form: {
     marginBottom: 32,
   },
-
   fieldGroup: {
     marginBottom: 18,
   },
-
   label: {
     fontFamily: "Poppins-Regular",
     fontSize: 13,
@@ -413,7 +281,6 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     textAlign: "center",
   },
-
   input: {
     width: "100%",
     height: 52,
@@ -427,7 +294,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     textAlign: "center",
   },
-
   passwordContainer: {
     flexDirection: "row",
     alignItems: "center",
@@ -439,7 +305,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: COLORS.border,
   },
-
   passwordInput: {
     flex: 1,
     color: COLORS.textPrimary,
@@ -447,18 +312,15 @@ const styles = StyleSheet.create({
     fontSize: 14,
     textAlign: "center",
   },
-
   forgotPasswordButton: {
     alignSelf: "center",
     marginTop: 8,
   },
-
   forgotPasswordText: {
     fontSize: 13,
     fontFamily: "Poppins-Medium",
     color: COLORS.secondary,
   },
-
   primaryButton: {
     marginTop: 24,
     width: "100%",
@@ -468,83 +330,21 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-
   primaryButtonText: {
     fontFamily: "Poppins-SemiBold",
     fontSize: 15,
     color: COLORS.textPrimary,
   },
-
-  /* SOCIAL */
-
-  socialSection: {
-    marginTop: 16,
-  },
-
-  socialSeparatorText: {
-    textAlign: "center",
-    fontFamily: "Poppins-Regular",
-    fontSize: 13,
-    color: COLORS.textSecondary,
-    marginBottom: 16,
-  },
-
-  socialButtonLight: {
-    flexDirection: "row",
-    alignItems: "center",
-    position: "relative",
-    borderRadius: 999,
-    backgroundColor: "#FFFFFF",
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    marginBottom: 12,
-  },
-
-  socialButtonDark: {
-    flexDirection: "row",
-    alignItems: "center",
-    position: "relative",
-    borderRadius: 999,
-    backgroundColor: "#000000",
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-  },
-
-  socialIcon: {
-    position: "absolute",
-    left: 18,
-  },
-
-  socialButtonLightText: {
-    flex: 1,
-    fontFamily: "Poppins-Medium",
-    fontSize: 14,
-    color: "#000000",
-    textAlign: "center",
-  },
-
-  socialButtonDarkText: {
-    flex: 1,
-    fontFamily: "Poppins-Medium",
-    fontSize: 14,
-    color: "#FFFFFF",
-    textAlign: "center",
-  },
-
-  /* BOTTOM */
-
   bottom: {
     marginTop: 28,
     alignItems: "center",
   },
-
   bottomText: {
     fontFamily: "Poppins-Regular",
     fontSize: 13,
     color: COLORS.textSecondary,
     marginBottom: 4,
   },
-
   bottomLink: {
     fontFamily: "Poppins-SemiBold",
     fontSize: 13,
