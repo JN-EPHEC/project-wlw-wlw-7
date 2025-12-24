@@ -1,7 +1,8 @@
 import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React from "react";
+import React, { useState } from "react";
 import {
+  Alert,
   ScrollView,
   StyleSheet,
   Text,
@@ -19,6 +20,40 @@ interface GameRules {
     description: string;
   }>;
 }
+
+// ✅ NOUVEAU : Interface pour les versions de jeu
+interface GameVersion {
+  id: "base" | "spicy" | "jury";
+  name: string;
+  emoji: string;
+  description: string;
+  isPremium: boolean;
+}
+
+// ✅ NOUVEAU : Versions disponibles pour Action ou Vérité
+const ACTION_VERITE_VERSIONS: GameVersion[] = [
+  {
+    id: "base",
+    name: "Classic",
+    emoji: "🎮",
+    description: "Version gratuite pour tous",
+    isPremium: false,
+  },
+  {
+    id: "spicy",
+    name: "Spicy",
+    emoji: "🌶️",
+    description: "Questions osées et piquantes",
+    isPremium: true,
+  },
+  {
+    id: "jury",
+    name: "Jury",
+    emoji: "👨‍⚖️",
+    description: "Version spéciale présentation",
+    isPremium: true,
+  },
+];
 
 const GAME_RULES: GameRules = {
   "action-verite": [
@@ -48,6 +83,7 @@ const GAME_RULES: GameRules = {
       description: "Le but c'est de s'amuser entre amis, pas de gagner !",
     },
   ],
+  // ... autres jeux (pas touché)
   "undercover": [
     {
       icon: "people",
@@ -312,16 +348,41 @@ export default function DescriptionJeu() {
   
   const rules = GAME_RULES[gameId] || GAME_RULES["action-verite"];
 
+  // ✅ NOUVEAU : State pour la version sélectionnée (uniquement pour Action ou Vérité)
+  const [selectedVersion, setSelectedVersion] = useState<"base" | "spicy" | "jury">("base");
+
+  // ✅ NOUVEAU : Vérifier si ce jeu a plusieurs versions
+  const hasVersions = gameId === "action-verite";
+
+  // ✅ NOUVEAU : Gérer la sélection de version
+  const handleSelectVersion = (version: GameVersion) => {
+    if (version.isPremium && !isPremium) {
+      Alert.alert(
+        "Version Premium requise 👑",
+        `La version ${version.name} ${version.emoji} est réservée aux membres premium.`,
+        [
+          { text: "Annuler", style: "cancel" },
+          { 
+            text: "Voir Premium", 
+            onPress: () => router.push("/Profile/Abo_choix")
+          }
+        ]
+      );
+      return;
+    }
+    setSelectedVersion(version.id);
+  };
+
   const handlePlayPress = () => {
     if (isLocked) {
       // Redirection vers la page d'abonnement
       router.push("/Profile/Abo_choix");
     } else {
-      // Lancer le jeu
+      // ✅ MODIFIÉ : Passer le gameType sélectionné pour Action ou Vérité
       router.push({
-        pathname: "/Game/Invitation",
+        pathname: "/Game/Invitation" as any,
         params: { 
-          gameType: gameId
+          gameType: hasVersions ? selectedVersion : "base"
         }
       });
     }
@@ -365,6 +426,65 @@ export default function DescriptionJeu() {
             {gameDescription}
           </Text>
         </View>
+
+        {/* ✅ NOUVEAU : Sélection de version (uniquement pour Action ou Vérité) */}
+        {hasVersions && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Choisis ta version</Text>
+            
+            {ACTION_VERITE_VERSIONS.map((version) => {
+              const isSelected = selectedVersion === version.id;
+              const isVersionLocked = version.isPremium && !isPremium;
+              
+              return (
+                <TouchableOpacity
+                  key={version.id}
+                  style={[
+                    styles.versionCard,
+                    isSelected && styles.versionCardSelected,
+                    isVersionLocked && styles.versionCardLocked,
+                  ]}
+                  onPress={() => handleSelectVersion(version)}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.versionHeader}>
+                    <View style={styles.versionIconContainer}>
+                      <Text style={styles.versionEmoji}>{version.emoji}</Text>
+                    </View>
+                    <View style={styles.versionInfo}>
+                      <Text style={styles.versionName}>{version.name}</Text>
+                      <Text style={styles.versionDescription}>
+                        {version.description}
+                      </Text>
+                    </View>
+                    
+                    {isVersionLocked ? (
+                      <View style={styles.lockIconContainer}>
+                        <Icon name="lock-closed" size={20} color={COLORS.secondary} />
+                      </View>
+                    ) : (
+                      <View style={[
+                        styles.radioButton,
+                        isSelected && styles.radioButtonSelected
+                      ]}>
+                        {isSelected && (
+                          <View style={styles.radioButtonInner} />
+                        )}
+                      </View>
+                    )}
+                  </View>
+                  
+                  {version.isPremium && (
+                    <View style={styles.premiumTag}>
+                      <Icon name="diamond" size={12} color={COLORS.secondary} />
+                      <Text style={styles.premiumTagText}>PREMIUM</Text>
+                    </View>
+                  )}
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        )}
 
         {/* Règles du jeu */}
         <View style={styles.section}>
@@ -482,6 +602,94 @@ const styles = StyleSheet.create({
     fontFamily: "Poppins-Regular",
     color: COLORS.textSecondary,
     lineHeight: 24,
+  },
+  // ✅ NOUVEAUX : Styles pour les cartes de version
+  versionCard: {
+    backgroundColor: COLORS.neutralGray800,
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 2,
+    borderColor: COLORS.border,
+  },
+  versionCardSelected: {
+    borderColor: COLORS.secondary,
+    backgroundColor: "rgba(255, 107, 0, 0.1)",
+  },
+  versionCardLocked: {
+    opacity: 0.7,
+  },
+  versionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  versionIconContainer: {
+    width: 56,
+    height: 56,
+    borderRadius: 16,
+    backgroundColor: COLORS.primary,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 16,
+  },
+  versionEmoji: {
+    fontSize: 28,
+  },
+  versionInfo: {
+    flex: 1,
+  },
+  versionName: {
+    fontSize: 18,
+    fontFamily: "Poppins-Bold",
+    color: COLORS.textPrimary,
+    marginBottom: 4,
+  },
+  versionDescription: {
+    fontSize: 13,
+    fontFamily: "Poppins-Regular",
+    color: COLORS.textSecondary,
+  },
+  lockIconContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: COLORS.primary,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  radioButton: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: COLORS.textSecondary,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  radioButtonSelected: {
+    borderColor: COLORS.secondary,
+  },
+  radioButtonInner: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: COLORS.secondary,
+  },
+  premiumTag: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(255, 107, 0, 0.2)",
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    marginTop: 12,
+    alignSelf: "flex-start",
+    gap: 6,
+  },
+  premiumTagText: {
+    fontSize: 11,
+    fontFamily: "Poppins-Bold",
+    color: COLORS.secondary,
   },
   ruleCard: {
     flexDirection: "row",

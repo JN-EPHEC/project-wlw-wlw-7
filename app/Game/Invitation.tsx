@@ -1,6 +1,6 @@
 // Invitation.tsx
 import { LinearGradient } from "expo-linear-gradient";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -26,22 +26,37 @@ import {
   subscribeToGame,
 } from "../../service/TruthOrDareService";
 
-type LobbyMode = "choice" | "selectType" | "create" | "join" | "waiting";
+type LobbyMode = "choice" | "create" | "join" | "waiting";
 
 export default function Invitation() {
   const router = useRouter();
   const { user, userProfile } = useAuth();
+  
+  // ✅ Récupérer gameType ET gameId depuis les params
+  const params = useLocalSearchParams<{ gameId?: string; gameType?: string }>();
 
   const [mode, setMode] = useState<LobbyMode>("choice");
-  const [selectedGameType, setSelectedGameType] = useState<GameType>("base");
+  
+  // ✅ Initialiser avec le gameType passé (ou "base" par défaut)
+  const [selectedGameType, setSelectedGameType] = useState<GameType>(
+    (params.gameType as GameType) || "base"
+  );
+  
   const [gameCode, setGameCode] = useState("");
   const [gameId, setGameId] = useState<string | null>(null);
   const [game, setGame] = useState<Game | null>(null);
   const [loading, setLoading] = useState(false);
 
-  // ✅ Récupérer le statut premium depuis le profil utilisateur
-const isPremium = userProfile?.isPremium || false;
+  const isPremium = userProfile?.isPremium || false;
 
+  // ✅ Détection du gameId depuis l'URL (quand on rejoint depuis Jeux)
+  useEffect(() => {
+    if (params.gameId && typeof params.gameId === "string") {
+      console.log("🎮 GameId détecté depuis URL:", params.gameId);
+      setGameId(params.gameId);
+      setMode("waiting");
+    }
+  }, [params.gameId]);
 
   // Écouter les changements de la partie en temps réel
   useEffect(() => {
@@ -59,34 +74,6 @@ const isPremium = userProfile?.isPremium || false;
     return () => unsubscribe();
   }, [gameId]);
 
-  // ✅ Gérer la sélection d'un type de jeu
-  const handleSelectGameType = (type: GameType) => {
-    // Si ce n'est pas premium et qu'on sélectionne spicy ou jury
-    if (!isPremium && (type === "spicy" || type === "jury")) {
-      Alert.alert(
-        "Version Premium requise 👑",
-        `La version ${type === "spicy" ? "Spicy 🌶️" : "Jury 👨‍⚖️"} est réservée aux membres premium.`,
-        [
-          {
-            text: "Annuler",
-            style: "cancel",
-          },
-          {
-            text: "Voir Premium",
-            onPress: () => {
-              // ✅ TODO: Naviguer vers la page d'abonnement
-              router.push("../Profile/Abo_choix"); // Remplace par ta vraie route
-            },
-          },
-        ]
-      );
-      return;
-    }
-
-    setSelectedGameType(type);
-    setMode("create");
-  };
-
   // Créer une nouvelle partie avec le type sélectionné
   const handleCreateGame = async () => {
     if (!user) {
@@ -96,7 +83,7 @@ const isPremium = userProfile?.isPremium || false;
 
     setLoading(true);
     try {
-      const newGameId = await createGame(user.uid, selectedGameType); // ✅ Passer le gameType
+      const newGameId = await createGame(user.uid, selectedGameType);
       setGameId(newGameId);
       setMode("waiting");
     } catch (error) {
@@ -202,10 +189,6 @@ const isPremium = userProfile?.isPremium || false;
           onPress={() => {
             if (mode === "waiting") {
               handleLeaveGame();
-            } else if (mode === "create") {
-              setMode("selectType");
-            } else if (mode === "selectType") {
-              setMode("choice");
             } else if (mode !== "choice") {
               setMode("choice");
             } else {
@@ -228,7 +211,7 @@ const isPremium = userProfile?.isPremium || false;
 
             <TouchableOpacity
               style={styles.optionCard}
-              onPress={() => setMode("selectType")}
+              onPress={() => setMode("create")}
             >
               <View style={styles.optionIcon}>
                 <Icon name="add-circle" size={32} color={COLORS.secondary} />
@@ -268,106 +251,6 @@ const isPremium = userProfile?.isPremium || false;
           </>
         )}
 
-        {/* ✅ MODE: Sélection du type de jeu */}
-        {mode === "selectType" && (
-          <>
-            <Text style={styles.title}>Choisis ta version</Text>
-            <Text style={styles.subtitle}>
-              Sélectionne le type de jeu que tu veux créer
-            </Text>
-
-            {/* Version Base - Gratuite */}
-            <TouchableOpacity
-              style={[
-                styles.gameTypeCard,
-                selectedGameType === "base" && styles.gameTypeCardSelected,
-              ]}
-              onPress={() => handleSelectGameType("base")}
-            >
-              <View style={styles.gameTypeHeader}>
-                <View style={styles.gameTypeIcon}>
-                  <Icon name="game-controller" size={28} color={COLORS.secondary} />
-                </View>
-                <View style={styles.gameTypeInfo}>
-                  <Text style={styles.gameTypeTitle}>Classic</Text>
-                  <Text style={styles.gameTypeDescription}>
-                    Version gratuite pour tous
-                  </Text>
-                </View>
-                <View style={styles.freeBadge}>
-                  <Text style={styles.freeBadgeText}>GRATUIT</Text>
-                </View>
-              </View>
-            </TouchableOpacity>
-
-            {/* Version Spicy - Premium */}
-            <TouchableOpacity
-              style={[
-                styles.gameTypeCard,
-                selectedGameType === "spicy" && styles.gameTypeCardSelected,
-                !isPremium && styles.gameTypeCardLocked,
-              ]}
-              onPress={() => handleSelectGameType("spicy")}
-            >
-              <View style={styles.gameTypeHeader}>
-                <View style={[styles.gameTypeIcon, styles.spicyIcon]}>
-                  <Text style={styles.gameTypeEmoji}>🌶️</Text>
-                </View>
-                <View style={styles.gameTypeInfo}>
-                  <Text style={styles.gameTypeTitle}>Spicy</Text>
-                  <Text style={styles.gameTypeDescription}>
-                    Questions osées et piquantes
-                  </Text>
-                </View>
-                {!isPremium && (
-                  <View style={styles.lockIcon}>
-                    <Icon name="lock-closed" size={20} color={COLORS.secondary} />
-                  </View>
-                )}
-              </View>
-              {!isPremium && (
-                <View style={styles.premiumBadge}>
-                  <Icon name="diamond" size={14} color={COLORS.secondary} />
-                  <Text style={styles.premiumBadgeText}>PREMIUM</Text>
-                </View>
-              )}
-            </TouchableOpacity>
-
-            {/* Version Jury - Premium */}
-            <TouchableOpacity
-              style={[
-                styles.gameTypeCard,
-                selectedGameType === "jury" && styles.gameTypeCardSelected,
-                !isPremium && styles.gameTypeCardLocked,
-              ]}
-              onPress={() => handleSelectGameType("jury")}
-            >
-              <View style={styles.gameTypeHeader}>
-                <View style={[styles.gameTypeIcon, styles.juryIcon]}>
-                  <Text style={styles.gameTypeEmoji}>👨‍⚖️</Text>
-                </View>
-                <View style={styles.gameTypeInfo}>
-                  <Text style={styles.gameTypeTitle}>Jury</Text>
-                  <Text style={styles.gameTypeDescription}>
-                    Version spéciale présentation
-                  </Text>
-                </View>
-                {!isPremium && (
-                  <View style={styles.lockIcon}>
-                    <Icon name="lock-closed" size={20} color={COLORS.secondary} />
-                  </View>
-                )}
-              </View>
-              {!isPremium && (
-                <View style={styles.premiumBadge}>
-                  <Icon name="diamond" size={14} color={COLORS.secondary} />
-                  <Text style={styles.premiumBadgeText}>PREMIUM</Text>
-                </View>
-              )}
-            </TouchableOpacity>
-          </>
-        )}
-
         {/* MODE: Créer une partie */}
         {mode === "create" && (
           <>
@@ -378,7 +261,7 @@ const isPremium = userProfile?.isPremium || false;
                 ? "🌶️ Spicy"
                 : selectedGameType === "jury"
                 ? "👨‍⚖️ Jury"
-                : "Classic"}
+                : "🎮 Classic"}
             </Text>
 
             <TouchableOpacity
@@ -450,7 +333,7 @@ const isPremium = userProfile?.isPremium || false;
                   ? "🌶️ Spicy"
                   : game.gameType === "jury"
                   ? "👨‍⚖️ Jury"
-                  : "Classic"}
+                  : "🎮 Classic"}
               </Text>
             </View>
 
@@ -582,93 +465,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontFamily: "Poppins-Regular",
     color: COLORS.textSecondary,
-  },
-  // ✅ Styles pour les cartes de type de jeu
-  gameTypeCard: {
-    backgroundColor: COLORS.neutralGray800,
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 12,
-    borderWidth: 2,
-    borderColor: COLORS.border,
-  },
-  gameTypeCardSelected: {
-    borderColor: COLORS.secondary,
-    backgroundColor: "rgba(255, 107, 0, 0.1)",
-  },
-  gameTypeCardLocked: {
-    opacity: 0.7,
-  },
-  gameTypeHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  gameTypeIcon: {
-    width: 56,
-    height: 56,
-    borderRadius: 16,
-    backgroundColor: COLORS.primary,
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: 16,
-  },
-  spicyIcon: {
-    backgroundColor: "rgba(239, 68, 68, 0.2)",
-  },
-  juryIcon: {
-    backgroundColor: "rgba(59, 130, 246, 0.2)",
-  },
-  gameTypeEmoji: {
-    fontSize: 28,
-  },
-  gameTypeInfo: {
-    flex: 1,
-  },
-  gameTypeTitle: {
-    fontSize: 18,
-    fontFamily: "Poppins-Bold",
-    color: COLORS.textPrimary,
-    marginBottom: 4,
-  },
-  gameTypeDescription: {
-    fontSize: 13,
-    fontFamily: "Poppins-Regular",
-    color: COLORS.textSecondary,
-  },
-  freeBadge: {
-    backgroundColor: "rgba(52, 199, 89, 0.2)",
-    borderRadius: 8,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-  },
-  freeBadgeText: {
-    fontSize: 11,
-    fontFamily: "Poppins-Bold",
-    color: "#34C759",
-  },
-  premiumBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "rgba(255, 107, 0, 0.2)",
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    marginTop: 12,
-    alignSelf: "flex-start",
-    gap: 6,
-  },
-  premiumBadgeText: {
-    fontSize: 12,
-    fontFamily: "Poppins-Bold",
-    color: COLORS.secondary,
-  },
-  lockIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: COLORS.primary,
-    alignItems: "center",
-    justifyContent: "center",
   },
   codeInputContainer: {
     alignItems: "center",
