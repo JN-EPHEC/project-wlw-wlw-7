@@ -16,11 +16,11 @@ import { COLORS } from "../../../components/Colors";
 import { db } from "../../../firebase_Config";
 import {
   Game,
-  subscribeToGame,
+  subscribeToGame
 } from "../../../service/TruthOrDareService";
 
-// Listes de défis et vérités
-const TRUTHS = [
+// ==================== VERSION BASE ====================
+const TRUTHS_BASE = [
   "Quel est ton plus grand secret ?",
   "Quelle est la chose la plus embarrassante que tu aies faite ?",
   "As-tu déjà menti à ton meilleur ami ? À propos de quoi ?",
@@ -36,9 +36,24 @@ const TRUTHS = [
   "Quelle est la dernière personne que tu as recherchée sur Instagram ?",
   "As-tu déjà triché à un examen ?",
   "Quel est ton plus gros défaut selon toi ?",
+  "Quelle est la chose la plus embarrassante que tu aies faite en public ?",
+  "Quel est ton plus grand secret que personne ne connaît ?",
+  "Quelle est la chose la plus étrange que tu aies faite quand tu étais seul(e) ?",
+  "Quel est le message le plus gênant que tu aies envoyé par erreur ?",
+  "Quelle est la chose que tu voudrais changer dans ton apparence ?",
+  "As-tu déjà fait semblant d'aimer un cadeau alors que tu le détestais ?",
+  "Quel est ton fantasme le plus fou ?",
+  "As-tu déjà eu le béguin pour quelqu'un dans ce groupe ?",
+  "Quelle est la pire chose que tu aies dite sur quelqu'un dans son dos ?",
+  "As-tu déjà volé quelque chose ? Quoi ?",
+  "As-tu déjà menti sur ton âge ? Pourquoi ?",
+  "Quelle est la rumeur la plus folle que tu aies entendue sur toi ?",
+  "As-tu déjà été amoureux(se) de deux personnes en même temps ?",
+  "Quelle est la chose la plus bizarre que tu aies recherchée sur Google ?",
+  "As-tu déjà fait quelque chose juste pour impressionner quelqu'un ?",
 ];
 
-const DARES = [
+const DARES_BASE = [
   "Fais 10 pompes maintenant !",
   "Imite quelqu'un dans la pièce jusqu'à ce qu'on devine qui c'est",
   "Envoie un message bizarre à la 5ème personne de tes contacts",
@@ -54,9 +69,97 @@ const DARES = [
   "Fais 20 squats",
   "Raconte une blague (elle doit faire rire au moins une personne)",
   "Échange un vêtement avec quelqu'un pendant 2 tours",
+  "Envoie un message à ton ex en disant 'Je pense encore à toi'.",
+  "Fais 20 pompes sans t'arrêter.",
+  "Appelle un(e) ami(e) et chante-lui 'Joyeux anniversaire'.",
+  "Poste une story Instagram embarrassante de ton choix.",
+  "Laisse quelqu'un du groupe écrire ce qu'il veut sur ton statut.",
+  "Imite quelqu'un du groupe et laisse les autres deviner qui c'est.",
+  "Parle avec un accent différent pendant les 3 prochains tours.",
+  "Laisse le groupe fouiller dans ton téléphone pendant 1 minute.",
+  "Envoie un vocal de 30 secondes à ton crush en improvisant.",
+  "Fais 10 squats en tenant quelqu'un sur ton dos.",
+  "Raconte la blague la plus nulle que tu connaisses avec le plus grand sérieux.",
+  "Mets une cuillère sur ton nez et garde-la en équilibre pendant 1 minute.",
+  "Appelle tes parents et dis-leur que tu as quelque chose d'important à leur dire, puis raccroche.",
+  "Change ta photo de profil par une photo embarrassante pendant 24h.",
+  "Fais le poirier contre un mur pendant 30 secondes.",
 ];
 
-export default function Playing() {
+// ==================== VERSION SPICY 🌶️ ====================
+const TRUTHS_SPICY = [
+  "Quelle est ta position préférée ?",
+  "Combien de personnes as-tu embrassées dans ta vie ?",
+  "Quel est ton fantasme sexuel le plus fou ?",
+  "As-tu déjà fait l'amour dans un lieu public ? Où ?",
+  "Quelle est la chose la plus osée que tu aies faite lors d'un rendez-vous ?",
+  "As-tu déjà envoyé des photos intimes ? À qui ?",
+  "Quel est le prénom de la personne avec qui tu aimerais passer une nuit ?",
+  "As-tu déjà fait un plan à trois ? Aimerais-tu essayer ?",
+  "Quelle est la partie du corps qui t'excite le plus chez quelqu'un ?",
+  "As-tu déjà regardé du contenu pour adultes avec quelqu'un ?",
+  "Quelle est ta zone érogène préférée ?",
+  "As-tu déjà eu une aventure d'un soir ? Comment c'était ?",
+  "Quel est l'endroit le plus fou où tu as fait l'amour ?",
+  "As-tu déjà utilisé des jouets intimes ? Seul(e) ou accompagné(e) ?",
+  "Quelle est la chose la plus coquine que tu aies faite en étant ivre ?",
+  "As-tu déjà eu une relation avec deux personnes en même temps sans qu'elles le sachent ?",
+  "Quel est ton film pour adultes préféré ou ta catégorie préférée ?",
+  "As-tu déjà fait un strip-tease devant quelqu'un ?",
+  "Quelle est la chose la plus perverse que tu aies pensée aujourd'hui ?",
+  "As-tu déjà fantasmé sur quelqu'un dans ce groupe ? Qui ?",
+  "Combien de temps as-tu tenu sans relation intime ?",
+  "As-tu déjà fait l'amour en étant complètement sobre ?",
+  "Quelle est la chose la plus étrange qui t'ait excité(e) ?",
+  "As-tu déjà trompé quelqu'un ? Raconte.",
+  "Quel est ton record de rapports en 24 heures ?",
+  "As-tu déjà pratiqué le sexting ? Avec qui ?",
+  "Quelle est la personne la plus âgée/jeune avec qui tu aies eu une relation ?",
+  "As-tu déjà été attiré(e) par quelqu'un du même sexe ?",
+  "Quelle est ta technique de séduction préférée ?",
+  "As-tu déjà simulé un orgasme ? Pourquoi ?",
+];
+
+const DARES_SPICY = [
+  "Embrasse la personne de ton choix dans ce groupe sur la joue (ou sur la bouche si elle accepte).",
+  "Fais un lap dance de 30 secondes à quelqu'un du groupe.",
+  "Enlève un vêtement de ton choix pour les 3 prochains tours.",
+  "Laisse quelqu'un te donner un suçon où il/elle veut (zone visible).",
+  "Fais un massage sensuel des épaules à la personne à ta gauche pendant 2 minutes.",
+  "Lèche de la chantilly ou du chocolat sur le doigt de quelqu'un.",
+  "Décris en détail ton fantasme sexuel préféré devant tout le monde.",
+  "Fais des mouvements sensuels pendant 30 secondes.",
+  "Envoie un message sexy à ton crush ou ex.",
+  "Laisse quelqu'un te prendre en photo dans une pose sexy (gardez-la pour vous).",
+  "Fais un bisou dans le cou à la personne de ton choix.",
+  "Raconte ta meilleure anecdote coquine en détail.",
+  "Échange de place et assieds-toi sur les genoux de quelqu'un pour un tour.",
+  "Fais une danse provocante pendant 1 minute.",
+  "Laisse quelqu'un retirer un vêtement de ton choix.",
+  "Décris ce que tu ferais lors d'un date parfait qui se termine très bien.",
+  "Fais semblant d'avoir un orgasme de manière convaincante.",
+  "Embrasse le ventre de quelqu'un dans le groupe.",
+  "Raconte le moment le plus hot de ta vie.",
+  "Mime une scène de séduction avec la personne à ta droite.",
+  "Envoie 'On se voit ce soir ? 😏' à un contact aléatoire.",
+  "Fais 10 pompes sensuelles.",
+  "Décris la lingerie que tu portes actuellement en détail.",
+  "Laisse quelqu'un tracer une ligne avec le doigt sur ton corps (zone de ton choix).",
+  "Fais un compliment très coquin à chaque personne du groupe.",
+  "Mordille l'oreille de quelqu'un dans le groupe.",
+  "Raconte le rêve érotique le plus fou que tu aies fait.",
+  "Fais un body shot (bois une shot sur le corps de quelqu'un).",
+  "Simule une scène de premier baiser avec quelqu'un.",
+  "Laisse quelqu'un choisir un endroit où t'embrasser (pas la bouche).",
+];
+
+// ==================== VERSION JURY 👨‍⚖️ ====================
+// À remplir par vous-même pour la présentation
+const TRUTHS_JURY: string[] = [];
+
+const DARES_JURY: string[] = [];
+
+export default function TruthOrDareGame() {
   const router = useRouter();
   const { gameId } = useLocalSearchParams<{ gameId: string }>();
   const { user } = useAuth();
@@ -89,13 +192,51 @@ export default function Playing() {
   const isMyTurn = currentPlayer?.oderId === user?.uid;
   const isHost = game?.hostId === user?.uid;
 
+  // ✅ Fonction pour récupérer les bonnes listes selon le gameType
+  const getChallenges = (type: "truth" | "dare"): string[] => {
+    if (!game) return [];
+
+    const gameType = game.gameType || "base";
+
+    if (type === "truth") {
+      switch (gameType) {
+        case "spicy":
+          return TRUTHS_SPICY;
+        case "jury":
+          return TRUTHS_JURY.length > 0 ? TRUTHS_JURY : TRUTHS_BASE;
+        default:
+          return TRUTHS_BASE;
+      }
+    } else {
+      switch (gameType) {
+        case "spicy":
+          return DARES_SPICY;
+        case "jury":
+          return DARES_JURY.length > 0 ? DARES_JURY : DARES_BASE;
+        default:
+          return DARES_BASE;
+      }
+    }
+  };
+
   // Choisir Action ou Vérité
   const handleChoice = async (type: "truth" | "dare") => {
     if (!gameId || !game || !currentPlayer) return;
 
     setChoosing(true);
 
-    const challenges = type === "truth" ? TRUTHS : DARES;
+    const challenges = getChallenges(type);
+
+    // Sécurité : si aucune question (version jury vide)
+    if (challenges.length === 0) {
+      Alert.alert(
+        "Aucune question",
+        "Les questions pour cette version ne sont pas encore configurées."
+      );
+      setChoosing(false);
+      return;
+    }
+
     const randomChallenge =
       challenges[Math.floor(Math.random() * challenges.length)];
 
@@ -182,6 +323,14 @@ export default function Playing() {
     );
   }
 
+  // ✅ Afficher le type de jeu dans le header
+  const gameTypeLabel =
+    game.gameType === "spicy"
+      ? "🌶️ Spicy"
+      : game.gameType === "jury"
+      ? "👨‍⚖️ Jury"
+      : "Classic";
+
   return (
     <LinearGradient
       colors={[COLORS.backgroundTop, COLORS.backgroundBottom]}
@@ -189,7 +338,10 @@ export default function Playing() {
     >
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Action ou Vérité</Text>
+        <View>
+          <Text style={styles.headerTitle}>Action ou Vérité</Text>
+          <Text style={styles.gameTypeLabel}>{gameTypeLabel}</Text>
+        </View>
         {isHost && (
           <TouchableOpacity style={styles.endButton} onPress={handleEndGame}>
             <Icon name="close-circle" size={24} color={COLORS.error} />
@@ -205,9 +357,7 @@ export default function Playing() {
           <View style={styles.currentPlayerBadge}>
             <Text style={styles.currentPlayerName}>{currentPlayer?.name}</Text>
           </View>
-          {isMyTurn && (
-            <Text style={styles.yourTurnText}>C'est à toi !</Text>
-          )}
+          {isMyTurn && <Text style={styles.yourTurnText}>C'est à toi !</Text>}
         </View>
 
         {/* Affichage du défi/vérité OU boutons de choix */}
@@ -241,12 +391,13 @@ export default function Playing() {
             </Text>
 
             {/* Bouton suivant (visible par tous) */}
-            <TouchableOpacity
-              style={styles.nextButton}
-              onPress={handleNext}
-            >
+            <TouchableOpacity style={styles.nextButton} onPress={handleNext}>
               <Text style={styles.nextButtonText}>Suivant</Text>
-              <Icon name="arrow-forward" size={20} color={COLORS.textPrimary} />
+              <Icon
+                name="arrow-forward"
+                size={20}
+                color={COLORS.textPrimary}
+              />
             </TouchableOpacity>
           </View>
         ) : (
@@ -367,6 +518,14 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontFamily: "Poppins-Bold",
     color: COLORS.textPrimary,
+    textAlign: "center",
+  },
+  gameTypeLabel: {
+    fontSize: 14,
+    fontFamily: "Poppins-Regular",
+    color: COLORS.secondary,
+    textAlign: "center",
+    marginTop: 4,
   },
   endButton: {
     position: "absolute",

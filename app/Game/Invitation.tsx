@@ -1,5 +1,6 @@
+// Invitation.tsx
 import { LinearGradient } from "expo-linear-gradient";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -17,6 +18,7 @@ import { COLORS } from "../../components/Colors";
 import {
   createGame,
   Game,
+  GameType,
   joinGame,
   leaveGame,
   Player,
@@ -26,15 +28,35 @@ import {
 
 type LobbyMode = "choice" | "create" | "join" | "waiting";
 
-export default function Lobby() {
+export default function Invitation() {
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, userProfile } = useAuth();
+  
+  // ✅ Récupérer gameType ET gameId depuis les params
+  const params = useLocalSearchParams<{ gameId?: string; gameType?: string }>();
 
   const [mode, setMode] = useState<LobbyMode>("choice");
+  
+  // ✅ Initialiser avec le gameType passé (ou "base" par défaut)
+  const [selectedGameType, setSelectedGameType] = useState<GameType>(
+    (params.gameType as GameType) || "base"
+  );
+  
   const [gameCode, setGameCode] = useState("");
   const [gameId, setGameId] = useState<string | null>(null);
   const [game, setGame] = useState<Game | null>(null);
   const [loading, setLoading] = useState(false);
+
+  const isPremium = userProfile?.isPremium || false;
+
+  // ✅ Détection du gameId depuis l'URL (quand on rejoint depuis Jeux)
+  useEffect(() => {
+    if (params.gameId && typeof params.gameId === "string") {
+      console.log("🎮 GameId détecté depuis URL:", params.gameId);
+      setGameId(params.gameId);
+      setMode("waiting");
+    }
+  }, [params.gameId]);
 
   // Écouter les changements de la partie en temps réel
   useEffect(() => {
@@ -52,7 +74,7 @@ export default function Lobby() {
     return () => unsubscribe();
   }, [gameId]);
 
-  // Créer une nouvelle partie - ✅ MODIFIÉ (plus besoin de playerName)
+  // Créer une nouvelle partie avec le type sélectionné
   const handleCreateGame = async () => {
     if (!user) {
       Alert.alert("Erreur", "Vous devez être connecté");
@@ -61,7 +83,7 @@ export default function Lobby() {
 
     setLoading(true);
     try {
-      const newGameId = await createGame(user.uid); // ✅ Plus de playerName
+      const newGameId = await createGame(user.uid, selectedGameType);
       setGameId(newGameId);
       setMode("waiting");
     } catch (error) {
@@ -72,7 +94,7 @@ export default function Lobby() {
     }
   };
 
-  // Rejoindre une partie existante - ✅ MODIFIÉ (plus besoin de playerName)
+  // Rejoindre une partie existante
   const handleJoinGame = async () => {
     if (!user) {
       Alert.alert("Erreur", "Vous devez être connecté");
@@ -87,7 +109,7 @@ export default function Lobby() {
     try {
       const joinedGameId = await joinGame(
         gameCode.trim().toUpperCase(),
-        user.uid // ✅ Plus de playerName
+        user.uid
       );
 
       if (joinedGameId) {
@@ -182,7 +204,7 @@ export default function Lobby() {
 
       {/* Contenu selon le mode */}
       <View style={styles.content}>
-        {/* MODE: Choix initial - ✅ SIMPLIFIÉ (plus d'input pseudo) */}
+        {/* MODE: Choix initial */}
         {mode === "choice" && (
           <>
             <Text style={styles.title}>Comment veux-tu jouer ?</Text>
@@ -200,7 +222,11 @@ export default function Lobby() {
                   Génère un code et invite tes amis
                 </Text>
               </View>
-              <Icon name="chevron-forward" size={24} color={COLORS.textSecondary} />
+              <Icon
+                name="chevron-forward"
+                size={24}
+                color={COLORS.textSecondary}
+              />
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -216,7 +242,11 @@ export default function Lobby() {
                   Entre le code de ton ami
                 </Text>
               </View>
-              <Icon name="chevron-forward" size={24} color={COLORS.textSecondary} />
+              <Icon
+                name="chevron-forward"
+                size={24}
+                color={COLORS.textSecondary}
+              />
             </TouchableOpacity>
           </>
         )}
@@ -226,7 +256,12 @@ export default function Lobby() {
           <>
             <Text style={styles.title}>Créer une partie</Text>
             <Text style={styles.subtitle}>
-              Un code sera généré pour inviter tes amis
+              Version sélectionnée:{" "}
+              {selectedGameType === "spicy"
+                ? "🌶️ Spicy"
+                : selectedGameType === "jury"
+                ? "👨‍⚖️ Jury"
+                : "🎮 Classic"}
             </Text>
 
             <TouchableOpacity
@@ -293,7 +328,12 @@ export default function Lobby() {
               <Text style={styles.gameCodeLabel}>Code de la partie</Text>
               <Text style={styles.gameCode}>{game.gameCode}</Text>
               <Text style={styles.gameCodeHint}>
-                Partage ce code avec tes amis !
+                Version:{" "}
+                {game.gameType === "spicy"
+                  ? "🌶️ Spicy"
+                  : game.gameType === "jury"
+                  ? "👨‍⚖️ Jury"
+                  : "🎮 Classic"}
               </Text>
             </View>
 

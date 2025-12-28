@@ -18,10 +18,13 @@ export interface Player {
   isHost: boolean;
 }
 
+export type GameType = 'base' | 'spicy' | 'jury';
+
 export interface Game {
   id: string;
   gameCode: string;
   hostId: string;
+  gameType: GameType; // ✅ NOUVEAU : Type de jeu
   status: "waiting" | "playing" | "finished";
   players: Player[];
   currentPlayerIndex: number;
@@ -69,22 +72,26 @@ const getUserDisplayName = async (userId: string): Promise<string> => {
   }
 };
 
-// Créer une nouvelle partie - ✅ CORRIGÉ avec await
-export const createGame = async (hostId: string): Promise<string> => {
+// Créer une nouvelle partie - ✅ CORRIGÉ avec gameType
+export const createGame = async (
+  hostId: string,
+  gameType: GameType = 'base' // ✅ NOUVEAU : Type de jeu par défaut = base
+): Promise<string> => {
   try {
     const gameCode = generateGameCode();
-    const hostName = await getUserDisplayName(hostId); // ✅ await pour attendre le nom
+    const hostName = await getUserDisplayName(hostId);
     
-    console.log("🎮 Creating game with:", { hostId, hostName, gameCode });
+    console.log("🎮 Creating game with:", { hostId, hostName, gameCode, gameType });
 
     const gameData = {
       gameCode,
       hostId,
+      gameType, // ✅ NOUVEAU : Stocker le type de jeu
       status: "waiting" as const,
       players: [
         {
           oderId: hostId,
-          name: hostName, // ✅ Maintenant ça ne sera jamais undefined
+          name: hostName,
           isHost: true,
         },
       ],
@@ -93,7 +100,6 @@ export const createGame = async (hostId: string): Promise<string> => {
       createdAt: new Date(),
     };
 
-    // ✅ Vérifier qu'aucun champ n'est undefined
     console.log("📦 Game data:", JSON.stringify(gameData, null, 2));
 
     const docRef = await addDoc(collection(db, "truthOrDareGames"), gameData);
@@ -112,7 +118,7 @@ export const joinGame = async (
   oderId: string
 ): Promise<string | null> => {
   try {
-    const playerName = await getUserDisplayName(oderId); // ✅ await pour attendre le nom
+    const playerName = await getUserDisplayName(oderId);
     
     console.log("🎮 Joining game with:", { gameCode, oderId, playerName });
 
@@ -146,7 +152,7 @@ export const joinGame = async (
       ...gameData.players,
       {
         oderId,
-        name: playerName, // ✅ Maintenant ça ne sera jamais undefined
+        name: playerName,
         isHost: false,
       },
     ];

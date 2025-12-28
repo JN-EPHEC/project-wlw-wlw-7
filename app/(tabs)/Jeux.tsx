@@ -7,7 +7,8 @@ import Icon from "react-native-vector-icons/Ionicons";
 import { useAuth } from "../../Auth_context";
 import { COLORS } from "../../components/Colors";
 import { auth, db } from "../../firebase_Config";
-import { joinGame } from "../../service/TruthOrDareService";
+import { joinGame, } from "../../service/TruthOrDareService";
+
 
 interface Game {
   id: string;
@@ -269,13 +270,10 @@ export default function JeuxScreen() {
         
         // 🔧 FIX 2 : Utiliser un objet avec pathname et params
         router.push({
-          pathname: "/Game/Invitation",
-          params: { 
-            gameId: joinedGameId,
-            mode: "waiting"
-          }
-        });
-      } else {
+        pathname: "/Game/Invitation",
+        params: { gameId: joinedGameId }
+      });
+      }  else {
         Alert.alert("Erreur", "Partie introuvable ou déjà commencée");
       }
     } catch (error) {
