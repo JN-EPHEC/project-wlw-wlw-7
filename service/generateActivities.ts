@@ -813,7 +813,6 @@ function getRandomFutureDate(): string {
  * FONCTION PRINCIPALE : Générer et ajouter les 50 activités dans Firestore
  */
 export async function generateActivities() {
-  console.log("🚀 Starting to generate 50 real Brussels activities...");
   
   try {
     const activitiesRef = collection(db, "activities");
@@ -828,12 +827,10 @@ export async function generateActivities() {
 
       await addDoc(activitiesRef, activityData);
       count++;
-      console.log(`✅ Added: ${activity.title} (${count}/${ACTIVITIES_DATA.length})`);
       
       await new Promise(resolve => setTimeout(resolve, 200));
     }
 
-    console.log(`🎉 Successfully generated ${count} activities!`);
     return { success: true, count };
   } catch (error) {
     console.error("❌ Error generating activities:", error);
@@ -849,10 +846,8 @@ export async function initializeActivitiesIfNeeded() {
     const activitiesSnapshot = await getDocs(collection(db, "activities"));
     
     if (activitiesSnapshot.empty) {
-      console.log("📊 No activities found, generating...");
       return await generateActivities();
     } else {
-      console.log(`ℹ️ ${activitiesSnapshot.size} activities already exist`);
       return { success: true, alreadyExists: true, count: activitiesSnapshot.size };
     }
   } catch (error) {

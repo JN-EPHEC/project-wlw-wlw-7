@@ -679,7 +679,6 @@ function getRandomFutureDate(): string {
  * FONCTION PRINCIPALE : Ajouter 50 nouvelles activités dans Firestore
  */
 export async function generateMoreActivities() {
-  console.log("🚀 Adding 50 MORE varied activities to Brussels...");
   
   try {
     const activitiesRef = collection(db, "activities");
@@ -694,12 +693,10 @@ export async function generateMoreActivities() {
 
       await addDoc(activitiesRef, activityData);
       count++;
-      console.log(`✅ Added: ${activity.title} (${count}/${MORE_ACTIVITIES_DATA.length})`);
       
       await new Promise(resolve => setTimeout(resolve, 200));
     }
 
-    console.log(`🎉 Successfully added ${count} MORE activities!`);
     return { success: true, count };
   } catch (error) {
     console.error("❌ Error generating MORE activities:", error);

@@ -66,12 +66,10 @@ export default function RecommendationsModal({
   const loadRecommendations = async () => {
     setLoading(true);
     try {
-      console.log("🤖 Chargement recommandations pour groupe:", groupId);
       const results = await suggestActivitiesForGroup(groupId);
       setRecommendations(results);
       
       if (results.length === 0) {
-        console.log("ℹ️ Aucune recommandation trouvée");
       }
     } catch (error) {
       console.error("Erreur chargement recommandations:", error);

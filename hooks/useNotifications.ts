@@ -9,13 +9,11 @@ export function useNotifications() {
   useEffect(() => {
     // Gérer les notifications reçues
     const handleNotificationReceived = (notification: Notifications.Notification) => {
-      console.log('📩 Notification reçue:', notification);
     };
 
     // Gérer les clics sur notifications
     const handleNotificationTapped = (response: Notifications.NotificationResponse) => {
       const data = response.notification.request.content.data;
-      console.log('👆 Notification cliquée:', data);
 
       // Navigation selon le type
       if (data.type === 'activity_proposed') {

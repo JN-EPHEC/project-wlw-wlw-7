@@ -48,16 +48,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     const setupNotifications = async () => {
       if (user && !isRegistering) {
-        console.log("🔔 Configuration des notifications pour:", user.uid);
         
         try {
           const token = await registerForPushNotificationsAsync();
           
           if (token) {
-            console.log("✅ Token obtenu:", token);
             await savePushToken(user.uid, token);
           } else {
-            console.log("⚠️ Aucun token obtenu (permissions refusées ou émulateur)");
           }
         } catch (error) {
           console.error("❌ Erreur setup notifications:", error);
@@ -158,3 +155,4 @@ export const useAuth = () => {
 
 // Export du type UserProfile pour utilisation ailleurs
 export type { UserProfile };
+

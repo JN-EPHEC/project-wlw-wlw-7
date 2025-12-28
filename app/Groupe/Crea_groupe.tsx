@@ -261,8 +261,6 @@ export default function CreateGroupScreen() {
       };
 
       const groupDoc = await addDoc(groupsRef, groupData);
-      console.log("✅ Group created:", groupDoc.id);
-
       // ✅ MODIFIÉ: Utiliser la date personnalisée au lieu de selectedActivity.date
       const deadline = new Date(customDate.getTime() - 60 * 60 * 1000); // 1h avant
 

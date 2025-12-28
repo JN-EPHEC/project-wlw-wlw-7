@@ -19,17 +19,14 @@ export const requestLocationPermission = async (): Promise<{
   location: LocationData | null;
 }> => {
   try {
-    console.log("📍 Requesting location permission...");
 
     // Demander la permission (popup natif)
     const { status } = await Location.requestForegroundPermissionsAsync();
 
     if (status !== "granted") {
-      console.log("❌ Location permission denied");
       return { granted: false, location: null };
     }
 
-    console.log("✅ Location permission granted");
 
     // Obtenir la position actuelle
     const location = await Location.getCurrentPositionAsync({
@@ -37,7 +34,6 @@ export const requestLocationPermission = async (): Promise<{
     });
 
     const { latitude, longitude } = location.coords;
-    console.log("📍 User location:", latitude, longitude);
 
     // 🔧 FIX : Pas de reverse geocoding pour éviter la limite d'API
     // On met "Bruxelles" par défaut (ça n'affecte pas le calcul de distance GPS)
@@ -49,7 +45,6 @@ export const requestLocationPermission = async (): Promise<{
       timestamp: Date.now(),
     };
 
-    console.log("🏙️ User location set to:", locationData.city);
 
     return {
       granted: true,
@@ -80,7 +75,6 @@ export const saveUserLocation = async (locationData: LocationData) => {
       },
     });
 
-    console.log("✅ Location saved to Firestore");
   } catch (error) {
     console.error("❌ Error saving location:", error);
   }

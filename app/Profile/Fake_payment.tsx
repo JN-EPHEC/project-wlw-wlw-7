@@ -48,7 +48,6 @@ export default function FakePaymentScreen() {
 
   // ========== PAIEMENT FICTIF (ton système actuel) ==========
   const handleFakePayment = async () => {
-    console.log("💳 Paiement fictif démarré");
     
     // Validation basique (fake)
     if (!cardNumber || !cardName || !expiryDate || !cvv) {
@@ -71,8 +70,6 @@ export default function FakePaymentScreen() {
           premiumType: planType,
           premiumActivatedAt: new Date().toISOString(),
         });
-
-        console.log("✅ User upgraded to premium:", planType);
         
         setProcessing(false);
         setShowSuccess(true);
@@ -86,12 +83,7 @@ export default function FakePaymentScreen() {
 
   // ========== PAIEMENT STRIPE (optionnel) ==========
   const handleStripePayment = async () => {
-    console.log("🔵 ========== DÉBUT PAIEMENT STRIPE ==========");
-    console.log("🔵 Bouton Stripe cliqué");
-    console.log("🔵 STRIPE_CONFIGURED:", STRIPE_CONFIGURED);
-    
     if (!STRIPE_CONFIGURED) {
-      console.log("⚠️ Stripe non configuré - affichage du message");
       Alert.alert(
         "Stripe non configuré",
         "Pour activer les paiements Stripe :\n\n" +
@@ -108,28 +100,19 @@ export default function FakePaymentScreen() {
       return;
     }
 
-    console.log("🔵 Plan type reçu:", planType);
     const stripePlan = planDetails[planType].stripePlan as "monthly" | "yearly";
-    console.log("🔵 Stripe plan converti:", stripePlan);
     
     const paymentLink = STRIPE_PAYMENT_LINKS[stripePlan];
-    console.log("🔵 Payment link sélectionné:", paymentLink);
 
     try {
-      console.log("🔵 Test si l'URL peut être ouverte...");
       const canOpen = await Linking.canOpenURL(paymentLink);
-      console.log("🔵 Can open URL result:", canOpen);
       
       if (canOpen) {
-        console.log("✅ URL peut être ouverte - ouverture directe");
-        console.log("🚀 Tentative d'ouverture de l'URL...");
         
         // Ouvrir directement sans Alert
         await Linking.openURL(paymentLink);
-        console.log("✅ URL ouverte avec succès");
         
       } else {
-        console.log("❌ L'URL ne peut PAS être ouverte");
         Alert.alert("Erreur", "Impossible d'ouvrir Stripe");
       }
     } catch (error) {
@@ -139,7 +122,6 @@ export default function FakePaymentScreen() {
       Alert.alert("Erreur", "Une erreur est survenue: " + (error instanceof Error ? error.message : String(error)));
     }
     
-    console.log("🔵 ========== FIN PAIEMENT STRIPE ==========");
   };
 
   const handleSuccessClose = () => {

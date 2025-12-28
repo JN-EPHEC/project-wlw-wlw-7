@@ -106,19 +106,16 @@ function estimateLocationCoordinates(location: string): { lat: number; lng: numb
  * ALGORITHME PRINCIPAL - SCORING PERSONNEL
  */
 export async function getPersonalizedActivities(): Promise<PersonalScoredActivity[]> {
-  console.log("🎯 [ALGO PERSONNEL] Démarrage");
   
   try {
     const user = auth.currentUser;
     if (!user) {
-      console.log("❌ Pas d'utilisateur connecté");
       return [];
     }
     
     // 1. Récupérer les préférences de l'utilisateur
     const userDoc = await getDoc(doc(db, "users", user.uid));
     if (!userDoc.exists()) {
-      console.log("❌ Utilisateur non trouvé dans Firestore");
       return [];
     }
     
@@ -127,13 +124,8 @@ export async function getPersonalizedActivities(): Promise<PersonalScoredActivit
     const userLocation = userData.location; // { latitude, longitude }
     const userCity = userData.city || "Bruxelles";
     
-    console.log(`👤 User: ${user.email}`);
-    console.log(`🎯 Intérêts: ${userInterests.join(", ")}`);
-    console.log(`📍 Position: ${userLocation ? `${userLocation.latitude}, ${userLocation.longitude}` : userCity}`);
-    
     // 2. Récupérer toutes les activités
     const activitiesSnapshot = await getDocs(collection(db, "activities"));
-    console.log(`📊 ${activitiesSnapshot.size} activités trouvées`);
     
     // 3. Scorer chaque activité
     const scoredActivities: PersonalScoredActivity[] = [];
@@ -182,9 +174,7 @@ export async function getPersonalizedActivities(): Promise<PersonalScoredActivit
       .sort((a, b) => b.personalScore - a.personalScore)
       .slice(0, 20);
     
-    console.log(`✅ Top ${topActivities.length} activités personnalisées:`);
     topActivities.slice(0, 5).forEach((act, index) => {
-      console.log(`${index + 1}. ${act.title} - ${act.personalScore}pts (${act.distance?.toFixed(1)}km)`);
     });
     
     return topActivities;

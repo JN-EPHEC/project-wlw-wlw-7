@@ -49,7 +49,6 @@ const generateGameCode = (): string => {
 // ✅ FONCTION CORRIGÉE pour récupérer le nom de l'utilisateur
 const getUserDisplayName = async (userId: string): Promise<string> => {
   try {
-    console.log("🔍 Fetching user name for:", userId);
     
     const usersQuery = query(
       collection(db, "users"),
@@ -60,11 +59,9 @@ const getUserDisplayName = async (userId: string): Promise<string> => {
     if (!usersSnapshot.empty) {
       const userData = usersSnapshot.docs[0].data();
       const displayName = userData.displayName || userData.username || "Joueur";
-      console.log("✅ User name found:", displayName);
       return displayName;
     }
     
-    console.log("⚠️ User not found in Firestore, using default name");
     return "Joueur";
   } catch (error) {
     console.error("❌ Error fetching user name:", error);
@@ -81,7 +78,6 @@ export const createGame = async (
     const gameCode = generateGameCode();
     const hostName = await getUserDisplayName(hostId);
     
-    console.log("🎮 Creating game with:", { hostId, hostName, gameCode, gameType });
 
     const gameData = {
       gameCode,
@@ -100,10 +96,8 @@ export const createGame = async (
       createdAt: new Date(),
     };
 
-    console.log("📦 Game data:", JSON.stringify(gameData, null, 2));
 
     const docRef = await addDoc(collection(db, "truthOrDareGames"), gameData);
-    console.log("✅ Game created with ID:", docRef.id);
     
     return docRef.id;
   } catch (error) {
@@ -120,7 +114,6 @@ export const joinGame = async (
   try {
     const playerName = await getUserDisplayName(oderId);
     
-    console.log("🎮 Joining game with:", { gameCode, oderId, playerName });
 
     // Chercher la partie avec ce code
     const gamesRef = collection(db, "truthOrDareGames");
@@ -133,7 +126,6 @@ export const joinGame = async (
     const snapshot = await getDocs(q);
 
     if (snapshot.empty) {
-      console.log("⚠️ Game not found");
       return null; // Partie non trouvée
     }
 
@@ -143,7 +135,6 @@ export const joinGame = async (
     // Vérifier si le joueur est déjà dans la partie
     const alreadyJoined = gameData.players.some((p) => p.oderId === oderId);
     if (alreadyJoined) {
-      console.log("ℹ️ Player already in game");
       return gameDoc.id;
     }
 
@@ -161,7 +152,6 @@ export const joinGame = async (
       players: updatedPlayers,
     });
 
-    console.log("✅ Player joined successfully");
     return gameDoc.id;
   } catch (error) {
     console.error("❌ Error joining game:", error);

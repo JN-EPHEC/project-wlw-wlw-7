@@ -113,7 +113,6 @@ export default function ProposeActivityModal({
         const userData = userDoc.data();
         const friendIds: string[] = userData.friends || [];
         
-        console.log("🔍 Friend IDs trouvés:", friendIds);
 
         // Récupérer les infos de chaque ami
         const friendsList: Friend[] = [];
@@ -134,10 +133,8 @@ export default function ProposeActivityModal({
           }
         }
         
-        console.log("✅ Amis chargés:", friendsList.length, "ami(s)");
         setFriends(friendsList);
       } else {
-        console.log("⚠️ Document user introuvable");
       }
 
     } catch (error) {

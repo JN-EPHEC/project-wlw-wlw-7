@@ -87,7 +87,6 @@ export default function GroupDetailScreen() {
   };
 
   const openDiscussion = () => {
-    console.log("🚀 Opening discussion for group:", groupId);
     router.push({
       pathname: "/Groupe/Discu_groupe",
       params: { id: groupId }
@@ -95,7 +94,6 @@ export default function GroupDetailScreen() {
   };
 
   const openEditGroup = () => {
-    console.log("✏️ Opening edit for group:", groupId);
     router.push({
       pathname: "/Groupe/Modif_groupe",
       params: { id: groupId }
@@ -174,7 +172,6 @@ export default function GroupDetailScreen() {
         );
         await Promise.all(deleteMessagesPromises);
       } catch (error) {
-        console.log("No messages to delete");
       }
 
       // Supprimer les activités du groupe
@@ -190,13 +187,11 @@ export default function GroupDetailScreen() {
         );
         await Promise.all(deleteActivitiesPromises);
       } catch (error) {
-        console.log("No group activities to delete");
       }
 
       // Supprimer le groupe
       await deleteDoc(doc(db, "groups", groupId));
       
-      console.log("✅ Group and all related data deleted");
     } catch (error) {
       console.error("Error deleting group completely:", error);
       throw error;

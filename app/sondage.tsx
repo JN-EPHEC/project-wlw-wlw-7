@@ -96,8 +96,6 @@ export default function SurveyScreen() {
   };
 
   const handleContinue = async () => {
-    console.log("▶ handleContinue step =", step, "accountType =", accountType);
-
     // STEP 1 → STEP 2
     if (step === 1) {
       if (accountType === 'personal') {

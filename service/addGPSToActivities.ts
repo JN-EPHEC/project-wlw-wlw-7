@@ -77,7 +77,6 @@ function findCoordinates(location: string): { latitude: number; longitude: numbe
   }
   
   // Par défaut : centre de Bruxelles
-  console.log(`⚠️ Location non trouvée: "${location}", utilisation du centre de Bruxelles`);
   return { latitude: 50.8503, longitude: 4.3517 };
 }
 
@@ -85,7 +84,6 @@ function findCoordinates(location: string): { latitude: number; longitude: numbe
  * FONCTION PRINCIPALE : Ajouter les coordonnées GPS à toutes les activités
  */
 export async function addGPSToActivities() {
-  console.log("🌍 Début de l'ajout des coordonnées GPS aux activités...");
   
   try {
     const activitiesRef = collection(db, "activities");
@@ -100,7 +98,6 @@ export async function addGPSToActivities() {
       // Si l'activité a déjà des coordonnées, skip
       if (data.latitude && data.longitude) {
         skippedCount++;
-        console.log(`⏭️  Skip: ${data.title} (déjà des coordonnées)`);
         continue;
       }
       
@@ -115,15 +112,10 @@ export async function addGPSToActivities() {
       });
       
       updatedCount++;
-      console.log(`✅ Mis à jour: ${data.title} → ${coords.latitude}, ${coords.longitude}`);
       
       // Petit délai pour ne pas surcharger Firestore
       await new Promise(resolve => setTimeout(resolve, 100));
     }
-    
-    console.log(`\n🎉 TERMINÉ !`);
-    console.log(`✅ ${updatedCount} activités mises à jour`);
-    console.log(`⏭️  ${skippedCount} activités déjà à jour`);
     
     return { success: true, updated: updatedCount, skipped: skippedCount };
     

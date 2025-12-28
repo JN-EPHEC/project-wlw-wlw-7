@@ -20,7 +20,6 @@ Notifications.setNotificationHandler({
 export async function registerForPushNotificationsAsync() {
   // ⚠️ Les notifications push ne marchent pas sur web
   if (Platform.OS === 'web') {
-    console.log('⚠️ Push notifications not supported on web');
     return null;
   }
 
@@ -45,7 +44,6 @@ export async function registerForPushNotificationsAsync() {
     }
     
     if (finalStatus !== 'granted') {
-      console.log('❌ Permission refusée pour les notifications');
       return null;
     }
 
@@ -53,16 +51,13 @@ export async function registerForPushNotificationsAsync() {
       const projectId = Constants.expoConfig?.extra?.eas?.projectId ?? Constants.easConfig?.projectId;
       
       if (!projectId) {
-        console.log('⚠️ Project ID non trouvé - tentative sans projectId');
       }
 
       token = (await Notifications.getExpoPushTokenAsync({ projectId })).data;
-      console.log('✅ Push token:', token);
     } catch (e) {
       console.error('❌ Erreur getExpoPushTokenAsync:', e);
     }
   } else {
-    console.log('⚠️ Doit utiliser un appareil physique pour les notifications push');
   }
 
   return token;
@@ -76,7 +71,6 @@ export async function savePushToken(userId: string, token: string) {
       notificationsEnabled: true,
       lastTokenUpdate: new Date().toISOString(),
     });
-    console.log('✅ Token sauvegardé dans Firestore');
   } catch (error) {
     console.error('❌ Erreur sauvegarde token:', error);
   }
@@ -85,7 +79,6 @@ export async function savePushToken(userId: string, token: string) {
 // Envoyer une notification locale (pour tester)
 export async function sendLocalNotification(title: string, body: string, data?: any) {
   if (Platform.OS === 'web') {
-    console.log('⚠️ Local notifications not supported on web');
     return;
   }
 
@@ -127,7 +120,6 @@ export async function sendPushNotification(
     });
 
     const result = await response.json();
-    console.log('✅ Notification envoyée:', result);
     return result;
   } catch (error) {
     console.error('❌ Erreur envoi notification:', error);
@@ -147,9 +139,7 @@ export async function notifyUser(
 
     if (token) {
       await sendPushNotification(token, title, body, data);
-      console.log(`✅ Notification envoyée à ${userId}`);
     } else {
-      console.log(`⚠️ Pas de token pour ${userId}`);
     }
   } catch (error) {
     console.error(`❌ Erreur notification pour ${userId}:`, error);
@@ -162,7 +152,6 @@ export function setupNotificationListeners(
   onNotificationTapped: (response: Notifications.NotificationResponse) => void
 ) {
   if (Platform.OS === 'web') {
-    console.log('⚠️ Notification listeners not supported on web');
     return () => {};
   }
 

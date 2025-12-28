@@ -52,7 +52,6 @@ export default function Invitation() {
   // ✅ Détection du gameId depuis l'URL (quand on rejoint depuis Jeux)
   useEffect(() => {
     if (params.gameId && typeof params.gameId === "string") {
-      console.log("🎮 GameId détecté depuis URL:", params.gameId);
       setGameId(params.gameId);
       setMode("waiting");
     }

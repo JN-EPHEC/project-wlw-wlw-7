@@ -158,7 +158,6 @@ export default function HomeScreen() {
 
     setLoadingPersonalized(true);
     try {
-      console.log("🎯 Chargement des recommandations personnalisées...");
       const personalized = await getPersonalizedActivities();
       
       if (personalized.length === 0) {
@@ -285,10 +284,8 @@ export default function HomeScreen() {
           activity.category.toLowerCase() === category.toLowerCase()
         );
       } 
-      // 🌍 FILTRE GPS "PRÈS DE MOI"
+      // FILTRE GPS "PRÈS DE MOI"
       else if (activeFilter === "near" && userLocation) {
-        console.log("📍 Filtre 'Près de moi' activé");
-        console.log(`👤 Position utilisateur: ${userLocation.latitude}, ${userLocation.longitude}`);
         
         // Calculer la distance pour chaque activité
         const activitiesWithDistance = filtered.map(activity => {
@@ -310,9 +307,7 @@ export default function HomeScreen() {
         filtered = activitiesWithDistance
           .filter(activity => activity.distance <= 15)
           .sort((a, b) => a.distance - b.distance); // Trier par distance croissante
-        
-        console.log(`✅ ${filtered.length} activités à moins de 15km trouvées`);
-      } 
+              } 
       else if (activeFilter === "free") {
         filtered = filtered.filter(activity => activity.price === "Gratuit");
       } else if (activeFilter === "new") {

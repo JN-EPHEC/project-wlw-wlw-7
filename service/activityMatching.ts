@@ -30,7 +30,6 @@ export interface ScoredActivity extends Activity {
  * ALGORITHME PRINCIPAL - SIMPLIFIÉ POUR PROJET SCOLAIRE
  */
 export async function suggestActivitiesForGroup(groupId: string): Promise<ScoredActivity[]> {
-  console.log(`🤖 [ALGO] Démarrage pour groupe ${groupId}`);
 
   try {
     // 1. Récupérer les membres du groupe
@@ -44,7 +43,6 @@ export async function suggestActivitiesForGroup(groupId: string): Promise<Scored
     const memberIds = groupData.members || [];
     const groupCity = groupData.city || "Bruxelles";
 
-    console.log(`👥 ${memberIds.length} membres dans le groupe`);
 
     // 2. Récupérer les intérêts de chaque membre
     const allInterests: string[] = [];
@@ -58,17 +56,14 @@ export async function suggestActivitiesForGroup(groupId: string): Promise<Scored
 
     // 3. Normaliser et trouver les intérêts UNIQUES
     const uniqueInterests = [...new Set(allInterests)];
-    console.log(`🎯 Intérêts du groupe: ${uniqueInterests.join(', ') || 'aucun'}`);
 
     // Si pas d'intérêts, utiliser des intérêts par défaut
     if (uniqueInterests.length === 0) {
-      console.log("⚠️ Pas d'intérêts, utilisation de valeurs par défaut");
       uniqueInterests.push("culture", "divertissement", "sport");
     }
 
     // 4. Récupérer toutes les activités
     const activitiesSnapshot = await getDocs(collection(db, "activities"));
-    console.log(`📊 ${activitiesSnapshot.size} activités trouvées dans la base`);
 
     const allActivities: Activity[] = [];
     activitiesSnapshot.forEach(doc => {
@@ -112,16 +107,13 @@ export async function suggestActivitiesForGroup(groupId: string): Promise<Scored
       .sort((a, b) => b.score - a.score)
       .slice(0, 5); // ⭐ TOP 5,SEULEMENT
 
-    console.log(`✅ Top ${filteredActivities.length} suggestions (max 5):`);
     filteredActivities.forEach((act, index) => {
-      console.log(`${index + 1}. ${act.title} - ${act.score}pts`);
     });
 
     // 7. Sauvegarder dans Firestore (si activités trouvées)
     if (filteredActivities.length > 0) {
       await saveSuggestions(groupId, filteredActivities, uniqueInterests);
     } else {
-      console.log("ℹ️ Aucune activité avec score suffisant");
     }
 
     return filteredActivities;
@@ -146,9 +138,6 @@ function calculateSimpleScore(
   const activityInterests = (activity.interests || []).map(i => i.toLowerCase());
   const activityTitle = activity.title.toLowerCase();
   
-  console.log(`🔍 ${activity.title}`);
-  console.log(`   Intérêts: ${activityInterests.join(', ')}`);
-
   // ⭐⭐ DÉTECTION SPÉCIALE BOWLING ! ⭐⭐
   const isBowlingActivity = activityTitle.includes("bowling");
   
@@ -160,7 +149,6 @@ function calculateSimpleScore(
     if (isBowlingActivity && interestLower === "bowling") {
       score += 60; // ⭐ BONUS ÉNORME POUR BOWLING
       matchedInterests.push("bowling");
-      console.log(`   🎳⭐ BOWLING DÉTECTÉ! → +60 points`);
       return;
     }
     
@@ -172,7 +160,6 @@ function calculateSimpleScore(
       if (!matchedInterests.includes(interest)) {
         matchedInterests.push(interest);
       }
-      console.log(`   ✅ Match: "${interest}" → +30 points`);
       return;
     }
     
@@ -182,37 +169,31 @@ function calculateSimpleScore(
       if (!matchedInterests.includes(interest)) {
         matchedInterests.push(interest);
       }
-      console.log(`   📝 Match titre: "${interest}" → +25 points`);
     }
   });
 
   // Bonus localisation (10 points)
   if (groupCity && activity.location?.toLowerCase().includes(groupCity.toLowerCase())) {
     score += 10;
-    console.log(`   📍 Bonus localisation: +10`);
   }
 
   // Bonus prix gratuit (15 points)
   if (activity.price === "Gratuit") {
     score += 15;
-    console.log(`   💰 Bonus gratuit: +15`);
   }
 
   // Bonus nouveauté (5 points)
   if (activity.isNew) {
     score += 5;
-    console.log(`   🆕 Bonus nouveauté: +5`);
   }
 
   // Bonus si activité populaire (rating > 4)
   if (activity.rating && activity.rating > 4.0) {
     score += 10;
-    console.log(`   ⭐ Bonus populaire: +10`);
   }
 
   // Limiter le score à 100
   const finalScore = Math.min(100, Math.round(score));
-  console.log(`   📊 Score final: ${finalScore} points\n`);
   
   return {
     score: finalScore,
@@ -265,7 +246,6 @@ async function saveSuggestions(
     };
 
     await setDoc(doc(db, "groupSuggestions", groupId), suggestionData, { merge: true });
-    console.log(`💾 Suggestions sauvegardées pour ${groupId}`);
 
   } catch (error: any) {
     console.error("❌ Erreur sauvegarde:", error.message);
@@ -281,7 +261,6 @@ export async function getGroupSuggestions(groupId: string): Promise<ScoredActivi
     
     // Si pas de suggestions, les calculer
     if (!suggestionsDoc.exists()) {
-      console.log("📡 Pas de suggestions, calcul en cours...");
       return await suggestActivitiesForGroup(groupId);
     }
 

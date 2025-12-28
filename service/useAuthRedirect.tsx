@@ -24,14 +24,10 @@ export function useAuthRedirect() {
       const onSondage = segments[0] === "sondage";
       const onAuth = segments[0] === "login" || segments[0] === "register";
 
-      console.log("🔍 AuthRedirect - User:", user?.email || "none");
-      console.log("🔍 AuthRedirect - Segments:", segments);
-      console.log("🔍 AuthRedirect - isRegistering:", isRegistering);
 
       if (!user) {
         // Pas de user → rediriger vers login (sauf si déjà sur auth pages)
         if (inAuthGroup || onSondage) {
-          console.log("➡️ Redirecting to /login (no user)");
           router.replace("/login");
         }
       } else {
@@ -43,15 +39,12 @@ export function useAuthRedirect() {
             const userData = userDoc.data();
             const surveyCompleted = userData.surveyCompleted;
 
-            console.log("📊 Survey completed:", surveyCompleted);
 
             if (!surveyCompleted && !onSondage) {
               // Sondage pas fait → rediriger vers sondage
-              console.log("➡️ Redirecting to /sondage (survey not completed)");
               router.replace("/sondage");
             } else if (surveyCompleted && (onAuth || onSondage)) {
               // Sondage fait ET sur page auth/sondage → rediriger vers Home
-              console.log("➡️ Redirecting to /(tabs)/Home (survey completed)");
               router.replace("/(tabs)/Home");
             }
           }

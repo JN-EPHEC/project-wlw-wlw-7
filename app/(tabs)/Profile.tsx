@@ -150,7 +150,6 @@ export default function ProfileScreen() {
         const userData = userDoc.data();
         friendsList = userData.friends || [];
       } else {
-        console.log("⚠️ Document utilisateur introuvable, on continue la suppression");
       }
 
       // 2. Retirer l'utilisateur des listes d'amis de ses amis uniquement
@@ -206,7 +205,6 @@ export default function ProfileScreen() {
           await Promise.all(deleteSentPromises);
         }
       } catch (error) {
-        console.log("Pas de demandes d'amis à supprimer");
       }
 
       // 5. Supprimer les notifications de l'utilisateur
@@ -226,39 +224,33 @@ export default function ProfileScreen() {
           await Promise.all(deleteNotifPromises);
         }
       } catch (error) {
-        console.log("Pas de notifications à supprimer");
       }
 
       // 6. Supprimer les favoris de l'utilisateur
       try {
         await deleteDoc(doc(db, "userFavorites", user.uid));
       } catch (error) {
-        console.log("Pas de favoris à supprimer");
       }
 
       try {
         await deleteDoc(doc(db, "userFavoriteGames", user.uid));
       } catch (error) {
-        console.log("Pas de jeux favoris à supprimer");
       }
 
       try {
         await deleteDoc(doc(db, "userFavoriteGroups", user.uid));
       } catch (error) {
-        console.log("Pas de groupes favoris à supprimer");
       }
 
       try {
         await deleteDoc(doc(db, "userPinnedGroups", user.uid));
       } catch (error) {
-        console.log("Pas de groupes épinglés à supprimer");
       }
 
       // 7. Supprimer le document utilisateur (même s'il n'existe pas)
       try {
         await deleteDoc(userRef);
       } catch (error) {
-        console.log("Document utilisateur déjà supprimé ou inexistant");
       }
 
       // 8. Supprimer le compte d'authentification

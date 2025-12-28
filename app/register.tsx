@@ -159,7 +159,6 @@ export default function RegisterScreen() {
   }, [emailSent]);
 
   const handleRegister = async () => {
-    console.log("▶ handleRegister called");
     setError("");
     setLoading(true);
     setIsRegistering(true);
@@ -225,13 +224,11 @@ export default function RegisterScreen() {
 
     try {
       // 1. Créer le compte
-      console.log("▶ Creating auth account...");
       const userCred = await createUserWithEmailAndPassword(auth, email, password);
       createdUserId = userCred.user.uid;
 
       // 2. Vérifier username SEULEMENT pour les comptes perso
       if (accountType === 'personal') {
-        console.log("▶ Checking username...");
         const usersRef = collection(db, "users");
         const usernameQuery = query(usersRef, where("username", "==", username.trim().toLowerCase()));
         const querySnapshot = await getDocs(usernameQuery);
@@ -252,16 +249,13 @@ export default function RegisterScreen() {
       await updateProfile(userCred.user, { displayName: displayName });
 
       // 4. Envoyer email de vérification
-      console.log("▶ Sending verification email...");
       try {
         await sendEmailVerification(userCred.user);
-        console.log("✅ Email sent");
       } catch (emailError) {
         console.warn("⚠️ Email send failed:", emailError);
       }
 
       // 5. Créer le document Firestore
-      console.log("▶ Creating Firestore document...");
       const userRef = doc(db, "users", userCred.user.uid);
       
       const userData: any = {
@@ -292,7 +286,6 @@ export default function RegisterScreen() {
       }
       
       await setDoc(userRef, userData);
-      console.log("✅ User created!");
 
       // 6. Afficher message de succès
       setEmailSent(true);

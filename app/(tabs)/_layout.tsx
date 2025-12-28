@@ -37,7 +37,6 @@ export default function TabLayout() {
                 onPress={() => navigation.navigate(route.name)}
               >
                 {isFocused ? (
-                  // VERSION ACTIVE : Icône + Texte colorés (alterne violet/rose)
                   <>
                     <Icon name={tab.icon} size={22} color={iconColor} />
                     <Text style={[styles.tabLabelActive, { color: iconColor }]}>
@@ -45,7 +44,6 @@ export default function TabLayout() {
                     </Text>
                   </>
                 ) : (
-                  // VERSION INACTIVE : Icône + Texte gris
                   <>
                     <Icon name={tab.icon} size={22} color={COLORS.textSecondary} />
                     <Text style={styles.tabLabel}>{tab.label}</Text>
