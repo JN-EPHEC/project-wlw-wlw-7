@@ -28,6 +28,8 @@ import {
   requestLocationPermission,
   saveUserLocation
 } from "../../service/Location_service";
+
+// ✅ IMPORT DE L'ALGORITHME AMÉLIORÉ
 import { getPersonalizedActivities, PersonalScoredActivity } from "../../service/personalScoring";
 
 interface Activity {
@@ -148,7 +150,7 @@ export default function HomeScreen() {
     }
   };
 
-  // 🎯 CHARGER LES ACTIVITÉS PERSONNALISÉES
+  // 🎯 CHARGER LES ACTIVITÉS PERSONNALISÉES (INCHANGÉ - utilise déjà personalScoring)
   const loadPersonalizedActivities = async () => {
     if (showPersonalized) {
       setShowPersonalized(false);
@@ -167,6 +169,13 @@ export default function HomeScreen() {
         );
         return;
       }
+
+      console.log(`✅ ${personalized.length} activités personnalisées chargées`);
+      console.log("Top 3:", personalized.slice(0, 3).map(a => ({
+        title: a.title,
+        score: a.personalScore,
+        interests: a.matchedInterests
+      })));
 
       setPersonalizedActivities(personalized);
       setShowPersonalized(true);
@@ -240,6 +249,7 @@ export default function HomeScreen() {
       } as Activity));
 
       setActivities(activitiesList);
+      console.log(`📊 ${activitiesList.length} activités chargées depuis Firestore`);
     } catch (error) {
       console.error("Error loading activities:", error);
     } finally {
@@ -307,7 +317,7 @@ export default function HomeScreen() {
         filtered = activitiesWithDistance
           .filter(activity => activity.distance <= 15)
           .sort((a, b) => a.distance - b.distance); // Trier par distance croissante
-              } 
+      } 
       else if (activeFilter === "free") {
         filtered = filtered.filter(activity => activity.price === "Gratuit");
       } else if (activeFilter === "new") {
@@ -689,8 +699,7 @@ export default function HomeScreen() {
 
           {/* 🌍 BOUTON AJOUTER GPS AUX ACTIVITÉS */}
           {activities.length > 0 && !loading && !showFavorites && (
-             activities.some(act => !act.latitude || !act.longitude) && ( // ⬅️ NOUVEAU CHECK
-
+             activities.some(act => !act.latitude || !act.longitude) && (
             <TouchableOpacity 
               style={[styles.generateButton, { marginBottom: 16 }]}
               onPress={handleAddGPSToActivities}
@@ -814,7 +823,6 @@ export default function HomeScreen() {
                         <View style={styles.cardMetaItem}>
                           <Icon name="location" size={14} color={COLORS.textSecondary} />
                           <Text style={styles.cardMetaText} numberOfLines={1}>
-                            {/* 🌍 ÉTAPE 5 : AFFICHAGE DE LA DISTANCE */}
                             {activity.distance !== undefined && activity.distance < 999
                               ? `${activity.distance.toFixed(1)} km`
                               : activity.location

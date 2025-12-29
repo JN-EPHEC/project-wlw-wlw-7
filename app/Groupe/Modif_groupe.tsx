@@ -1,110 +1,230 @@
 import { LinearGradient } from "expo-linear-gradient";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useRouter } from "expo-router";
 import { doc, getDoc, updateDoc } from "firebase/firestore";
 import React, { useEffect, useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    KeyboardAvoidingView,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import Icon from "react-native-vector-icons/Ionicons";
 import { COLORS } from "../../components/Colors";
 import { auth, db } from "../../firebase_Config";
 
-const EMOJIS = ["🎳", "🎮", "🍕", "🎬", "⚽", "🎵", "🎨", "📚", "✈️", "🏖️", "🎉", "💼"];
-
-interface GroupData {
-  name: string;
-  emoji: string;
-  members: string[];
-  createdBy: string;
-}
-
-export default function EditGroupScreen() {
+export default function EditProfileScreen() {
   const router = useRouter();
-  const { id } = useLocalSearchParams();
-  const groupId = Array.isArray(id) ? id[0] : id;
 
-  const [groupName, setGroupName] = useState("");
-  const [selectedEmoji, setSelectedEmoji] = useState("🎳");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [originalData, setOriginalData] = useState<GroupData | null>(null);
+
+  // États du profil
+  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
+  const [accountType, setAccountType] = useState<"personal" | "professional">("personal");
+
+  // ✅ NOUVEAUX INTÉRÊTS - 20 OPTIONS AU LIEU DE 8
+  const interestOptions = [
+    // Culture & Art
+    "Cinéma", "Théâtre", "Musée", "Art", "Concert",
+    
+    // Sport & Aventure
+    "Sport", "Escalade", "Bowling", "Yoga", "Running",
+    
+    // Social & Soirées
+    "Sortie", "Danse", "Festival", "Karaoké",
+    
+    // Découverte & Nature
+    "Nature", "Randonnée", "Balade", 
+    
+    // Food & Boissons
+    "Restaurant", "Cuisine", "Dégustation"
+  ];
+
+  const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
+
+  const cityOptions = ["Bruxelles", "Liège", "Anvers", "Gand", "Autre"];
+  const [selectedCityOption, setSelectedCityOption] = useState<string | null>(null);
+  const [customCity, setCustomCity] = useState("");
+
+  // États PRO
+  const sectorOptions = [
+    "Tech & IT",
+    "Finance & Banque",
+    "Commerce & Retail",
+    "Santé",
+    "Éducation",
+    "Construction",
+    "Restauration & Hôtellerie",
+    "Marketing & Communication",
+    "Juridique",
+    "Autre"
+  ];
+  const [selectedSector, setSelectedSector] = useState<string | null>(null);
+  const [customSector, setCustomSector] = useState("");
+
+  const teamSizeOptions = [
+    "1-10 employés",
+    "11-50 employés",
+    "51-200 employés",
+    "201-500 employés",
+    "500+ employés"
+  ];
+  const [selectedTeamSize, setSelectedTeamSize] = useState<string | null>(null);
 
   useEffect(() => {
-    if (groupId) {
-      loadGroupData();
-    }
-  }, [groupId]);
+    loadUserProfile();
+  }, []);
 
-  const loadGroupData = async () => {
+  const loadUserProfile = async () => {
     const currentUser = auth.currentUser;
-    if (!currentUser || !groupId) return;
+    if (!currentUser) {
+      Alert.alert("Erreur", "Utilisateur non connecté");
+      router.back();
+      return;
+    }
 
     try {
-      const groupDoc = await getDoc(doc(db, "groups", groupId));
+      const userDoc = await getDoc(doc(db, "users", currentUser.uid));
       
-      if (!groupDoc.exists()) {
-        Alert.alert("Erreur", "Groupe introuvable");
+      if (!userDoc.exists()) {
+        Alert.alert("Erreur", "Profil introuvable");
         router.back();
         return;
       }
 
-      const groupData = groupDoc.data() as GroupData;
+      const userData = userDoc.data();
+      
+      setUsername(userData.username || "");
+      setEmail(userData.email || "");
+      setAccountType(userData.accountType || "personal");
 
-      if (groupData.createdBy !== currentUser.uid) {
-        Alert.alert("Erreur", "Seul le créateur peut modifier le groupe");
-        router.back();
-        return;
+      // Charger selon le type de compte
+      if (userData.accountType === "personal") {
+        setSelectedInterests(userData.interests || []);
+        
+        const userCity = userData.city || "";
+        if (cityOptions.includes(userCity)) {
+          setSelectedCityOption(userCity);
+        } else if (userCity) {
+          setSelectedCityOption("Autre");
+          setCustomCity(userCity);
+        }
+      } else {
+        // Professionnel
+        const sector = userData.businessSector || "";
+        if (sectorOptions.includes(sector)) {
+          setSelectedSector(sector);
+        } else if (sector) {
+          setSelectedSector("Autre");
+          setCustomSector(sector);
+        }
+        
+        setSelectedTeamSize(userData.teamSize || null);
       }
 
-      setOriginalData(groupData);
-      setGroupName(groupData.name);
-      setSelectedEmoji(groupData.emoji);
     } catch (error) {
-      console.error("Error loading group:", error);
-      Alert.alert("Erreur", "Impossible de charger le groupe");
+      console.error("Error loading profile:", error);
+      Alert.alert("Erreur", "Impossible de charger le profil");
       router.back();
     } finally {
       setLoading(false);
     }
   };
 
-  const saveChanges = async () => {
-    if (!groupId || !originalData) return;
+  const toggleInterest = (interest: string) => {
+    setSelectedInterests((prev) =>
+      prev.includes(interest) 
+        ? prev.filter((i) => i !== interest) 
+        : [...prev, interest]
+    );
+  };
 
-    if (!groupName.trim()) {
-      Alert.alert("Erreur", "Le nom du groupe ne peut pas être vide");
+  const saveProfile = async () => {
+    const currentUser = auth.currentUser;
+    if (!currentUser) return;
+
+    // Validation commune
+    if (!username.trim()) {
+      Alert.alert("Erreur", "Le nom d'utilisateur ne peut pas être vide");
       return;
     }
 
-    if (groupName === originalData.name && selectedEmoji === originalData.emoji) {
-      Alert.alert("Info", "Aucune modification détectée");
-      return;
+    // Validation selon le type de compte
+    if (accountType === "personal") {
+      if (selectedInterests.length < 2) {
+        Alert.alert("Info", "Sélectionne au moins 2 centres d'intérêt pour de meilleures recommandations");
+        return;
+      }
+
+      if (!selectedCityOption) {
+        Alert.alert("Info", "Choisis une ville");
+        return;
+      }
+
+      if (selectedCityOption === "Autre" && !customCity.trim()) {
+        Alert.alert("Info", "Indique ta ville");
+        return;
+      }
+    } else {
+      // Professionnel
+      if (!selectedSector) {
+        Alert.alert("Info", "Choisis un secteur d'activité");
+        return;
+      }
+
+      if (selectedSector === "Autre" && !customSector.trim()) {
+        Alert.alert("Info", "Indique ton secteur d'activité");
+        return;
+      }
+
+      if (!selectedTeamSize) {
+        Alert.alert("Info", "Choisis la taille de ton équipe");
+        return;
+      }
     }
 
     setSaving(true);
     try {
-      const groupRef = doc(db, "groups", groupId);
+      const userRef = doc(db, "users", currentUser.uid);
       
-      await updateDoc(groupRef, {
-        name: groupName.trim(),
-        emoji: selectedEmoji,
-      });
+      if (accountType === "personal") {
+        let finalCity = selectedCityOption;
+        if (selectedCityOption === "Autre") {
+          finalCity = customCity.trim();
+        }
 
-      Alert.alert("Succès", "Groupe modifié avec succès ! 🎉", [
+        await updateDoc(userRef, {
+          username: username.trim(),
+          interests: selectedInterests,
+          city: finalCity,
+        });
+      } else {
+        // Professionnel
+        let finalSector = selectedSector;
+        if (selectedSector === "Autre") {
+          finalSector = customSector.trim();
+        }
+
+        await updateDoc(userRef, {
+          username: username.trim(),
+          businessSector: finalSector,
+          teamSize: selectedTeamSize,
+        });
+      }
+
+      Alert.alert("Succès", "Profil mis à jour ! 🎉", [
         { text: "OK", onPress: () => router.back() }
       ]);
     } catch (error) {
-      console.error("Error updating group:", error);
-      Alert.alert("Erreur", "Impossible de modifier le groupe");
+      console.error("Error updating profile:", error);
+      Alert.alert("Erreur", "Impossible de mettre à jour le profil");
     } finally {
       setSaving(false);
     }
@@ -133,7 +253,11 @@ export default function EditGroupScreen() {
         style={{ flex: 1 }}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
-        <ScrollView contentContainerStyle={styles.scrollContent}>
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
           {/* HEADER */}
           <View style={styles.header}>
             <TouchableOpacity
@@ -142,67 +266,168 @@ export default function EditGroupScreen() {
             >
               <Icon name="chevron-back" size={24} color={COLORS.textPrimary} />
             </TouchableOpacity>
-            <Text style={styles.headerTitle}>Modifier le groupe</Text>
+            <Text style={styles.headerTitle}>Modifier le profil</Text>
             <View style={{ width: 40 }} />
           </View>
 
-          {/* INFO MESSAGE */}
-          <View style={styles.infoBox}>
-            <Icon name="information-circle" size={20} color={COLORS.secondary} />
-            <Text style={styles.infoText}>
-              Vous pouvez modifier le nom et l'emoji du groupe
+          {/* BADGE TYPE DE COMPTE */}
+          <View style={styles.accountBadge}>
+            <Text style={styles.accountBadgeText}>
+              Compte {accountType === "personal" ? "Personnel 🎉" : "Professionnel 💼"}
             </Text>
           </View>
 
-          {/* NOM DU GROUPE */}
+          {/* NOM D'UTILISATEUR */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Nom du groupe</Text>
+            <Text style={styles.sectionTitle}>Nom d'utilisateur</Text>
             <TextInput
               style={styles.input}
-              placeholder="Ex: Bowling 🎳"
+              placeholder="Ton nom"
               placeholderTextColor={COLORS.textSecondary}
-              value={groupName}
-              onChangeText={setGroupName}
+              value={username}
+              onChangeText={setUsername}
               maxLength={30}
             />
-            <Text style={styles.characterCount}>
-              {groupName.length}/30 caractères
+          </View>
+
+          {/* EMAIL (NON MODIFIABLE) */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Email</Text>
+            <View style={styles.inputDisabled}>
+              <Text style={styles.inputDisabledText}>{email}</Text>
+              <Icon name="lock-closed" size={16} color={COLORS.textSecondary} />
+            </View>
+            <Text style={styles.helperText}>
+              L'email ne peut pas être modifié
             </Text>
           </View>
 
-          {/* EMOJI SELECTION */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Choisir un emoji</Text>
-            <View style={styles.emojiGrid}>
-              {EMOJIS.map(emoji => (
-                <TouchableOpacity
-                  key={emoji}
-                  style={[
-                    styles.emojiButton,
-                    selectedEmoji === emoji && styles.emojiButtonSelected
-                  ]}
-                  onPress={() => setSelectedEmoji(emoji)}
-                >
-                  <Text style={styles.emojiText}>{emoji}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
+          {/* SECTION COMPTE PERSONNEL */}
+          {accountType === "personal" && (
+            <>
+              {/* INTÉRÊTS */}
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Centres d'intérêt</Text>
+                <Text style={styles.subtitle}>
+                  Choisis au moins 2 activités pour de meilleures recommandations
+                </Text>
+                
+                <View style={styles.chipsContainer}>
+                  {interestOptions.map((interest) => {
+                    const active = selectedInterests.includes(interest);
+                    return (
+                      <TouchableOpacity
+                        key={interest}
+                        onPress={() => toggleInterest(interest)}
+                        style={[styles.chip, active && styles.chipActive]}
+                      >
+                        <Text style={[styles.chipText, active && styles.chipTextActive]}>
+                          {interest}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
 
-          {/* PREVIEW */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Aperçu</Text>
-            <View style={styles.previewCard}>
-              <View style={styles.previewAvatar}>
-                <Text style={styles.previewEmoji}>{selectedEmoji}</Text>
+                {selectedInterests.length > 0 && (
+                  <Text style={styles.selectionCount}>
+                    {selectedInterests.length} intérêt{selectedInterests.length > 1 ? 's' : ''} sélectionné{selectedInterests.length > 1 ? 's' : ''}
+                  </Text>
+                )}
               </View>
-              <Text style={styles.previewName}>{groupName || "Nom du groupe"}</Text>
-            </View>
-          </View>
+
+              {/* VILLE */}
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Ville</Text>
+                <View style={styles.chipsContainer}>
+                  {cityOptions.map((city) => {
+                    const active = selectedCityOption === city;
+                    return (
+                      <TouchableOpacity
+                        key={city}
+                        onPress={() => setSelectedCityOption(city)}
+                        style={[styles.chip, active && styles.chipActive]}
+                      >
+                        <Text style={[styles.chipText, active && styles.chipTextActive]}>
+                          {city}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+
+                {selectedCityOption === "Autre" && (
+                  <TextInput
+                    style={[styles.input, { marginTop: 12 }]}
+                    placeholder="Ex : Namur"
+                    placeholderTextColor={COLORS.textSecondary}
+                    value={customCity}
+                    onChangeText={setCustomCity}
+                  />
+                )}
+              </View>
+            </>
+          )}
+
+          {/* SECTION COMPTE PROFESSIONNEL */}
+          {accountType === "professional" && (
+            <>
+              {/* SECTEUR */}
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Secteur d'activité</Text>
+                <View style={styles.chipsContainer}>
+                  {sectorOptions.map((sector) => {
+                    const active = selectedSector === sector;
+                    return (
+                      <TouchableOpacity
+                        key={sector}
+                        onPress={() => setSelectedSector(sector)}
+                        style={[styles.chip, active && styles.chipActive]}
+                      >
+                        <Text style={[styles.chipText, active && styles.chipTextActive]}>
+                          {sector}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+
+                {selectedSector === "Autre" && (
+                  <TextInput
+                    style={[styles.input, { marginTop: 12 }]}
+                    placeholder="Ex : Énergie, Transport..."
+                    placeholderTextColor={COLORS.textSecondary}
+                    value={customSector}
+                    onChangeText={setCustomSector}
+                  />
+                )}
+              </View>
+
+              {/* TAILLE DE L'ÉQUIPE */}
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Taille de l'équipe</Text>
+                <View style={styles.chipsContainer}>
+                  {teamSizeOptions.map((size) => {
+                    const active = selectedTeamSize === size;
+                    return (
+                      <TouchableOpacity
+                        key={size}
+                        onPress={() => setSelectedTeamSize(size)}
+                        style={[styles.chip, active && styles.chipActive]}
+                      >
+                        <Text style={[styles.chipText, active && styles.chipTextActive]}>
+                          {size}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </View>
+            </>
+          )}
 
           {/* BOUTONS */}
           <View style={styles.buttonsContainer}>
-            {/* Bouton Annuler */}
             <TouchableOpacity
               style={styles.cancelButton}
               onPress={() => router.back()}
@@ -211,10 +436,9 @@ export default function EditGroupScreen() {
               <Text style={styles.cancelButtonText}>Annuler</Text>
             </TouchableOpacity>
 
-            {/* Bouton Enregistrer */}
             <TouchableOpacity
               style={styles.saveButtonWrapper}
-              onPress={saveChanges}
+              onPress={saveProfile}
               disabled={saving}
             >
               <LinearGradient
@@ -259,6 +483,7 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: 16,
     fontSize: 16,
+    fontFamily: "Poppins-Regular",
     color: COLORS.textSecondary,
   },
   header: {
@@ -279,99 +504,103 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: 20,
-    fontWeight: "700",
+    fontFamily: "Poppins-Bold",
     color: COLORS.textPrimary,
   },
-  infoBox: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    backgroundColor: "rgba(124, 58, 237, 0.1)",
-    borderRadius: 12,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: COLORS.secondary,
+  accountBadge: {
+    alignSelf: "center",
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    backgroundColor: COLORS.primary,
     marginBottom: 24,
   },
-  infoText: {
-    flex: 1,
-    fontSize: 14,
-    color: COLORS.textSecondary,
-    lineHeight: 20,
+  accountBadgeText: {
+    fontSize: 13,
+    fontFamily: "Poppins-SemiBold",
+    color: COLORS.textPrimary,
   },
   section: {
-    marginBottom: 32,
+    marginBottom: 28,
   },
   sectionTitle: {
     fontSize: 16,
-    fontWeight: "600",
+    fontFamily: "Poppins-SemiBold",
     color: COLORS.textPrimary,
     marginBottom: 12,
+  },
+  subtitle: {
+    fontSize: 13,
+    fontFamily: "Poppins-Regular",
+    color: COLORS.textSecondary,
+    marginBottom: 16,
   },
   input: {
     width: "100%",
     height: 52,
-    borderRadius: 16,
+    borderRadius: 14,
     paddingHorizontal: 16,
     backgroundColor: COLORS.neutralGray800,
     borderWidth: 1,
     borderColor: COLORS.border,
     color: COLORS.textPrimary,
-    fontSize: 16,
+    fontSize: 15,
+    fontFamily: "Poppins-Regular",
   },
-  characterCount: {
+  inputDisabled: {
+    width: "100%",
+    height: 52,
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    backgroundColor: COLORS.neutralGray800,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  inputDisabledText: {
+    color: COLORS.textSecondary,
+    fontSize: 15,
+    fontFamily: "Poppins-Regular",
+  },
+  helperText: {
     fontSize: 12,
+    fontFamily: "Poppins-Regular",
     color: COLORS.textSecondary,
     marginTop: 8,
-    textAlign: "right",
   },
-  emojiGrid: {
+  chipsContainer: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 12,
+    gap: 10,
   },
-  emojiButton: {
-    width: 56,
-    height: 56,
-    borderRadius: 12,
+  chip: {
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 999,
     backgroundColor: COLORS.neutralGray800,
-    borderWidth: 2,
-    borderColor: COLORS.border,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  emojiButtonSelected: {
-    borderColor: COLORS.secondary,
-    backgroundColor: COLORS.primary,
-  },
-  emojiText: {
-    fontSize: 28,
-  },
-  previewCard: {
-    backgroundColor: COLORS.neutralGray800,
-    borderRadius: 20,
-    padding: 24,
-    alignItems: "center",
     borderWidth: 1,
     borderColor: COLORS.border,
   },
-  previewAvatar: {
-    width: 80,
-    height: 80,
-    borderRadius: 20,
+  chipActive: {
     backgroundColor: COLORS.primary,
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 12,
+    borderColor: COLORS.primary,
   },
-  previewEmoji: {
-    fontSize: 40,
+  chipText: {
+    fontFamily: "Poppins-Regular",
+    fontSize: 13,
+    color: COLORS.textSecondary,
   },
-  previewName: {
-    fontSize: 20,
-    fontWeight: "700",
+  chipTextActive: {
     color: COLORS.textPrimary,
-    textAlign: "center",
+    fontFamily: "Poppins-SemiBold",
+  },
+  selectionCount: {
+    fontFamily: "Poppins-Regular",
+    fontSize: 12,
+    color: COLORS.primary,
+    marginTop: 12,
   },
   buttonsContainer: {
     flexDirection: "row",
@@ -390,7 +619,7 @@ const styles = StyleSheet.create({
   },
   cancelButtonText: {
     fontSize: 16,
-    fontWeight: "600",
+    fontFamily: "Poppins-SemiBold",
     color: COLORS.textPrimary,
   },
   saveButtonWrapper: {
@@ -410,7 +639,7 @@ const styles = StyleSheet.create({
   },
   saveButtonText: {
     fontSize: 16,
+    fontFamily: "Poppins-SemiBold",
     color: COLORS.textPrimary,
-    fontWeight: "600",
   },
 });
