@@ -1,3 +1,6 @@
+// SurveyScreenImproved.tsx
+// Version améliorée avec PLUS D'INTÉRÊTS pour un meilleur matching
+
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { doc, getDoc, updateDoc } from "firebase/firestore";
@@ -18,22 +21,38 @@ import {
 import { COLORS } from "../components/Colors";
 import { auth, db } from "../firebase_Config";
 
-export default function SurveyScreen() {
+export default function SurveyScreenImproved() {
   const router = useRouter();
 
   const [step, setStep] = useState<1 | 2>(1);
   const [loading, setLoading] = useState(true);
   const [accountType, setAccountType] = useState<"personal" | "professional" | null>(null);
 
-  // ========== QUESTIONS PERSO ==========
-  const interestOptions = ["Cinéma", "Théâtre", "Sport", "Musée", "Sortie", "Bowling", "Restaurant", "Concert"];
+  // ========== INTÉRÊTS ENRICHIS - 20 OPTIONS AU LIEU DE 8 ! ==========
+  const interestOptions = [
+    // Culture & Art
+    "Cinéma", "Théâtre", "Musée", "Art", "Concert",
+    
+    // Sport & Aventure
+    "Sport", "Escalade", "Bowling", "Yoga", "Running",
+    
+    // Social & Soirées
+    "Sortie", "Danse", "Festival", "Karaoké",
+    
+    // Découverte & Nature
+    "Nature", "Randonnée", "Balade", 
+    
+    // Food & Boissons
+    "Restaurant", "Cuisine", "Dégustation"
+  ];
+  
   const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
 
   const cityOptions = ["Bruxelles", "Liège", "Anvers", "Gand", "Autre"];
   const [selectedCityOption, setSelectedCityOption] = useState<string | null>(null);
   const [customCity, setCustomCity] = useState("");
 
-  // ========== QUESTIONS PRO ==========
+  // ========== QUESTIONS PRO (identiques) ==========
   const sectorOptions = [
     "Tech & IT",
     "Finance & Banque",
@@ -99,9 +118,9 @@ export default function SurveyScreen() {
     // STEP 1 → STEP 2
     if (step === 1) {
       if (accountType === 'personal') {
-        // Vérifier les centres d'intérêt
-        if (selectedInterests.length === 0) {
-          Alert.alert("Info", "Sélectionne au moins un centre d'intérêt.");
+        // Vérifier les centres d'intérêt (minimum 2 pour de meilleurs résultats)
+        if (selectedInterests.length < 2) {
+          Alert.alert("Info", "Sélectionne au moins 2 centres d'intérêt pour de meilleures recommandations.");
           return;
         }
       } else {
@@ -157,7 +176,6 @@ export default function SurveyScreen() {
 
         } else {
           // Professionnel
-          // Valider la taille d'équipe
           if (!selectedTeamSize) {
             Alert.alert("Info", "Choisis la taille de ton équipe.");
             return;
@@ -168,14 +186,12 @@ export default function SurveyScreen() {
             finalSector = customSector.trim();
           }
 
-          // Sauvegarder pour pro
           await updateDoc(userRef, {
             surveyCompleted: true,
             businessSector: finalSector,
             teamSize: selectedTeamSize,
           });
 
-          // Redirection vers Work in Progress
           router.replace("/work_in_progress");
         }
       } catch (e: any) {
@@ -206,7 +222,7 @@ export default function SurveyScreen() {
     <View>
       <Text style={styles.title}>Qu'est-ce qui t'intéresse ? 🎯</Text>
       <Text style={styles.subtitle}>
-        Dis-nous ce que tu veux faire. On te proposera les meilleures idées autour de toi.
+        Choisis au moins 2 activités. Plus tu en sélectionnes, meilleures seront nos recommandations !
       </Text>
 
       <View style={styles.chipsContainer}>
@@ -225,6 +241,12 @@ export default function SurveyScreen() {
           );
         })}
       </View>
+
+      {selectedInterests.length > 0 && (
+        <Text style={styles.selectionCount}>
+          {selectedInterests.length} intérêt{selectedInterests.length > 1 ? 's' : ''} sélectionné{selectedInterests.length > 1 ? 's' : ''}
+        </Text>
+      )}
     </View>
   );
 
@@ -267,7 +289,7 @@ export default function SurveyScreen() {
     </View>
   );
 
-  // ========== RENDU POUR COMPTES PRO ==========
+  // ========== RENDU POUR COMPTES PRO (identique) ==========
 
   const renderProfessionalStep1 = () => (
     <View>
@@ -464,6 +486,16 @@ const styles = StyleSheet.create({
   chipTextActive: {
     color: COLORS.textPrimary,
     fontFamily: "Poppins-SemiBold",
+  },
+
+  // Compteur de sélection
+  selectionCount: {
+    fontFamily: "Poppins-Regular",
+    fontSize: 12,
+    color: COLORS.primary,
+    textAlign: "center",
+    marginTop: -16,
+    marginBottom: 16,
   },
 
   // Input
