@@ -20,14 +20,11 @@ import Icon from "react-native-vector-icons/Ionicons";
 import { COLORS } from "../../components/Colors";
 import { auth, db } from "../../firebase_Config";
 
-// ========== LIENS STRIPE MODE TEST (optionnel) ==========
-// Si tu veux activer Stripe, remplace par tes vrais liens
 const STRIPE_PAYMENT_LINKS = {
-  monthly: "https://buy.stripe.com/test_8x214pb2466Vgul9W2eME00", // TON LIEN MENSUEL
-  yearly: "https://buy.stripe.com/test_7sY4gB1ru8f36TLd8eeME01",  // TON LIEN ANNUEL
+  monthly: "https://buy.stripe.com/test_8x214pb2466Vgul9W2eME00", 
+  yearly: "https://buy.stripe.com/test_7sY4gB1ru8f36TLd8eeME01",  
 };
-const STRIPE_CONFIGURED = true; // Change en true quand tu as configuré Stripe
-// =========================================================
+const STRIPE_CONFIGURED = true; 
 
 export default function FakePaymentScreen() {
   const router = useRouter();
