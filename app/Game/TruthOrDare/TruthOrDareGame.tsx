@@ -155,24 +155,24 @@ const DARES_SPICY = [
 
 // ==================== VERSION JURY 👨‍⚖️ ====================
 const TRUTHS_JURY: string[] = [
-  "Qu'est ce que What2Do ?",
-  "Quel est la problématique à l'origine de cette idée ?",
-  "Quel est votre vision ?",
+  "Qu'est-ce que What2Do ?",
+  "Quelle est la problématique à l'origine de cette idée ?",
+  "Quelle est votre vision ?",
   "C'est quoi le périmètre visé ?",
-  "Vous planifier de recolleter comment les données ?",
-  "Parlons chiffre, qu'est ce que renvoie l'analyse ?",
+  "Vous planifiez de récolter comment les données ?",
+  "Parlons chiffre, qu'est-ce que renvoie l'analyse ?",
   "Et en regardant plus loin, c'est quoi le plan ?",
   "C'est quoi la réalité du terrain ?",
   "Qui sera affecté par le lancement de what2Do",
-  "A quel donné vous compter faire attention ?",
+  "À quelle donnée vous comptez faire attention ?",
 ];
 
 const DARES_JURY: string[] = [
   "Créez un compte",
-  "Choisissez une activité intéressante et mettez la en favorite",
+  "Choisissez une activité intéressante et mettez-la en favori",
   "Activez le filtre « près de vous »",
   "Ajoutez-vous en ami",
-  "Modifier votre profil",
+  "Modifiez votre profil",
   "Créez un groupe avec votre tout nouvel ami",
   "L'un de vous lance un sondage",
   "Répondez à ce même sondage",
