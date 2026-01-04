@@ -15,7 +15,7 @@ import {
 } from "react-native";
 import Icon from "react-native-vector-icons/Ionicons";
 import { auth, db } from "../firebase_Config";
-import { suggestActivitiesForGroup } from "../service/activityMatching";
+import { suggestActivitiesForGroupImproved } from "../service/activityMatching";
 import { COLORS } from "./Colors";
 
 interface Activity {
@@ -66,7 +66,7 @@ export default function RecommendationsModal({
   const loadRecommendations = async () => {
     setLoading(true);
     try {
-      const results = await suggestActivitiesForGroup(groupId);
+      const results = await suggestActivitiesForGroupImproved(groupId);
       setRecommendations(results);
       
       if (results.length === 0) {

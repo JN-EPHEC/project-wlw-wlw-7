@@ -23,7 +23,7 @@ export const filterActivitiesByDistance = (
   activities: Activity[],
   userLat: number,
   userLon: number,
-  maxDistance: number = 50
+  maxDistance: number = 10
 ): Array<Activity & { distance: number }> => {
   // Calculer la distance pour chaque activité
   const activitiesWithDistance = activities.map((activity) => {
