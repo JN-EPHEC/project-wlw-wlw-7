@@ -155,16 +155,14 @@ const DARES_SPICY = [
 
 // ==================== VERSION JURY 👨‍⚖️ ====================
 const TRUTHS_JURY: string[] = [
-  "Qu'est-ce que What2Do ?",
   "Quelle est la problématique à l'origine de cette idée ?",
-  "Quelle est votre vision ?",
-  "C'est quoi le périmètre visé ?",
-  "Vous planifiez de récolter comment les données ?",
-  "Parlons chiffre, qu'est-ce que renvoie l'analyse ?",
-  "Et en regardant plus loin, c'est quoi le plan ?",
-  "C'est quoi la réalité du terrain ?",
-  "Qui sera affecté par le lancement de what2Do",
-  "À quelle donnée vous comptez faire attention ?",
+  "En quoi les outils actuels ne répondent-ils pas réellement aux attentes des utilisateurs ?",
+  "Si vous deviez expliquer What2Do, que diriez-vous ?",
+  "Quelle est l'ambition profonde de What2Do ?",
+  "Quelles fonctionnalités sont absolument indispensables de la première version ?",
+  "Ce projet est-il réellement viable financièrement ?",
+  "Comment comptez-vous faire connaître What2Do efficacement ?",
+  "Où voyez-vous What2Do dans quelques années ?",
 ];
 
 const DARES_JURY: string[] = [
