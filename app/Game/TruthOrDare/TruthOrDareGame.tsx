@@ -154,10 +154,29 @@ const DARES_SPICY = [
 ];
 
 // ==================== VERSION JURY 👨‍⚖️ ====================
-// À remplir par vous-même pour la présentation
-const TRUTHS_JURY: string[] = [];
+const TRUTHS_JURY: string[] = [
+  "Quelle est la problématique à l'origine de cette idée ?",
+  "En quoi les outils actuels ne répondent-ils pas réellement aux attentes des utilisateurs ?",
+  "Si vous deviez expliquer What2Do, que diriez-vous ?",
+  "Quelle est l'ambition profonde de What2Do ?",
+  "Quelles fonctionnalités sont absolument indispensables de la première version ?",
+  "Ce projet est-il réellement viable financièrement ?",
+  "Comment comptez-vous faire connaître What2Do efficacement ?",
+  "Où voyez-vous What2Do dans quelques années ?",
+];
 
-const DARES_JURY: string[] = [];
+const DARES_JURY: string[] = [
+  "Créez un compte",
+  "Choisissez une activité intéressante et mettez-la en favori",
+  "Activez le filtre « près de vous »",
+  "Ajoutez-vous en ami",
+  "Modifiez votre profil",
+  "Créez un groupe avec votre tout nouvel ami",
+  "L'un de vous lance un sondage",
+  "Répondez à ce même sondage",
+  "Passez en compte premium",
+  "Lancez votre propre partie d'action ou vérité !",
+];
 
 export default function TruthOrDareGame() {
   const router = useRouter();
@@ -167,6 +186,8 @@ export default function TruthOrDareGame() {
   const [game, setGame] = useState<Game | null>(null);
   const [loading, setLoading] = useState(true);
   const [choosing, setChoosing] = useState(false);
+  const [juryTruthIndex, setJuryTruthIndex] = useState(0);
+  const [juryDareIndex, setJuryDareIndex] = useState(0);
 
   // Écouter les changements de la partie
   useEffect(() => {
@@ -203,7 +224,7 @@ export default function TruthOrDareGame() {
         case "spicy":
           return TRUTHS_SPICY;
         case "jury":
-          return TRUTHS_JURY.length > 0 ? TRUTHS_JURY : TRUTHS_BASE;
+          return TRUTHS_JURY;
         default:
           return TRUTHS_BASE;
       }
@@ -212,7 +233,7 @@ export default function TruthOrDareGame() {
         case "spicy":
           return DARES_SPICY;
         case "jury":
-          return DARES_JURY.length > 0 ? DARES_JURY : DARES_BASE;
+          return DARES_JURY;
         default:
           return DARES_BASE;
       }
@@ -237,14 +258,27 @@ export default function TruthOrDareGame() {
       return;
     }
 
-    const randomChallenge =
-      challenges[Math.floor(Math.random() * challenges.length)];
+    let selectedChallenge: string;
+
+    if (game.gameType === "jury") {
+      // Pour la version JURY : sélection séquentielle
+      if (type === "truth") {
+        selectedChallenge = challenges[juryTruthIndex % challenges.length];
+        setJuryTruthIndex(juryTruthIndex + 1);
+      } else {
+        selectedChallenge = challenges[juryDareIndex % challenges.length];
+        setJuryDareIndex(juryDareIndex + 1);
+      }
+    } else {
+      // Pour les autres versions : sélection aléatoire
+      selectedChallenge = challenges[Math.floor(Math.random() * challenges.length)];
+    }
 
     try {
       await updateDoc(doc(db, "truthOrDareGames", gameId), {
         currentChallenge: {
           type,
-          text: randomChallenge,
+          text: selectedChallenge,
           assignedTo: currentPlayer.oderId,
         },
       });
