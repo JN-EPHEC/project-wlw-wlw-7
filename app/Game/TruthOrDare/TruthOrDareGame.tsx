@@ -160,9 +160,10 @@ const TRUTHS_JURY: string[] = [
   "Si vous deviez expliquer What2Do, que diriez-vous ?",
   "Quelle est l'ambition profonde de What2Do ?",
   "Quelles fonctionnalités sont absolument indispensables de la première version ?",
-  "Ce projet est-il réellement viable financièrement ?",
-  "Comment comptez-vous faire connaître What2Do efficacement ?",
   "Où voyez-vous What2Do dans quelques années ?",
+  "Comment comptez-vous faire connaître What2Do efficacement ?",
+  "Ce projet est-il réellement viable financièrement ?",
+  "Comment allez-vous vérifier que vos objectifs sont atteints ?",
 ];
 
 const DARES_JURY: string[] = [
