@@ -172,10 +172,8 @@ const DARES_JURY: string[] = [
   "Ajoutez-vous en ami",
   "Modifiez votre profil",
   "Créez un groupe avec votre tout nouvel ami",
-  "L'un de vous lance un sondage",
-  "Répondez à ce même sondage",
+  "Répondez au sondage créé par le groupe",
   "Passez en compte premium",
-  "Lancez votre propre partie d'action ou vérité !",
 ];
 
 export default function TruthOrDareGame() {
